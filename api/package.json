@@ -6,6 +6,7 @@
     "start": "node dist/index.js",
     "dev": "nodemon --ignore 'src/apps/**' --exec ts-node src/index.ts",
     "build": "tsc",
+    "build:prod": "npm run build && npm prune --production",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -14,12 +15,16 @@
   "description": "",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.56.0",
+    "@aws-sdk/client-s3": "^3.848.0",
+    "@aws-sdk/client-sqs": "^3.848.0",
     "dotenv": "^17.2.0",
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.3",
     "@types/node": "^24.0.13",
+    "@types/uuid": "^10.0.0",
     "nodemon": "^3.1.10",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"

@@ -1,0 +1,18 @@
+# Test API endpoints for Husky AI
+
+### Health Check
+GET http://localhost:3000/health
+
+### Home endpoint
+GET http://localhost:3000/
+
+### Submit a job
+POST http://localhost:3000/prompt
+Content-Type: application/json
+
+{
+  "prompt": "Create a simple React app with a button that shows an alert when clicked"
+}
+
+### Check job status (replace with actual job ID)
+GET http://localhost:3000/status/550e8400-e29b-41d4-a716-446655440000
