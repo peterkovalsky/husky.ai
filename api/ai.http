@@ -1,0 +1,123 @@
+### Test basic endpoint
+GET http://localhost:3000/
+Content-Type: application/json
+
+###
+
+### Test 1: Add a simple button component
+POST http://localhost:3000/prompt
+Content-Type: application/json
+
+{
+  "prompt": "Add a red button with text 'Click Me' to the App component"
+}
+
+###
+
+### Test 2: Change the theme to dark mode
+POST http://localhost:3000/prompt
+Content-Type: application/json
+
+{
+  "prompt": "Change the entire app to use a dark theme with dark backgrounds and light text"
+}
+
+###
+
+### Test 3: Add a todo list component
+POST http://localhost:3000/prompt
+Content-Type: application/json
+
+{
+  "prompt": "Create a todo list component with add, delete, and mark as complete functionality. Include it in the main App component."
+}
+
+###
+
+### Test 4: Add routing with React Router
+POST http://localhost:3000/prompt
+Content-Type: application/json
+
+{
+  "prompt": "Add React Router to the app with a Home page and About page. Create navigation between them."
+}
+
+###
+
+### Test 5: Delete a specific file
+POST http://localhost:3000/prompt
+Content-Type: application/json
+
+{
+  "prompt": "Remove the App.css file completely and update App.tsx to not import it"
+}
+
+###
+
+### Test 6: Add a contact form
+POST http://localhost:3000/prompt
+Content-Type: application/json
+
+{
+  "prompt": "Create a contact form with name, email, and message fields. Add proper form validation and styling."
+}
+
+###
+
+### Test 7: Add state management
+POST http://localhost:3000/prompt
+Content-Type: application/json
+
+{
+  "prompt": "Add a simple counter component with increment and decrement buttons. Use React hooks for state management."
+}
+
+###
+
+### Test 8: Modify existing component styling
+POST http://localhost:3000/prompt
+Content-Type: application/json
+
+{
+  "prompt": "Make the existing counter button larger and add a border radius of 10px"
+}
+
+###
+
+### Test 9: Add a new CSS file
+POST http://localhost:3000/prompt
+Content-Type: application/json
+
+{
+  "prompt": "Create a new components.css file with reusable button styles and import it in App.tsx"
+}
+
+###
+
+### Test 10: Invalid request (missing prompt)
+POST http://localhost:3000/prompt
+Content-Type: application/json
+
+{
+  "invalidField": "This should fail"
+}
+
+###
+
+### Test 11: Invalid request (empty prompt)
+POST http://localhost:3000/prompt
+Content-Type: application/json
+
+{
+  "prompt": ""
+}
+
+###
+
+### Test 12: Complex layout change
+POST http://localhost:3000/prompt
+Content-Type: application/json
+
+{
+  "prompt": "Restructure the app layout to have a header, sidebar, and main content area. Use CSS flexbox for the layout."
+}
