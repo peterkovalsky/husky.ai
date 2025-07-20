@@ -10,7 +10,7 @@ import { S3Service } from './services/S3Service';
 import { JobProcessor } from './services/JobProcessor';
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 3333;
 
 // Initialize services
 const aiService = new AnthropicService();

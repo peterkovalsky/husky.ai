@@ -192,4 +192,7 @@ out/
 tmp/
 temp/
 
+# Generated apps
+apps/
+
 .DS_Store

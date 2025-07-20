@@ -68,9 +68,7 @@ export class S3Service {
         Bucket: this.bucketName,
         Key: s3Key,
         Body: fileContent,
-        ContentType: mimeType,
-        // Make files publicly readable
-        ACL: 'public-read'
+        ContentType: mimeType
       });
 
       await this.client.send(command);
@@ -93,14 +91,15 @@ export class S3Service {
       
       if (fileStat.isDirectory()) {
         // Recursively upload subdirectory
+        const newPrefix = s3Prefix ? `${s3Prefix}/${file}` : file;
         await this.uploadDirectoryRecursive(
           localPath, 
-          `${s3Prefix}/${file}`, 
+          newPrefix, 
           uploadedFiles
         );
       } else {
         // Upload file
-        const s3Key = `${s3Prefix}/${file}`;
+        const s3Key = s3Prefix ? `${s3Prefix}/${file}` : file;
         await this.uploadFile(localPath, s3Key);
         uploadedFiles.push(s3Key);
       }
@@ -118,14 +117,14 @@ export class S3Service {
         };
       }
 
-      const s3Prefix = `apps/${jobId}`;
+      // Upload to root of bucket (no prefix)
       const uploadedFiles: string[] = [];
 
-      // Upload all files from the dist directory
-      await this.uploadDirectoryRecursive(distPath, s3Prefix, uploadedFiles);
+      // Upload all files from the dist directory to bucket root
+      await this.uploadDirectoryRecursive(distPath, '', uploadedFiles);
 
-      // Generate preview URL
-      const previewUrl = `https://${this.bucketName}.s3.${this.bucketRegion}.amazonaws.com/${s3Prefix}/index.html`;
+      // Generate S3 static website URL
+      const previewUrl = `http://${this.bucketName}.s3-website-${this.bucketRegion}.amazonaws.com`;
 
       return {
         success: true,
@@ -143,10 +142,9 @@ export class S3Service {
 
   async listAppFiles(jobId: string): Promise<string[]> {
     try {
-      const prefix = `apps/${jobId}`;
+      // List all files in bucket since we upload to root
       const command = new ListObjectsV2Command({
-        Bucket: this.bucketName,
-        Prefix: prefix
+        Bucket: this.bucketName
       });
 
       const response = await this.client.send(command);
@@ -158,6 +156,6 @@ export class S3Service {
   }
 
   generatePreviewUrl(jobId: string): string {
-    return `https://${this.bucketName}.s3.${this.bucketRegion}.amazonaws.com/apps/${jobId}/index.html`;
+    return `http://${this.bucketName}.s3-website-${this.bucketRegion}.amazonaws.com`;
   }
 }

@@ -19,17 +19,28 @@ export interface ApiError {
   details?: string;
 }
 
+import { supabase } from '../lib/supabase';
+
 const API_BASE_URL = '/api';
 
 export class ApiService {
+  private static async getAuthHeaders(): Promise<Record<string, string>> {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token 
+      ? { 'Authorization': `Bearer ${session.access_token}` }
+      : {};
+  }
+
   private static async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
     try {
+      const authHeaders = await this.getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         headers: {
           'Content-Type': 'application/json',
+          ...authHeaders,
           ...options.headers,
         },
         ...options,
@@ -67,8 +78,6 @@ export class ApiService {
     onUpdate: (status: JobStatus) => void,
     onError: (error: Error) => void
   ): Promise<() => void> {
-    let intervalId: ReturnType<typeof setInterval>;
-
     const poll = async () => {
       try {
         const status = await this.getJobStatus(jobId);
@@ -88,7 +97,7 @@ export class ApiService {
     await poll();
 
     // Set up interval for polling every 10 seconds
-    intervalId = setInterval(poll, 10000);
+    const intervalId = setInterval(poll, 10000);
 
     // Return cleanup function
     return () => clearInterval(intervalId);
