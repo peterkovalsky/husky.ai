@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { ApiService, type JobStatus } from '../services/api'
 import { LoadingSpinner } from './LoadingSpinner'
 import { useAuth } from '../hooks/useAuth'
+import { useProject } from '../contexts/ProjectContext'
 
 type AppState = 'initial' | 'submitted' | 'loading' | 'ready' | 'error'
 
@@ -15,6 +16,7 @@ export const Dashboard = () => {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const pollCleanupRef = useRef<(() => void) | null>(null)
   const { user, signOut } = useAuth()
+  const { currentProject } = useProject()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -25,12 +27,12 @@ export const Dashboard = () => {
     setError(null)
 
     try {
-      const response = await ApiService.submitPrompt(prompt.trim())
-      setJobId(response.jobId)
+      const response = await ApiService.submitPrompt(prompt.trim(), currentProject?.id)
+      setJobId(response.promptId || response.jobId)
       setAppState('submitted')
       
       const cleanup = await ApiService.pollJobStatus(
-        response.jobId,
+        response.promptId || response.jobId,
         (status) => {
           setJobStatus(status)
           if (status.status === 'READY' && status.previewUrl) {

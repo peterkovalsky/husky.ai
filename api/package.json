@@ -5,6 +5,7 @@
   "scripts": {
     "start": "node dist/index.js",
     "dev": "nodemon --ignore 'src/apps/**' --exec ts-node src/index.ts",
+    "dev:debug": "nodemon --ignore 'src/apps/**' --exec ts-node --inspect=9229 src/index.ts",
     "build": "tsc",
     "build:prod": "npm run build && npm prune --production",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -17,6 +18,9 @@
     "@anthropic-ai/sdk": "^0.56.0",
     "@aws-sdk/client-s3": "^3.848.0",
     "@aws-sdk/client-sqs": "^3.848.0",
+    "@supabase/supabase-js": "^2.52.0",
+    "@types/cors": "^2.8.19",
+    "cors": "^2.8.5",
     "dotenv": "^17.2.0",
     "express": "^5.1.0",
     "uuid": "^11.1.0"

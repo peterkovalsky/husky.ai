@@ -1,5 +1,5 @@
 interface LoadingSpinnerProps {
-  status?: 'QUEUED' | 'PROCESSING' | 'BUILDING' | 'READY';
+  status?: 'QUEUED' | 'PROCESSING' | 'BUILDING' | 'READY' | 'FAILED';
 }
 
 export function LoadingSpinner({ status = 'QUEUED' }: LoadingSpinnerProps) {

@@ -6,6 +6,7 @@ import { Dashboard } from './components/Dashboard'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { ConfigurationNotice } from './components/ConfigurationNotice'
 import { useAuth } from './hooks/useAuth'
+import { ProjectProvider } from './contexts/ProjectContext'
 
 function App() {
   const { user, loading } = useAuth()
@@ -62,7 +63,9 @@ function App() {
         path="/" 
         element={
           <ProtectedRoute>
-            <Dashboard />
+            <ProjectProvider>
+              <Dashboard />
+            </ProjectProvider>
           </ProtectedRoute>
         } 
       />

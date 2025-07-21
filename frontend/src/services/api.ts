@@ -1,17 +1,47 @@
 export interface JobStatus {
   jobId: string;
-  status: 'QUEUED' | 'PROCESSING' | 'BUILDING' | 'READY';
+  promptId?: string;
+  status: 'QUEUED' | 'PROCESSING' | 'BUILDING' | 'READY' | 'FAILED';
   createdAt: string;
   updatedAt: string;
   previewUrl?: string;
   errorMessage?: string;
+  projectId?: string;
+  prompt?: string;
 }
 
 export interface PromptResponse {
   message: string;
   jobId: string;
+  promptId?: string;
   status: string;
   timestamp: string;
+  projectId?: string;
+}
+
+export interface Workspace {
+  id: string;
+  name: string;
+  created_at: string;
+  modified_at: string;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  workspace_id: string;
+  created_at: string;
+  modified_at: string;
+}
+
+export interface Prompt {
+  id: string;
+  prompt: string;
+  status: 'QUEUED' | 'PROCESSING' | 'BUILDING' | 'READY' | 'FAILED';
+  project_id: string;
+  user_id: string;
+  created_at: string;
+  modified_at: string;
 }
 
 export interface ApiError {
@@ -19,9 +49,16 @@ export interface ApiError {
   details?: string;
 }
 
+export interface UserSetupResponse {
+  status: 'existing' | 'created';
+  message: string;
+  workspace?: Workspace;
+  project?: Project;
+}
+
 import { supabase } from '../lib/supabase';
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3333';
 
 export class ApiService {
   private static async getAuthHeaders(): Promise<Record<string, string>> {
@@ -62,15 +99,33 @@ export class ApiService {
     }
   }
 
-  static async submitPrompt(prompt: string): Promise<PromptResponse> {
-    return this.request<PromptResponse>('/prompt', {
+  static async submitPrompt(prompt: string, projectId?: string): Promise<PromptResponse> {
+    return this.request<PromptResponse>('/api/prompt', {
       method: 'POST',
-      body: JSON.stringify({ prompt }),
+      body: JSON.stringify({ prompt, project_id: projectId }),
     });
   }
 
   static async getJobStatus(jobId: string): Promise<JobStatus> {
-    return this.request<JobStatus>(`/status/${jobId}`);
+    return this.request<JobStatus>(`/api/status/${jobId}`);
+  }
+
+  static async getWorkspaces(): Promise<{ workspaces: Workspace[] }> {
+    return this.request<{ workspaces: Workspace[] }>('/api/workspaces');
+  }
+
+  static async getProjects(workspaceId: string): Promise<{ projects: Project[] }> {
+    return this.request<{ projects: Project[] }>(`/api/projects/${workspaceId}`);
+  }
+
+  static async getPrompts(projectId: string): Promise<{ prompts: Prompt[] }> {
+    return this.request<{ prompts: Prompt[] }>(`/api/prompts/${projectId}`);
+  }
+
+  static async setupUser(): Promise<UserSetupResponse> {
+    return this.request<UserSetupResponse>('/api/user/setup', {
+      method: 'POST',
+    });
   }
 
   static async pollJobStatus(

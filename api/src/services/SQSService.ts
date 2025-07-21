@@ -4,6 +4,9 @@ export interface JobMessage {
   jobId: string;
   prompt: string;
   timestamp: string;
+  promptId?: string; // New field for database integration
+  projectId?: string; // Project context
+  userId?: string; // User context
 }
 
 export class SQSService {
