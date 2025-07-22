@@ -56,6 +56,7 @@ export interface UserSetupResponse {
   project?: Project;
 }
 
+
 import { supabase } from '../lib/supabase';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3333';
@@ -106,6 +107,7 @@ export class ApiService {
     });
   }
 
+
   static async getJobStatus(jobId: string): Promise<JobStatus> {
     return this.request<JobStatus>(`/api/status/${jobId}`);
   }
@@ -139,7 +141,7 @@ export class ApiService {
         onUpdate(status);
         
         // Stop polling if job is in final state
-        if (status.status === 'READY' || status.errorMessage) {
+        if (status.status === 'READY' || status.status === 'FAILED' || status.errorMessage) {
           clearInterval(intervalId);
         }
       } catch (error) {

@@ -3,54 +3,119 @@ interface LoadingSpinnerProps {
 }
 
 export function LoadingSpinner({ status = 'QUEUED' }: LoadingSpinnerProps) {
-  const getStatusText = () => {
+  const getStatusConfig = () => {
     switch (status) {
       case 'QUEUED':
-        return 'Queued for processing...';
+        return {
+          text: 'Queued for processing...',
+          description: 'Your request is in the queue and will be processed shortly.',
+          color: 'text-amber-600',
+          bgColor: 'bg-amber-100',
+          borderColor: 'border-amber-200',
+          icon: (
+            <svg className="size-5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12,6 12,12 16,14"/>
+            </svg>
+          )
+        };
       case 'PROCESSING':
-        return 'Processing with AI...';
+        return {
+          text: 'Processing with AI...',
+          description: 'AI is analyzing your prompt and generating the application.',
+          color: 'text-blue-600',
+          bgColor: 'bg-blue-100',
+          borderColor: 'border-blue-200',
+          icon: (
+            <svg className="size-5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c1.5 0 2.9-.33 4.2-.9"/>
+              <path d="M22 12A10 10 0 0 0 12 2"/>
+            </svg>
+          )
+        };
       case 'BUILDING':
-        return 'Building your application...';
+        return {
+          text: 'Building your application...',
+          description: 'Building and deploying your application for preview.',
+          color: 'text-purple-600',
+          bgColor: 'bg-purple-100',
+          borderColor: 'border-purple-200',
+          icon: (
+            <svg className="size-5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 3v18h18"/>
+              <path d="M13 17V9"/>
+              <path d="M18 17v-3"/>
+              <path d="M8 17v-5"/>
+            </svg>
+          )
+        };
       case 'READY':
-        return 'Ready!';
+        return {
+          text: 'Ready!',
+          description: 'Your application is ready for preview!',
+          color: 'text-green-600',
+          bgColor: 'bg-green-100',
+          borderColor: 'border-green-200',
+          icon: (
+            <svg className="size-5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20,6 9,17 4,12"/>
+            </svg>
+          )
+        };
+      case 'FAILED':
+        return {
+          text: 'Failed',
+          description: 'An error occurred while processing your request. Please try again.',
+          color: 'text-red-600',
+          bgColor: 'bg-red-100',
+          borderColor: 'border-red-200',
+          icon: (
+            <svg className="size-5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="15" x2="9" y1="9" y2="15"/>
+              <line x1="9" x2="15" y1="9" y2="15"/>
+            </svg>
+          )
+        };
       default:
-        return 'Loading...';
+        return {
+          text: 'Loading...',
+          description: 'Processing your request...',
+          color: 'text-gray-600',
+          bgColor: 'bg-gray-100',
+          borderColor: 'border-gray-200',
+          icon: (
+            <svg className="size-5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+            </svg>
+          )
+        };
     }
   };
 
-  const getStatusColor = () => {
-    switch (status) {
-      case 'QUEUED':
-        return 'text-yellow-600';
-      case 'PROCESSING':
-        return 'text-blue-600';
-      case 'BUILDING':
-        return 'text-purple-600';
-      case 'READY':
-        return 'text-green-600';
-      default:
-        return 'text-gray-600';
-    }
-  };
+  const config = getStatusConfig();
 
   return (
-    <div className="flex flex-col items-center justify-center space-y-4">
-      <div role="status">
-        <svg aria-hidden="true" className="w-16 h-16 text-gray-200 animate-spin fill-blue-600" viewBox="0 0 100 101" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z" fill="currentColor"/>
-          <path d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z" fill="currentFill"/>
-        </svg>
-        <span className="sr-only">Loading...</span>
+    <div className="text-center max-w-xs mx-auto">
+      <div className={`inline-flex items-center justify-center size-16 ${config.bgColor} ${config.borderColor} border-2 rounded-full mb-4`}>
+        {status === 'FAILED' || status === 'READY' ? (
+          <div className={config.color}>
+            {config.icon}
+          </div>
+        ) : (
+          <span className={`animate-spin inline-block size-6 border-[3px] border-current border-t-transparent ${config.color} rounded-full`} role="status" aria-label="loading">
+            <span className="sr-only">Loading</span>
+          </span>
+        )}
       </div>
-      <div className={`text-lg font-medium ${getStatusColor()}`}>
-        {getStatusText()}
+      
+      <div className={`text-lg font-semibold ${config.color} mb-2`}>
+        {config.text}
       </div>
-      <div className="text-sm text-gray-500 max-w-md text-center">
-        {status === 'QUEUED' && 'Your request is in the queue and will be processed shortly.'}
-        {status === 'PROCESSING' && 'AI is analyzing your prompt and generating the application.'}
-        {status === 'BUILDING' && 'Building and deploying your application for preview.'}
-        {status === 'READY' && 'Your application is ready for preview!'}
-      </div>
+      
+      <p className="text-sm text-gray-500 leading-relaxed">
+        {config.description}
+      </p>
     </div>
   );
 }

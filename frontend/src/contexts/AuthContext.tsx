@@ -23,7 +23,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     
     try {
       setSetupInProgress(user.id)
-      const result = await ApiService.setupUser()
+      await ApiService.setupUser()
     } catch (error) {
       console.error('Failed to setup user:', error)
     } finally {
@@ -57,7 +57,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
       
       setLoading(false)
-    }).catch(error => {
+    }).catch(() => {
       setSession(null)
       setUser(null)
       setLoading(false)

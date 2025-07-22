@@ -7,6 +7,11 @@ export interface AIResponse {
   };
 }
 
+
 export abstract class AIService {
-  abstract generateResponse(prompt: string): Promise<AIResponse>;
+  abstract generateResponse(prompt: string, promptId?: string): Promise<AIResponse>;
+  abstract generateStreamingResponse?(
+    prompt: string, 
+    promptId?: string
+  ): Promise<AIResponse>;
 }

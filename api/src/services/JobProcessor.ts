@@ -94,6 +94,11 @@ export class JobProcessor {
       // Also update in-memory for backward compatibility
       this.jobStatusService.updateJobStatus(actualPromptId, 'PROCESSING');
       
+      // Set project context for AnthropicService if we have a projectId
+      if (projectId && 'setProjectContext' in this.aiService && typeof this.aiService.setProjectContext === 'function') {
+        await (this.aiService as any).setProjectContext(this.databaseService, projectId);
+      }
+      
       // Get conversation context if projectId is available
       let contextPrompt = prompt;
       if (projectId) {
@@ -107,16 +112,12 @@ export class JobProcessor {
           contextPrompt = `Previous conversation:\n${conversation}\n\nCurrent request: ${prompt}`;
         }
 
-        // Get latest file tree for the project
-        const latestFileTree = await this.databaseService.getLatestFileTreeByProjectId(projectId);
-        if (latestFileTree) {
-          contextPrompt += `\n\nCurrent file tree:\n${JSON.stringify(latestFileTree.file_tree, null, 2)}`;
-        }
+        // Note: File tree is now loaded directly into AnthropicService via setProjectContext
       }
       
       // AI stage: Generate response using existing AI service
       console.log(`Running AI stage for prompt ${actualPromptId}...`);
-      const aiResponse = await this.aiService.generateResponse(contextPrompt);
+      const aiResponse = await this.aiService.generateResponse(contextPrompt, actualPromptId);
       
       // Parse the AI response to get the app directory
       const responseData = JSON.parse(aiResponse.content);
@@ -128,7 +129,7 @@ export class JobProcessor {
 
       // Save file tree to database if we have a project
       if (projectId) {
-        await this.databaseService.saveFileTree(appDirectory, projectId);
+        await this.databaseService.saveFileTree(this.aiService.getCurrentFileTree(), projectId);
       }
 
       // Update prompt status to BUILDING
@@ -168,7 +169,7 @@ export class JobProcessor {
       await this.databaseService.updatePromptStatus(actualPromptId, 'FAILED');
       
       // Update job status with error in memory
-      this.jobStatusService.updateJobStatus(actualPromptId, 'READY', {
+      this.jobStatusService.updateJobStatus(actualPromptId, 'FAILED', {
         errorMessage: error instanceof Error ? error.message : 'Unknown error occurred'
       });
       

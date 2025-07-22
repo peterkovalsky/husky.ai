@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { useEffect } from 'react'
 import { SignIn } from './components/auth/SignIn'
 import { SignUp } from './components/auth/SignUp'
 import { ForgotPassword } from './components/auth/ForgotPassword'
@@ -11,6 +12,13 @@ import { ProjectProvider } from './contexts/ProjectContext'
 function App() {
   const { user, loading } = useAuth()
   const location = useLocation()
+
+  useEffect(() => {
+    // Initialize Preline UI components
+    if (typeof window !== 'undefined' && (window as any).HSStaticMethods) {
+      (window as any).HSStaticMethods.autoInit()
+    }
+  }, [location.pathname])
 
   if (loading) {
     return (

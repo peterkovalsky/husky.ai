@@ -37,8 +37,8 @@ export const Dashboard = () => {
           setJobStatus(status)
           if (status.status === 'READY' && status.previewUrl) {
             setAppState('ready')
-          } else if (status.errorMessage) {
-            setError(status.errorMessage)
+          } else if (status.status === 'FAILED' || status.errorMessage) {
+            setError(status.errorMessage || 'Job failed to complete')
             setAppState('error')
           } else {
             setAppState('loading')
@@ -100,102 +100,192 @@ export const Dashboard = () => {
   const showPreview = appState === 'ready' && jobStatus?.previewUrl
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <div className={`${isInitialState ? 'flex items-center justify-center min-h-screen' : 'pt-8 pb-6'} transition-all duration-700 ease-in-out`}>
-        <div className={`w-full max-w-4xl mx-auto px-4 ${isInitialState ? '' : 'border-b border-gray-200 bg-white/80 backdrop-blur-sm'}`}>
-          <div className={`${isInitialState ? 'text-center' : 'mb-6'}`}>
-            {isInitialState && (
-              <div className="mb-8">
-                <h1 className="text-5xl font-bold text-gray-800 mb-4">
-                  Husky AI
-                </h1>
-                <p className="text-xl text-gray-600 mb-4">
-                  Describe your app idea and we'll build it for you
-                </p>
-                <div className="flex items-center justify-center space-x-4 text-sm text-gray-600 mb-8">
-                  <span>Welcome, {user?.user_metadata?.display_name || user?.email}</span>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+      {/* Header Navigation */}
+      <div className="bg-white border-b border-gray-200 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center">
+              <h1 className="text-2xl font-bold text-gray-900">Husky AI</h1>
+            </div>
+            
+            {/* User Menu Dropdown */}
+            <div className="hs-dropdown relative inline-flex">
+              <button 
+                id="hs-dropdown-with-header" 
+                type="button" 
+                className="hs-dropdown-toggle w-8 h-8 inline-flex justify-center items-center gap-x-2 text-sm font-semibold rounded-full border border-transparent text-gray-800 hover:bg-gray-100 disabled:opacity-50 disabled:pointer-events-none"
+                aria-haspopup="menu" 
+                aria-expanded="false" 
+                aria-label="Dropdown"
+              >
+                <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                  {(user?.user_metadata?.display_name || user?.email || 'U').charAt(0).toUpperCase()}
+                </div>
+              </button>
+
+              <div className="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-60 bg-white shadow-md rounded-lg p-2 mt-2 after:h-4 after:absolute after:-top-4 after:start-0 after:w-full before:h-4 before:absolute before:-top-4 before:start-0 before:w-full" 
+                   role="menu" 
+                   aria-orientation="vertical" 
+                   aria-labelledby="hs-dropdown-with-header">
+                <div className="py-3 px-5 -m-2 bg-gray-100 rounded-t-lg">
+                  <p className="text-sm text-gray-500">Signed in as</p>
+                  <p className="text-sm font-medium text-gray-800 truncate">
+                    {user?.user_metadata?.display_name || user?.email}
+                  </p>
+                </div>
+                <div className="mt-2 py-2 first:pt-0 last:pb-0">
                   <button
                     onClick={handleSignOut}
-                    className="text-blue-600 hover:underline text-sm font-medium"
+                    className="flex items-center gap-x-3.5 py-2 px-3 rounded-lg text-sm text-gray-800 hover:bg-gray-100 focus:outline-none focus:bg-gray-100 w-full text-left"
                   >
+                    <svg className="size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                      <polyline points="16,17 21,12 16,7"/>
+                      <line x1="21" x2="9" y1="12" y2="12"/>
+                    </svg>
                     Sign Out
                   </button>
                 </div>
               </div>
-            )}
-            
-            {!isInitialState && (
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-2xl font-bold text-gray-800">Husky AI</h2>
-                <div className="flex items-center space-x-4">
-                  <span className="text-sm text-gray-600">
-                    {user?.user_metadata?.display_name || user?.email}
-                  </span>
-                  <button
-                    onClick={handleSignOut}
-                    className="text-sm text-blue-600 hover:text-blue-700 transition-colors"
-                  >
-                    Sign Out
-                  </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className={`${isInitialState ? 'flex items-center justify-center min-h-[calc(100vh-4rem)]' : 'pt-8 pb-6'} transition-all duration-700 ease-in-out`}>
+        <div className={`w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8`}>
+          <div className={`${isInitialState ? 'text-center' : 'mb-6'}`}>
+            {isInitialState && (
+              <div className="mb-8">
+                <div className="mb-6">
+                  <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                    <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </div>
                 </div>
+                <h1 className="text-5xl font-bold text-gray-900 mb-4">
+                  Husky AI
+                </h1>
+                <p className="text-xl text-gray-600 mb-8">
+                  Describe your app idea and we'll build it for you instantly
+                </p>
               </div>
             )}
             
             <form onSubmit={handleSubmit} className="relative">
-              <textarea
-                ref={textareaRef}
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Describe the app you want to build... (Press Enter to submit)"
-                className={`w-full ${isInitialState ? 'h-32' : 'h-20'} p-4 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 resize-none text-lg`}
-                disabled={isSubmitting || (appState !== 'initial' && appState !== 'error')}
-                rows={isInitialState ? 4 : 2}
-              />
-              
-              {!isInitialState && (
-                <div className="flex justify-between items-center mt-4">
-                  <button
-                    type="button"
-                    onClick={handleReset}
-                    className="text-gray-500 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-blue-300 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10"
-                  >
-                    Start Over
-                  </button>
-                  <div className="flex items-center space-x-4">
-                    {jobId && (
-                      <span className="text-sm text-gray-500">
-                        Job ID: {jobId.slice(0, 8)}...
-                      </span>
-                    )}
-                    {appState === 'error' && (
-                      <button
-                        type="submit"
-                        disabled={!prompt.trim() || isSubmitting}
-                        className="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isSubmitting ? 'Retrying...' : 'Retry'}
-                      </button>
-                    )}
-                  </div>
+              <div className={`bg-white rounded-xl shadow-sm border border-gray-200 p-6 ${isInitialState ? 'max-w-2xl mx-auto' : ''}`}>
+                <div className="relative">
+                  <textarea
+                    ref={textareaRef}
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Describe the app you want to build... (Press Enter to submit)"
+                    className={`block w-full ${isInitialState ? 'min-h-[120px]' : 'min-h-[80px]'} p-4 text-gray-900 border border-gray-200 rounded-lg bg-gray-50 text-base focus:ring-blue-500 focus:border-blue-500 resize-none placeholder:text-gray-400`}
+                    disabled={isSubmitting || (appState !== 'initial' && appState !== 'error')}
+                  />
+                  
+                  {/* Submit Button - positioned in bottom right of textarea for initial state */}
+                  {isInitialState && (
+                    <button
+                      type="submit"
+                      disabled={!prompt.trim() || isSubmitting}
+                      className="absolute bottom-3 right-3 py-2 px-4 inline-flex items-center gap-x-2 text-sm font-medium rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <span className="animate-spin inline-block size-4 border-[3px] border-current border-t-transparent text-white rounded-full" role="status" aria-label="loading"></span>
+                          Building...
+                        </>
+                      ) : (
+                        <>
+                          Build App
+                          <svg className="size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="m9 18 6-6-6-6"/>
+                          </svg>
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
-              )}
+                
+                {!isInitialState && (
+                  <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-100">
+                    <button
+                      type="button"
+                      onClick={handleReset}
+                      className="py-2 px-3 inline-flex items-center gap-x-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <svg className="size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                        <path d="M3 3v5h5"/>
+                      </svg>
+                      Start Over
+                    </button>
+                    
+                    <div className="flex items-center gap-x-4">
+                      {jobId && (
+                        <span className="inline-flex items-center gap-x-1.5 py-1.5 px-3 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          <span className="size-1.5 inline-block rounded-full bg-blue-800"></span>
+                          Job ID: {jobId.slice(0, 8)}...
+                        </span>
+                      )}
+                      {appState === 'error' && (
+                        <button
+                          type="submit"
+                          disabled={!prompt.trim() || isSubmitting}
+                          className="py-2 px-4 inline-flex items-center gap-x-2 text-sm font-medium rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          {isSubmitting ? (
+                            <>
+                              <span className="animate-spin inline-block size-4 border-[3px] border-current border-t-transparent text-white rounded-full" role="status" aria-label="loading"></span>
+                              Retrying...
+                            </>
+                          ) : (
+                            <>
+                              <svg className="size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="23,4 23,10 17,10"/>
+                                <polyline points="1,20 1,14 7,14"/>
+                                <path d="M20.49,9A9,9,0,0,0,5.64,5.64L1,10"/>
+                                <path d="M3.51,15A9,9,0,0,0,18.36,18.36L23,14"/>
+                              </svg>
+                              Retry
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </form>
           </div>
         </div>
       </div>
 
       {!isInitialState && (
-        <div className="flex-1 px-4">
+        <div className="flex-1 px-4 sm:px-6 lg:px-8">
           <div className="max-w-4xl mx-auto">
             {appState === 'error' && (
-              <div className="flex items-center p-4 mb-4 text-sm text-red-800 border border-red-300 rounded-lg bg-red-50">
-                <svg className="flex-shrink-0 inline w-4 h-4 mr-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M10 .5a9.5 9.5 0 1 0 9.5 9.5A9.51 9.51 0 0 0 10 .5ZM9.5 4a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 15H8a1 1 0 0 1 0-2h1v-3H8a1 1 0 0 1 0-2h2a1 1 0 0 1 1 1v4h1a1 1 0 0 1 0 2Z"/>
-                </svg>
-                <span className="sr-only">Info</span>
-                <div>
-                  <span className="font-medium">Error:</span> {error}
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6" role="alert">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <svg className="size-4 text-red-400 mt-0.5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10"/>
+                      <line x1="15" x2="9" y1="9" y2="15"/>
+                      <line x1="9" x2="15" y1="9" y2="15"/>
+                    </svg>
+                  </div>
+                  <div className="ms-3">
+                    <h3 className="text-sm text-red-800 font-medium">
+                      Something went wrong
+                    </h3>
+                    <p className="text-sm text-red-700 mt-1">
+                      {error}
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
@@ -207,23 +297,30 @@ export const Dashboard = () => {
             )}
 
             {showPreview && jobStatus?.previewUrl && (
-              <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-                <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+              <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+                <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 sm:px-6">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                      <span className="text-sm font-medium text-gray-700">
+                    <div className="flex items-center gap-x-3">
+                      <span className="inline-flex items-center gap-x-1.5 py-1.5 px-3 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        <span className="size-1.5 inline-block rounded-full bg-green-800"></span>
                         Preview Ready
                       </span>
                     </div>
-                    <a
-                      href={jobStatus.previewUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                    >
-                      Open in New Tab ↗
-                    </a>
+                    <div className="flex items-center gap-x-2">
+                      <a
+                        href={jobStatus.previewUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="py-1.5 px-3 inline-flex items-center gap-x-2 text-xs font-medium rounded-lg border border-transparent text-blue-600 hover:text-blue-700 disabled:opacity-50 disabled:pointer-events-none"
+                      >
+                        <svg className="size-3.5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M15 3h6v6"/>
+                          <path d="M10 14 21 3"/>
+                          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                        </svg>
+                        Open in New Tab
+                      </a>
+                    </div>
                   </div>
                 </div>
                 <div className="relative" style={{ height: 'calc(100vh - 300px)', minHeight: '600px' }}>

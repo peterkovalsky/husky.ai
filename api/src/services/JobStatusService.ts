@@ -1,4 +1,4 @@
-export type JobStatus = 'QUEUED' | 'PROCESSING' | 'BUILDING' | 'READY';
+export type JobStatus = 'QUEUED' | 'PROCESSING' | 'BUILDING' | 'READY' | 'FAILED';
 
 export interface JobInfo {
   id: string;

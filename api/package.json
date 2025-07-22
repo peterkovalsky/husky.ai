@@ -4,8 +4,8 @@
   "main": "dist/index.js",
   "scripts": {
     "start": "node dist/index.js",
-    "dev": "nodemon --ignore 'src/apps/**' --exec ts-node src/index.ts",
-    "dev:debug": "nodemon --ignore 'src/apps/**' --exec ts-node --inspect=9229 src/index.ts",
+    "dev": "nodemon",
+    "dev:debug": "nodemon --exec 'ts-node --inspect=9229 src/index.ts'",
     "build": "tsc",
     "build:prod": "npm run build && npm prune --production",
     "test": "echo \"Error: no test specified\" && exit 1"

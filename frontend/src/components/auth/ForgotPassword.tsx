@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { AuthLayout } from './AuthLayout'
-import { HiMail } from 'react-icons/hi'
 
 export const ForgotPassword = () => {
   const [email, setEmail] = useState('')
@@ -34,24 +33,25 @@ export const ForgotPassword = () => {
   if (success) {
     return (
       <AuthLayout title="Check Your Email" subtitle="Password reset instructions sent">
-        <div className="text-center space-y-4">
-          <div className="bg-green-50/80 backdrop-blur-sm border border-green-200/50 rounded-2xl p-8 shadow-lg">
+        <div className="text-center space-y-6">
+          <div className="bg-green-50 border border-green-200 rounded-xl p-8">
             <div className="flex items-center justify-center mb-6">
-              <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center shadow-lg">
-                <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              <div className="size-16 bg-green-100 rounded-full flex items-center justify-center">
+                <svg className="size-8 text-green-600" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                  <polyline points="22,6 12,13 2,6"/>
                 </svg>
               </div>
             </div>
-            <h3 className="text-xl font-bold text-green-800 mb-3 text-center">Email Sent!</h3>
-            <p className="text-green-700 text-center leading-relaxed">
+            <h3 className="text-lg font-semibold text-green-800 mb-3">Email Sent!</h3>
+            <p className="text-green-700 leading-relaxed">
               We've sent password reset instructions to<br/>
-              <strong className="font-semibold">{email}</strong>
+              <span className="font-medium">{email}</span>
             </p>
           </div>
           
-          <div className="text-sm text-gray-500 bg-gray-50/50 rounded-xl p-4">
-            <p className="text-center">Didn't receive the email? Check your spam folder or try again.</p>
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+            <p className="text-sm text-gray-600">Didn't receive the email? Check your spam folder or try again.</p>
           </div>
 
           <div className="space-y-3">
@@ -60,15 +60,25 @@ export const ForgotPassword = () => {
                 setSuccess(false)
                 setEmail('')
               }}
-              className="w-full text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center"
+              className="w-full py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               Try Again
+              <svg className="size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="23,4 23,10 17,10"/>
+                <polyline points="1,20 1,14 7,14"/>
+                <path d="M20.49,9A9,9,0,0,0,5.64,5.64L1,10"/>
+                <path d="M3.51,15A9,9,0,0,0,18.36,18.36L23,14"/>
+              </svg>
             </button>
             
             <Link 
               to="/signin"
-              className="w-full text-gray-900 bg-white border border-gray-300 focus:outline-none hover:bg-gray-100 focus:ring-4 focus:ring-gray-200 font-medium rounded-lg text-sm px-5 py-2.5 text-center flex justify-center items-center"
+              className="w-full py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
+              <svg className="size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m12 19-7-7 7-7"/>
+                <path d="M19 12H5"/>
+              </svg>
               Back to Sign In
             </Link>
           </div>
@@ -81,62 +91,87 @@ export const ForgotPassword = () => {
     <AuthLayout title="Reset Password" subtitle="Enter your email to receive reset instructions">
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && (
-          <div className="flex items-center p-4 mb-4 text-sm text-red-800 border border-red-300 rounded-lg bg-red-50">
-            <svg className="flex-shrink-0 inline w-4 h-4 mr-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M10 .5a9.5 9.5 0 1 0 9.5 9.5A9.51 9.51 0 0 0 10 .5ZM9.5 4a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 15H8a1 1 0 0 1 0-2h1v-3H8a1 1 0 0 1 0-2h2a1 1 0 0 1 1 1v4h1a1 1 0 0 1 0 2Z"/>
-            </svg>
-            <span className="sr-only">Info</span>
-            <div>
-              <span className="font-medium">Error:</span> {error}
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4" role="alert">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="size-4 text-red-400 mt-0.5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="15" x2="9" y1="9" y2="15"/>
+                  <line x1="9" x2="15" y1="9" y2="15"/>
+                </svg>
+              </div>
+              <div className="ms-3">
+                <h3 className="text-sm text-red-800 font-medium">
+                  Reset Error
+                </h3>
+                <p className="text-sm text-red-700 mt-1">
+                  {error}
+                </p>
+              </div>
             </div>
           </div>
         )}
 
         <div>
-          <label htmlFor="email" className="block mb-2 text-sm font-medium text-gray-900">
+          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
             Email Address
           </label>
           <div className="relative">
-            <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
-              <HiMail className="w-4 h-4 text-gray-500" />
-            </div>
             <input
               type="email"
               id="email"
+              name="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 p-2.5"
+              className="py-3 px-4 ps-11 block w-full border-gray-200 shadow-sm rounded-lg text-sm focus:z-10 focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none"
               placeholder="Enter your email address"
               required
             />
+            <div className="absolute inset-y-0 start-0 flex items-center pointer-events-none ps-4">
+              <svg className="size-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                <polyline points="22,6 12,13 2,6"/>
+              </svg>
+            </div>
           </div>
-          <p className="mt-2 text-sm text-gray-500">We'll send password reset instructions to this email</p>
+          <p className="text-xs text-gray-500 mt-2">We'll send password reset instructions to this email</p>
         </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {loading ? (
-            <div className="flex items-center justify-center">
-              <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              Sending...
-            </div>
-          ) : (
-            'Send Reset Instructions'
-          )}
-        </button>
+        <div className="space-y-3">
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {loading ? (
+              <>
+                <span className="animate-spin inline-block size-4 border-[3px] border-current border-t-transparent text-white rounded-full" role="status" aria-label="loading">
+                  <span className="sr-only">Loading</span>
+                </span>
+                Sending...
+              </>
+            ) : (
+              <>
+                Send Reset Instructions
+                <svg className="size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                  <polyline points="22,6 12,13 2,6"/>
+                </svg>
+              </>
+            )}
+          </button>
 
-        <Link 
-          to="/signin" 
-          className="w-full text-gray-900 bg-white border border-gray-300 focus:outline-none hover:bg-gray-100 focus:ring-4 focus:ring-gray-200 font-medium rounded-lg text-sm px-5 py-2.5 text-center flex justify-center items-center"
-        >
-          Back to Sign In
-        </Link>
+          <Link 
+            to="/signin" 
+            className="w-full py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <svg className="size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m12 19-7-7 7-7"/>
+              <path d="M19 12H5"/>
+            </svg>
+            Back to Sign In
+          </Link>
+        </div>
       </form>
     </AuthLayout>
   )
