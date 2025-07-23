@@ -6,14 +6,11 @@ import path from "path";
 import { exec } from "child_process";
 import { promisify } from "util";
 
-interface FileTreeItem {
-  path: string;
-  content: string;
-}
+type FileTree = Record<string, string>;
 
 export class AnthropicService extends AIService {
   private client: Anthropic;
-  private currentFileTree: FileTreeItem[] = [];
+  private currentFileTree: FileTree = {};
   private readonly reactAppFilesPath: string;
   private readonly appsDir: string;
   private readonly execAsync = promisify(exec);
@@ -37,7 +34,7 @@ export class AnthropicService extends AIService {
     this.loadInitialFileTree().catch(console.error);
   }
 
-  getCurrentFileTree(): FileTreeItem[] {
+  getCurrentFileTree(): FileTree {
     return this.currentFileTree;
   }
 
@@ -61,7 +58,7 @@ export class AnthropicService extends AIService {
         if (
           recentFileTree &&
           recentFileTree.file_tree &&
-          Array.isArray(recentFileTree.file_tree)
+          typeof recentFileTree.file_tree === 'object'
         ) {
           console.log(
             "Using recent file tree from database for project:",
@@ -76,17 +73,17 @@ export class AnthropicService extends AIService {
       console.log("Using initial file tree from react-app-files.json");
       const fileContent = fs.readFileSync(this.reactAppFilesPath, "utf8");
       const parsedContent = JSON.parse(fileContent);
-      this.currentFileTree = Array.isArray(parsedContent) ? parsedContent : [];
+      this.currentFileTree = typeof parsedContent === 'object' && parsedContent !== null ? parsedContent : {};
     } catch (error) {
       console.error("Error loading initial file tree:", error);
-      this.currentFileTree = [];
+      this.currentFileTree = {};
     }
   }
 
-  private formatFileTreeForPrompt(fileTree: FileTreeItem[]): string {
-    return fileTree
-      .map((file) => {
-        return `${file.path}:\n${file.content}`;
+  private formatFileTreeForPrompt(fileTree: FileTree): string {
+    return Object.entries(fileTree)
+      .map(([path, content]) => {
+        return `${path}:\n${content}`;
       })
       .join("\n\n---\n\n");
   }
@@ -140,33 +137,23 @@ export class AnthropicService extends AIService {
     return normalized;
   }
 
-  private updateFileTree(changes: Record<string, string>): FileTreeItem[] {
-    const newFileTree = [...this.currentFileTree];
+  private updateFileTree(changes: Record<string, string>): FileTree {
+    const newFileTree = { ...this.currentFileTree };
 
     for (const [filePath, content] of Object.entries(changes)) {
       if (content === "__DELETE__") {
         // Remove file from tree
-        const index = newFileTree.findIndex((file) => file.path === filePath);
-        if (index !== -1) {
-          newFileTree.splice(index, 1);
-        }
+        delete newFileTree[filePath];
       } else {
         // Update existing file or add new file
-        const existingIndex = newFileTree.findIndex(
-          (file) => file.path === filePath
-        );
-        if (existingIndex !== -1) {
-          newFileTree[existingIndex].content = content;
-        } else {
-          newFileTree.push({ path: filePath, content });
-        }
+        newFileTree[filePath] = content;
       }
     }
 
     return newFileTree;
   }
 
-  private saveFileTreeToDisk(fileTree: FileTreeItem[]): string {
+  private saveFileTreeToDisk(fileTree: FileTree): string {
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const appDir = path.join(this.appsDir, `app-${timestamp}`);
 
@@ -179,9 +166,9 @@ export class AnthropicService extends AIService {
     fs.mkdirSync(appDir, { recursive: true });
 
     // Write all files to disk
-    for (const file of fileTree) {
-      const filePath = path.join(appDir, file.path);
-      const fileDir = path.dirname(filePath);
+    for (const [filePath, content] of Object.entries(fileTree)) {
+      const fullFilePath = path.join(appDir, filePath);
+      const fileDir = path.dirname(fullFilePath);
 
       // Create directory if it doesn't exist
       if (!fs.existsSync(fileDir)) {
@@ -189,7 +176,7 @@ export class AnthropicService extends AIService {
       }
 
       // Write file
-      fs.writeFileSync(filePath, file.content, "utf8");
+      fs.writeFileSync(fullFilePath, content, "utf8");
     }
 
     return appDir;
@@ -286,8 +273,12 @@ export class AnthropicService extends AIService {
       this.currentPromptId = promptId;
       const systemPrompt = `You are a senior developer assistant that modifies React apps based on user requests.
 You receive:
-- The current app's file tree and contents.
+- The current app's file tree and contents. 
 - The user's request for changes.
+
+DEVELOPMENT RULES:
+The current app is built with React, TypeScript and Tailwind - you should continue using these.
+When executing user request, make sure there are no missing imports.
 
 You reply with a single JSON object, where:
 - Each key is the relative path of a file that has been ADDED or MODIFIED.
@@ -355,6 +346,13 @@ ${userRequest}`;
       // Update file tree in memory
       console.log("Updating file tree in memory...");
       this.currentFileTree = this.updateFileTree(changes);
+      this.saveToLogFile("merged_changes.json", this.currentFileTree);
+
+      // Save updated file tree to database
+      if (this.databaseService && this.projectId) {
+        console.log("Saving updated file tree to database...");
+        await this.databaseService.saveFileTree(this.currentFileTree, this.projectId);
+      }
 
       // Save to disk
       console.log("Saving files to disk...");
@@ -487,6 +485,12 @@ ${userRequest}`;
       // Update file tree in memory
       console.log("Updating file tree in memory...");
       this.currentFileTree = this.updateFileTree(changes);
+
+      // Save updated file tree to database
+      if (this.databaseService && this.projectId) {
+        console.log("Saving updated file tree to database...");
+        await this.databaseService.saveFileTree(this.currentFileTree, this.projectId);
+      }
 
       // Save to disk
       console.log("Saving files to disk...");
