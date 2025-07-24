@@ -17,6 +17,7 @@ export class AnthropicService extends AIService {
   private databaseService?: DatabaseService;
   private projectId?: string;
   private currentPromptId?: string;
+  private copyingPromise: Promise<string> | null = null;
 
   constructor(
     apiKey?: string,
@@ -30,7 +31,7 @@ export class AnthropicService extends AIService {
     this.databaseService = databaseService;
     this.projectId = projectId;
     this.reactAppFilesPath = path.join(__dirname, "../react-app-files.json");
-    this.appsDir = path.join(__dirname, "../apps");
+    this.appsDir = path.join(__dirname, "../../../apps");
     this.loadInitialFileTree().catch(console.error);
   }
 
@@ -58,7 +59,7 @@ export class AnthropicService extends AIService {
         if (
           recentFileTree &&
           recentFileTree.file_tree &&
-          typeof recentFileTree.file_tree === 'object'
+          typeof recentFileTree.file_tree === "object"
         ) {
           console.log(
             "Using recent file tree from database for project:",
@@ -73,7 +74,10 @@ export class AnthropicService extends AIService {
       console.log("Using initial file tree from react-app-files.json");
       const fileContent = fs.readFileSync(this.reactAppFilesPath, "utf8");
       const parsedContent = JSON.parse(fileContent);
-      this.currentFileTree = typeof parsedContent === 'object' && parsedContent !== null ? parsedContent : {};
+      this.currentFileTree =
+        typeof parsedContent === "object" && parsedContent !== null
+          ? parsedContent
+          : {};
     } catch (error) {
       console.error("Error loading initial file tree:", error);
       this.currentFileTree = {};
@@ -137,6 +141,79 @@ export class AnthropicService extends AIService {
     return normalized;
   }
 
+  private startCopyingNodeModules(): Promise<string> {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const appDir = path.join(this.appsDir, `app-${timestamp}`);
+
+    return new Promise((resolve, reject) => {
+      try {
+        // Create apps directory if it doesn't exist
+        if (!fs.existsSync(this.appsDir)) {
+          fs.mkdirSync(this.appsDir, { recursive: true });
+        }
+
+        // Create app directory
+        fs.mkdirSync(appDir, { recursive: true });
+
+        // Start copying node_modules and package-lock.json from base project
+        const baseDir = path.join(__dirname, "../../../base");
+        const baseNodeModules = path.join(baseDir, "node_modules");
+        const basePackageLock = path.join(baseDir, "package-lock.json");
+        const targetNodeModules = path.join(appDir, "node_modules");
+        const targetPackageLock = path.join(appDir, "package-lock.json");
+
+        // Check what needs to be copied
+        const hasNodeModules = fs.existsSync(baseNodeModules);
+        const hasPackageLock = fs.existsSync(basePackageLock);
+
+        if (hasNodeModules || hasPackageLock) {
+          console.log(
+            "Starting parallel copy of node_modules and package-lock.json from base project..."
+          );
+
+          // Use async copying to not block the AI call
+          setImmediate(() => {
+            try {
+              // Copy node_modules if it exists
+              if (hasNodeModules) {
+                fs.cpSync(baseNodeModules, targetNodeModules, {
+                  recursive: true,
+                  force: true,
+                });
+                console.log("Successfully copied node_modules");
+              }
+
+              // Copy package-lock.json if it exists
+              if (hasPackageLock) {
+                fs.copyFileSync(basePackageLock, targetPackageLock);
+                console.log("Successfully copied package-lock.json");
+              }
+
+              console.log(
+                "Successfully completed copying dependencies in parallel"
+              );
+              resolve(appDir);
+            } catch (copyError) {
+              console.warn(
+                "Failed to copy dependencies:",
+                copyError instanceof Error ? copyError.message : "Unknown error"
+              );
+              resolve(appDir); // Still resolve with appDir even if copying fails
+            }
+          });
+        } else {
+          resolve(appDir);
+        }
+      } catch (error) {
+        console.warn(
+          "Failed to setup parallel copying:",
+          error instanceof Error ? error.message : "Unknown error"
+        );
+        resolve(appDir); // Still resolve with appDir even if setup fails
+      }
+    });
+  }
+
   private updateFileTree(changes: Record<string, string>): FileTree {
     const newFileTree = { ...this.currentFileTree };
 
@@ -153,17 +230,28 @@ export class AnthropicService extends AIService {
     return newFileTree;
   }
 
-  private saveFileTreeToDisk(fileTree: FileTree): string {
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const appDir = path.join(this.appsDir, `app-${timestamp}`);
+  private async saveFileTreeToDisk(fileTree: FileTree): Promise<string> {
+    let appDir: string;
 
-    // Create apps directory if it doesn't exist
-    if (!fs.existsSync(this.appsDir)) {
-      fs.mkdirSync(this.appsDir, { recursive: true });
+    // Wait for the parallel copying to complete if it was started
+    if (this.copyingPromise) {
+      console.log("Waiting for parallel node_modules copy to complete...");
+      appDir = await this.copyingPromise;
+      this.copyingPromise = null; // Clear the promise
+      console.log("Parallel copy completed, using prepared directory:", appDir);
+    } else {
+      // Fallback: create directory structure if no parallel copying was started
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      appDir = path.join(this.appsDir, `app-${timestamp}`);
+
+      // Create apps directory if it doesn't exist
+      if (!fs.existsSync(this.appsDir)) {
+        fs.mkdirSync(this.appsDir, { recursive: true });
+      }
+
+      // Create app directory
+      fs.mkdirSync(appDir, { recursive: true });
     }
-
-    // Create app directory
-    fs.mkdirSync(appDir, { recursive: true });
 
     // Write all files to disk
     for (const [filePath, content] of Object.entries(fileTree)) {
@@ -179,6 +267,7 @@ export class AnthropicService extends AIService {
       fs.writeFileSync(fullFilePath, content, "utf8");
     }
 
+    console.log("All files written to disk in directory:", appDir);
     return appDir;
   }
 
@@ -271,19 +360,58 @@ export class AnthropicService extends AIService {
 
       // Set current promptId for logging
       this.currentPromptId = promptId;
-      const systemPrompt = `You are a senior developer assistant that modifies React apps based on user requests.
+      const systemPrompt = `You are a senior UI/UX developer assistant that creates beautiful, industry-appropriate React applications based on user requests.
 You receive:
-- The current app's file tree and contents. 
-- The user's request for changes.
+- The current app's file tree and contents
+- The user's request for changes
 
-DEVELOPMENT RULES:
-The current app is built with React, TypeScript and Tailwind - you should continue using these.
-When executing user request, make sure there are no missing imports.
+DEVELOPMENT & DESIGN RULES:
+The current app is built with React, TypeScript, Tailwind CSS, and DaisyUI - you should continue using these technologies.
+When executing user requests, ensure there are no missing imports and create visually stunning, professional designs.
+
+DESIGN PRINCIPLES:
+1. INDUSTRY APPROPRIATENESS: Match the visual design to the industry/domain of the request:
+   - Finance/Banking: Clean, trustworthy, professional blues/grays, minimal design
+   - Healthcare: Calming blues/greens, accessible, clear typography
+   - E-commerce: Vibrant, conversion-focused, clear CTAs
+   - SaaS/Tech: Modern, sleek, gradients, contemporary colors
+   - Creative/Agency: Bold, artistic, unique layouts, vibrant colors
+   - Education: Friendly, approachable, clear hierarchy
+
+2. USE DAISYUI COMPONENTS: Leverage DaisyUI's component library for consistent, beautiful UI:
+   - Use semantic component classes (btn, card, modal, navbar, etc.)
+   - Apply appropriate DaisyUI themes and color variants
+   - Combine with custom Tailwind classes for unique styling
+
+3. VISUAL HIERARCHY & SPACING:
+   - Use proper typography scale (text-xs to text-6xl)
+   - Implement consistent spacing (gap, padding, margin)
+   - Create clear visual hierarchy with font weights and sizes
+   - Use appropriate color contrast for accessibility
+
+4. MODERN UI PATTERNS:
+   - Implement subtle shadows, gradients, and rounded corners
+   - Use hover states and smooth transitions
+   - Add loading states and micro-interactions
+   - Include proper responsive design (sm:, md:, lg:, xl:)
+
+5. CUSTOM CSS WHEN NEEDED:
+   - Add custom CSS in App.css or component-specific styles for:
+     * Complex animations or transitions
+     * Industry-specific visual effects
+     * Custom gradients or patterns
+     * Advanced layouts not achievable with Tailwind alone
+
+6. COMPONENT STRUCTURE:
+   - Create reusable, well-structured components
+   - Use proper semantic HTML elements
+   - Implement clean, readable JSX with proper indentation
+   - Include proper TypeScript typing
 
 You reply with a single JSON object, where:
-- Each key is the relative path of a file that has been ADDED or MODIFIED.
-- The value is the COMPLETE new contents of the file as a STRING.
-- If a file should be DELETED, include it with value "__DELETE__".
+- Each key is the relative path of a file that has been ADDED or MODIFIED
+- The value is the COMPLETE new contents of the file as a STRING
+- If a file should be DELETED, include it with value "__DELETE__"
 
 IMPORTANT FORMAT RULES:
 - File contents must be strings, not objects
@@ -295,7 +423,7 @@ IMPORTANT FORMAT RULES:
 
 Do NOT include any explanation. Only output the JSON.
 
-Always include the minimum necessary files that reflect the requested change.`;
+Always create beautiful, industry-appropriate designs that users will be impressed by.`;
 
       console.log("Formatting file tree...");
       const fileTreeContent = this.formatFileTreeForPrompt(
@@ -307,6 +435,10 @@ ${fileTreeContent}
 
 Request:
 ${userRequest}`;
+
+      // Start copying node_modules in parallel before AI call
+      console.log("Starting parallel node_modules copy...");
+      this.copyingPromise = this.startCopyingNodeModules();
 
       console.log("Calling Anthropic API...");
       const response = await this.client.messages.create({
@@ -351,12 +483,15 @@ ${userRequest}`;
       // Save updated file tree to database
       if (this.databaseService && this.projectId) {
         console.log("Saving updated file tree to database...");
-        await this.databaseService.saveFileTree(this.currentFileTree, this.projectId);
+        await this.databaseService.saveFileTree(
+          this.currentFileTree,
+          this.projectId
+        );
       }
 
       // Save to disk
       console.log("Saving files to disk...");
-      const appDir = this.saveFileTreeToDisk(this.currentFileTree);
+      const appDir = await this.saveFileTreeToDisk(this.currentFileTree);
 
       // Run build process and wait for completion
       console.log("Starting build process...");
@@ -383,144 +518,6 @@ ${userRequest}`;
     } catch (error) {
       throw new Error(
         `Anthropic API error: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`
-      );
-    }
-  }
-
-  async generateStreamingResponse(
-    userRequest: string,
-    promptId?: string
-  ): Promise<AIResponse> {
-    try {
-      console.log("Starting generateStreamingResponse...");
-
-      // Set current promptId for logging
-      this.currentPromptId = promptId;
-      const systemPrompt = `You are a senior developer assistant that modifies React apps based on user requests.
-You receive:
-- The current app's file tree and contents.
-- The user's request for changes.
-
-You reply with a single JSON object, where:
-- Each key is the relative path of a file that has been ADDED or MODIFIED.
-- The value is the COMPLETE new contents of the file as a STRING.
-- If a file should be DELETED, include it with value "__DELETE__".
-
-IMPORTANT FORMAT RULES:
-- File contents must be strings, not objects
-- For package.json, stringify the entire JSON content
-- ESCAPE ALL QUOTES: Use \\" for quotes inside strings
-- Example: {"src/App.tsx": "import React from \\"react\\";...", "package.json": "{\\"name\\": \\"app\\", ...}"}
-- Do NOT nest objects inside file values
-- All quotes inside JSX className attributes must be escaped with backslashes
-
-Do NOT include any explanation. Only output the JSON.
-
-Always include the minimum necessary files that reflect the requested change.`;
-
-      console.log("Formatting file tree...");
-      const fileTreeContent = this.formatFileTreeForPrompt(
-        this.currentFileTree
-      );
-
-      const prompt = `Current app:
-${fileTreeContent}
-
-Request:
-${userRequest}`;
-
-      console.log("Calling Anthropic streaming API...");
-
-      const stream = await this.client.messages.create({
-        model: "claude-3-5-sonnet-20241022",
-        max_tokens: 8192,
-        system: systemPrompt,
-        messages: [
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-        stream: true,
-      });
-
-      let fullContent = "";
-      let usage = { input_tokens: 0, output_tokens: 0 };
-      let model = "claude-3-haiku-20240307";
-
-      for await (const chunk of stream) {
-        if (
-          chunk.type === "content_block_delta" &&
-          chunk.delta.type === "text_delta"
-        ) {
-          fullContent += chunk.delta.text;
-        } else if (chunk.type === "message_start" && chunk.message.usage) {
-          usage.input_tokens = chunk.message.usage.input_tokens;
-          model = chunk.message.model;
-        } else if (chunk.type === "message_delta" && chunk.usage) {
-          usage.output_tokens = chunk.usage.output_tokens;
-        }
-      }
-
-      console.log("Anthropic streaming API response received");
-
-      // Save raw AI response to disk
-      this.saveToLogFile("raw_ai_response.txt", fullContent);
-
-      // Extract and validate JSON response
-      const rawChanges = JSON.parse(fullContent);
-
-      // Save extractAndValidateJSON result to disk
-      this.saveToLogFile("extract_validate_json_result.json", rawChanges);
-
-      // Parse and normalize the changes
-      console.log("Parsing and normalizing changes...");
-      const changes = this.normalizeChanges(rawChanges);
-
-      // Save normalizeChanges result to disk
-      this.saveToLogFile("normalize_changes_result.json", changes);
-
-      // Update file tree in memory
-      console.log("Updating file tree in memory...");
-      this.currentFileTree = this.updateFileTree(changes);
-
-      // Save updated file tree to database
-      if (this.databaseService && this.projectId) {
-        console.log("Saving updated file tree to database...");
-        await this.databaseService.saveFileTree(this.currentFileTree, this.projectId);
-      }
-
-      // Save to disk
-      console.log("Saving files to disk...");
-      const appDir = this.saveFileTreeToDisk(this.currentFileTree);
-
-      // Run build process and wait for completion
-      console.log("Starting build process...");
-      const buildResult = await this.runBuild(appDir);
-      console.log("Build process completed");
-
-      const responseData = {
-        changes,
-        appDirectory: appDir,
-        buildResult,
-        message: `App updated successfully. Files saved to: ${appDir}. Build ${
-          buildResult.success ? "succeeded" : "failed"
-        }.`,
-      };
-
-      return {
-        content: JSON.stringify(responseData),
-        model,
-        usage: {
-          input_tokens: usage.input_tokens,
-          output_tokens: usage.output_tokens,
-        },
-      };
-    } catch (error) {
-      throw new Error(
-        `Anthropic streaming API error: ${
           error instanceof Error ? error.message : "Unknown error"
         }`
       );

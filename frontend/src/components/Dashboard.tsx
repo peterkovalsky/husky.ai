@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import { ApiService, type JobStatus } from '../services/api'
+import { ApiService, type JobStatus, type Prompt } from '../services/api'
 import { LoadingSpinner } from './LoadingSpinner'
+import { Timer } from './Timer'
+import { IterationHistory } from './IterationHistory'
 import { useAuth } from '../hooks/useAuth'
 import { useProject } from '../contexts/ProjectContext'
 
@@ -13,8 +15,12 @@ export const Dashboard = () => {
   const [jobStatus, setJobStatus] = useState<JobStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [generationTime, setGenerationTime] = useState<number>(0)
+  const [showIterations, setShowIterations] = useState(false)
+  const [, setSelectedIteration] = useState<Prompt | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const pollCleanupRef = useRef<(() => void) | null>(null)
+  const startTimeRef = useRef<Date | null>(null)
   const { user, signOut } = useAuth()
   const { currentProject } = useProject()
 
@@ -25,6 +31,8 @@ export const Dashboard = () => {
 
     setIsSubmitting(true)
     setError(null)
+    setGenerationTime(0)
+    startTimeRef.current = new Date()
 
     try {
       const response = await ApiService.submitPrompt(prompt.trim(), currentProject?.id)
@@ -37,9 +45,21 @@ export const Dashboard = () => {
           setJobStatus(status)
           if (status.status === 'READY' && status.previewUrl) {
             setAppState('ready')
+            // Calculate final generation time
+            if (startTimeRef.current) {
+              const endTime = new Date()
+              const timeDiff = Math.floor((endTime.getTime() - startTimeRef.current.getTime()) / 1000)
+              setGenerationTime(timeDiff)
+            }
           } else if (status.status === 'FAILED' || status.errorMessage) {
             setError(status.errorMessage || 'Job failed to complete')
             setAppState('error')
+            // Calculate time even for failed jobs
+            if (startTimeRef.current) {
+              const endTime = new Date()
+              const timeDiff = Math.floor((endTime.getTime() - startTimeRef.current.getTime()) / 1000)
+              setGenerationTime(timeDiff)
+            }
           } else {
             setAppState('loading')
           }
@@ -47,6 +67,12 @@ export const Dashboard = () => {
         (error) => {
           setError(error.message)
           setAppState('error')
+          // Calculate time even for error cases
+          if (startTimeRef.current) {
+            const endTime = new Date()
+            const timeDiff = Math.floor((endTime.getTime() - startTimeRef.current.getTime()) / 1000)
+            setGenerationTime(timeDiff)
+          }
         }
       )
       
@@ -54,6 +80,12 @@ export const Dashboard = () => {
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to submit prompt')
       setAppState('error')
+      // Calculate time even for error cases
+      if (startTimeRef.current) {
+        const endTime = new Date()
+        const timeDiff = Math.floor((endTime.getTime() - startTimeRef.current.getTime()) / 1000)
+        setGenerationTime(timeDiff)
+      }
     } finally {
       setIsSubmitting(false)
     }
@@ -73,11 +105,54 @@ export const Dashboard = () => {
     setJobStatus(null)
     setError(null)
     setIsSubmitting(false)
+    setGenerationTime(0)
+    setSelectedIteration(null)
+    startTimeRef.current = null
     
     if (pollCleanupRef.current) {
       pollCleanupRef.current()
       pollCleanupRef.current = null
     }
+  }
+
+  const handleNewIteration = () => {
+    setPrompt('')
+    setAppState('initial')
+    setJobId(null)
+    setJobStatus(null)
+    setError(null)
+    setIsSubmitting(false)
+    setGenerationTime(0)
+    setSelectedIteration(null)
+    startTimeRef.current = null
+    
+    if (pollCleanupRef.current) {
+      pollCleanupRef.current()
+      pollCleanupRef.current = null
+    }
+    
+    // Focus the textarea for immediate typing
+    setTimeout(() => {
+      textareaRef.current?.focus()
+    }, 100)
+  }
+
+  const handleSelectIteration = (iteration: Prompt) => {
+    setSelectedIteration(iteration)
+    setPrompt(iteration.prompt)
+    
+    // If the iteration is ready, we might want to load its preview
+    if (iteration.status === 'READY') {
+      // For now, just show the prompt. Later we could load the preview too.
+      setAppState('initial')
+    } else {
+      setAppState('initial')
+    }
+    
+    setJobId(null)
+    setJobStatus(null)
+    setError(null)
+    setGenerationTime(0)
   }
 
   const handleSignOut = async () => {
@@ -105,8 +180,33 @@ export const Dashboard = () => {
       <div className="bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
+            <div className="flex items-center gap-4">
               <h1 className="text-2xl font-bold text-gray-900">Husky AI</h1>
+              {currentProject && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-500">•</span>
+                  <span className="text-sm font-medium text-gray-700">{currentProject.name}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Center - Timer and Controls */}
+            <div className="flex items-center gap-4">
+              <Timer 
+                isRunning={appState === 'submitted' || appState === 'loading'} 
+                className="hidden sm:flex"
+              />
+              {currentProject && !isInitialState && (
+                <button
+                  onClick={() => setShowIterations(!showIterations)}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                >
+                  <svg className="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
+                  </svg>
+                  Iterations
+                </button>
+              )}
             </div>
             
             {/* User Menu Dropdown */}
@@ -213,19 +313,49 @@ export const Dashboard = () => {
                 
                 {!isInitialState && (
                   <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-100">
-                    <button
-                      type="button"
-                      onClick={handleReset}
-                      className="py-2 px-3 inline-flex items-center gap-x-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <svg className="size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-                        <path d="M3 3v5h5"/>
-                      </svg>
-                      Start Over
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleNewIteration}
+                        className="py-2 px-3 inline-flex items-center gap-x-2 text-sm font-medium rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <svg className="size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M12 5v14"/>
+                          <path d="M5 12h14"/>
+                        </svg>
+                        New Iteration
+                      </button>
+                      
+                      <button
+                        type="button"
+                        onClick={handleReset}
+                        className="py-2 px-3 inline-flex items-center gap-x-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <svg className="size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                          <path d="M3 3v5h5"/>
+                        </svg>
+                        Start Over
+                      </button>
+                    </div>
                     
                     <div className="flex items-center gap-x-4">
+                      {/* Show timer on mobile/smaller screens when running */}
+                      <Timer 
+                        isRunning={appState === 'submitted' || appState === 'loading'} 
+                        className="sm:hidden"
+                      />
+                      
+                      {/* Show final generation time when completed */}
+                      {generationTime > 0 && (appState === 'ready' || appState === 'error') && (
+                        <span className="inline-flex items-center gap-x-1.5 py-1.5 px-3 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          <svg className="size-3" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                          </svg>
+                          Generated in {Math.floor(generationTime / 60)}:{(generationTime % 60).toString().padStart(2, '0')}
+                        </span>
+                      )}
+                      
                       {jobId && (
                         <span className="inline-flex items-center gap-x-1.5 py-1.5 px-3 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                           <span className="size-1.5 inline-block rounded-full bg-blue-800"></span>
@@ -266,8 +396,24 @@ export const Dashboard = () => {
       </div>
 
       {!isInitialState && (
-        <div className="flex-1 px-4 sm:px-6 lg:px-8">
-          <div className="max-w-4xl mx-auto">
+        <div className="flex-1 flex">
+          {/* Iterations Sidebar */}
+          {showIterations && currentProject && (
+            <div className="w-80 bg-gray-50 border-r border-gray-200 flex-shrink-0">
+              <div className="h-full overflow-y-auto p-4">
+                <IterationHistory
+                  projectId={currentProject.id}
+                  currentPromptId={jobId || undefined}
+                  onSelectIteration={handleSelectIteration}
+                  className="sticky top-0"
+                />
+              </div>
+            </div>
+          )}
+          
+          {/* Main Content */}
+          <div className="flex-1 px-4 sm:px-6 lg:px-8">
+            <div className="max-w-4xl mx-auto">
             {appState === 'error' && (
               <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6" role="alert">
                 <div className="flex">
@@ -333,6 +479,7 @@ export const Dashboard = () => {
                 </div>
               </div>
             )}
+            </div>
           </div>
         </div>
       )}
