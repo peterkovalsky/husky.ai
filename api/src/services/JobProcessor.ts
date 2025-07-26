@@ -131,10 +131,7 @@ export class JobProcessor {
         throw new Error('No app directory found in AI response');
       }
 
-      // Save file tree to database if we have a project
-      if (projectId) {
-        await this.databaseService.saveFileTree(this.aiService.getCurrentFileTree(), projectId);
-      }
+      // Note: File tree is already saved to database by AnthropicService
 
       // Update prompt status to BUILDING
       await this.databaseService.updatePromptStatus(actualPromptId, 'BUILDING');
