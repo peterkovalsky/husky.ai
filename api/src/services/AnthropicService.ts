@@ -156,7 +156,7 @@ export class AnthropicService extends AIService {
         fs.mkdirSync(appDir, { recursive: true });
 
         // Start copying node_modules and package-lock.json from base project
-        const baseDir = path.join(__dirname, "../../../base");
+        const baseDir = path.join(__dirname, "../../../templates/react18-ts");
         const baseNodeModules = path.join(baseDir, "node_modules");
         const basePackageLock = path.join(baseDir, "package-lock.json");
         const targetNodeModules = path.join(appDir, "node_modules");

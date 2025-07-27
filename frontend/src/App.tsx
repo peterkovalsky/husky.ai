@@ -8,6 +8,8 @@ import { ProtectedRoute } from './components/ProtectedRoute'
 import { ConfigurationNotice } from './components/ConfigurationNotice'
 import { useAuth } from './hooks/useAuth'
 import { ProjectProvider } from './contexts/ProjectContext'
+import { Alert, AlertDescription } from './components/ui/alert'
+import { CheckCircle, Loader2 } from 'lucide-react'
 
 function App() {
   const { user, loading } = useAuth()
@@ -22,10 +24,10 @@ function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-background to-muted flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
+          <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading...</p>
         </div>
       </div>
     )
@@ -45,14 +47,12 @@ function App() {
           ) : (
             <div>
               {message && (
-                <div className="fixed top-4 right-4 bg-green-50 border border-green-200 rounded-lg p-4 shadow-lg z-50">
-                  <div className="flex items-center">
-                    <svg className="w-5 h-5 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                    <span className="text-green-700 text-sm">{message}</span>
-                  </div>
-                </div>
+                <Alert className="fixed top-4 right-4 max-w-sm shadow-lg z-50 border-green-200 bg-green-50">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  <AlertDescription className="text-green-700">
+                    {message}
+                  </AlertDescription>
+                </Alert>
               )}
               <SignIn />
             </div>
