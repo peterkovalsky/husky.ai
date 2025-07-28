@@ -56,6 +56,55 @@ export interface UserSetupResponse {
   project?: Project;
 }
 
+export interface Build {
+  id: string;
+  version: number;
+  created_at: string;
+  metrics?: {
+    ai_generation_time_ms?: number;
+    dependency_install_time_ms?: number;
+    build_time_ms?: number;
+    s3_upload_time_ms?: number;
+    total_time_ms?: number;
+  };
+}
+
+export interface Preview {
+  id: string;
+  preview_url: string;
+  created_at: string;
+  prompt_id?: string;
+}
+
+export interface ProjectDetails {
+  project: {
+    id: string;
+    name: string;
+    workspace_id: string;
+    created_at: string;
+    modified_at: string;
+  };
+  workspace: {
+    id: string;
+    name: string;
+  } | null;
+  stats: {
+    totalPrompts: number;
+    totalBuilds: number;
+    totalPreviews: number;
+    currentVersion: number;
+  };
+  recentPrompts: {
+    id: string;
+    prompt: string;
+    status: 'QUEUED' | 'PROCESSING' | 'BUILDING' | 'READY' | 'FAILED';
+    created_at: string;
+    modified_at: string;
+  }[];
+  builds: Build[];
+  previews: Preview[];
+}
+
 
 import { supabase } from '../lib/supabase';
 
@@ -122,6 +171,10 @@ export class ApiService {
 
   static async getPrompts(projectId: string): Promise<{ prompts: Prompt[] }> {
     return this.request<{ prompts: Prompt[] }>(`/api/prompts/${projectId}`);
+  }
+
+  static async getProjectDetails(projectId: string): Promise<ProjectDetails> {
+    return this.request<ProjectDetails>(`/api/project/${projectId}`);
   }
 
   static async setupUser(): Promise<UserSetupResponse> {

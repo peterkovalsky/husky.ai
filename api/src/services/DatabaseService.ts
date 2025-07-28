@@ -25,10 +25,20 @@ export interface Prompt {
   modified_at: string;
 }
 
-export interface FileTree {
+export interface BuildMetrics {
+  ai_generation_time_ms?: number;
+  dependency_install_time_ms?: number;
+  build_time_ms?: number;
+  s3_upload_time_ms?: number;
+  total_time_ms?: number;
+}
+
+export interface Build {
   id: string;
   file_tree: any;
   project_id: string;
+  version: number;
+  metrics: BuildMetrics;
   created_at: string;
   modified_at: string;
 }
@@ -210,13 +220,18 @@ export class DatabaseService {
     return data || [];
   }
 
-  // File tree operations
-  async saveFileTree(fileTree: any, projectId: string): Promise<FileTree> {
+  // Build operations (formerly file tree operations)
+  async saveBuild(fileTree: any, projectId: string, metrics: BuildMetrics = {}): Promise<Build> {
+    // Get the next version number for this project
+    const nextVersion = await this.getNextVersionForProject(projectId);
+    
     const { data, error } = await this.supabase
-      .from('file_trees')
+      .from('builds')
       .insert({
         file_tree: fileTree,
-        project_id: projectId
+        project_id: projectId,
+        version: nextVersion,
+        metrics
       })
       .select()
       .single();
@@ -225,17 +240,75 @@ export class DatabaseService {
     return data;
   }
 
-  async getLatestFileTreeByProjectId(projectId: string): Promise<FileTree | null> {
+  async updateBuildMetrics(buildId: string, metrics: BuildMetrics): Promise<void> {
+    const { error } = await this.supabase
+      .from('builds')
+      .update({ metrics })
+      .eq('id', buildId);
+
+    if (error) throw error;
+  }
+
+  async getNextVersionForProject(projectId: string): Promise<number> {
     const { data, error } = await this.supabase
-      .from('file_trees')
+      .from('builds')
+      .select('version')
+      .eq('project_id', projectId)
+      .order('version', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error;
+    return data ? data.version + 1 : 1;
+  }
+
+  async getLatestBuildByProjectId(projectId: string): Promise<Build | null> {
+    const { data, error } = await this.supabase
+      .from('builds')
       .select('*')
       .eq('project_id', projectId)
-      .order('created_at', { ascending: false })
+      .order('version', { ascending: false })
       .limit(1)
       .single();
 
     if (error && error.code !== 'PGRST116') throw error;
     return data || null;
+  }
+
+  async getBuildByProjectAndVersion(projectId: string, version: number): Promise<Build | null> {
+    const { data, error } = await this.supabase
+      .from('builds')
+      .select('*')
+      .eq('project_id', projectId)
+      .eq('version', version)
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error;
+    return data || null;
+  }
+
+  async getBuildsByProjectId(projectId: string): Promise<Build[]> {
+    const { data, error } = await this.supabase
+      .from('builds')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('version', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  }
+
+  // Legacy methods for backward compatibility
+  async saveFileTree(fileTree: any, projectId: string): Promise<Build> {
+    return this.saveBuild(fileTree, projectId);
+  }
+
+  async getLatestFileTreeByProjectId(projectId: string): Promise<Build | null> {
+    return this.getLatestBuildByProjectId(projectId);
+  }
+
+  async getFileTreeByProjectAndVersion(projectId: string, version: number): Promise<Build | null> {
+    return this.getBuildByProjectAndVersion(projectId, version);
   }
 
   // Preview operations

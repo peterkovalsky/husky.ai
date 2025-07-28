@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { ApiService } from '../services/api';
 import type { Workspace, Project } from '../services/api';
 
@@ -75,11 +75,11 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
     };
 
     loadProjects();
-  }, [currentWorkspace]);
+  }, [currentWorkspace, currentProject]);
 
-  const handleSetCurrentProject = (project: Project) => {
+  const handleSetCurrentProject = useCallback((project: Project) => {
     setCurrentProject(project);
-  };
+  }, []);
 
   const value: ProjectContextType = {
     workspaces,

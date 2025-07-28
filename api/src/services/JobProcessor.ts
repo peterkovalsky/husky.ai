@@ -2,7 +2,7 @@ import { SQSService, JobMessage } from './SQSService';
 import { JobStatusService } from './JobStatusService';
 import { S3Service } from './S3Service';
 import { AnthropicService } from './AnthropicService';
-import { DatabaseService } from './DatabaseService';
+import { DatabaseService, BuildMetrics } from './DatabaseService';
 import fs from 'fs';
 import path from 'path';
 import { exec } from 'child_process';
@@ -89,6 +89,11 @@ export class JobProcessor {
     const { promptId, jobId, prompt, projectId, userId } = jobMessage;
     const actualPromptId = promptId || jobId; // Support both old and new message format
     
+    // Initialize metrics tracking
+    const jobStartTime = Date.now();
+    const metrics: BuildMetrics = {};
+    let buildId: string | null = null;
+    
     try {
       console.log(`Processing prompt ${actualPromptId}...`);
       
@@ -121,7 +126,9 @@ export class JobProcessor {
       
       // AI stage: Generate response using existing AI service
       console.log(`Running AI stage for prompt ${actualPromptId}...`);
+      const aiStartTime = Date.now();
       const aiResponse = await this.aiService.generateResponse(contextPrompt, actualPromptId);
+      metrics.ai_generation_time_ms = Date.now() - aiStartTime;
       
       // Parse the AI response to get the app directory
       const responseData = JSON.parse(aiResponse.content);
@@ -131,7 +138,13 @@ export class JobProcessor {
         throw new Error('No app directory found in AI response');
       }
 
-      // Note: File tree is already saved to database by AnthropicService
+      // Note: File tree is already saved to database by AnthropicService, get the build ID
+      if (projectId) {
+        const latestBuild = await this.databaseService.getLatestBuildByProjectId(projectId);
+        if (latestBuild) {
+          buildId = latestBuild.id;
+        }
+      }
 
       // Update prompt status to BUILDING
       await this.databaseService.updatePromptStatus(actualPromptId, 'BUILDING');
@@ -141,13 +154,27 @@ export class JobProcessor {
 
       // Build stage: Check for build errors and potentially fix with AI agent
       console.log(`Running build stage for prompt ${actualPromptId}...`);
-      const finalAppDirectory = await this.handleBuildWithRetry(appDirectory, actualPromptId, projectId);
+      const buildStartTime = Date.now();
+      const { finalAppDirectory, dependencyInstallTime, buildTime } = await this.handleBuildWithRetry(appDirectory, actualPromptId, projectId);
+      metrics.dependency_install_time_ms = dependencyInstallTime;
+      metrics.build_time_ms = buildTime;
       
       // Upload to S3
+      console.log(`Uploading to S3 for prompt ${actualPromptId}...`);
+      const uploadStartTime = Date.now();
       const uploadResult = await this.s3Service.uploadReactApp(finalAppDirectory, actualPromptId);
+      metrics.s3_upload_time_ms = Date.now() - uploadStartTime;
       
       if (!uploadResult.success) {
         throw new Error(`Failed to upload app to S3: ${uploadResult.error}`);
+      }
+
+      // Calculate total time
+      metrics.total_time_ms = Date.now() - jobStartTime;
+
+      // Update build metrics in database
+      if (buildId) {
+        await this.databaseService.updateBuildMetrics(buildId, metrics);
       }
 
       // Save preview URL to database
@@ -162,12 +189,25 @@ export class JobProcessor {
       });
 
       console.log(`Prompt ${actualPromptId} completed successfully. Preview URL: ${uploadResult.previewUrl}`);
+      console.log(`Build metrics:`, metrics);
       
       // Delete the message from SQS since it was processed successfully
       await this.sqsService.deleteMessage(receiptHandle);
       
     } catch (error) {
       console.error(`Error processing prompt ${actualPromptId}:`, error);
+      
+      // Calculate total time even for failed jobs
+      metrics.total_time_ms = Date.now() - jobStartTime;
+      
+      // Update build metrics even on failure
+      if (buildId) {
+        try {
+          await this.databaseService.updateBuildMetrics(buildId, metrics);
+        } catch (metricsError) {
+          console.error('Failed to update metrics on error:', metricsError);
+        }
+      }
       
       // Update prompt status with error in database
       await this.databaseService.updatePromptStatus(actualPromptId, 'FAILED');
@@ -189,7 +229,7 @@ export class JobProcessor {
     };
   }
 
-  private async handleBuildWithRetry(appDirectory: string, promptId: string, projectId?: string): Promise<string> {
+  private async handleBuildWithRetry(appDirectory: string, promptId: string, projectId?: string): Promise<{ finalAppDirectory: string; dependencyInstallTime: number; buildTime: number }> {
     console.log(`Running build for prompt ${promptId}...`);
 
     try {
@@ -197,7 +237,11 @@ export class JobProcessor {
       const distPath = path.join(appDirectory, 'dist');
       if (fs.existsSync(distPath)) {
         console.log(`Build successful - dist folder already exists`);
-        return appDirectory;
+        return { 
+          finalAppDirectory: appDirectory, 
+          dependencyInstallTime: 0, 
+          buildTime: 0 
+        };
       }
 
       // Try to build once
@@ -205,7 +249,11 @@ export class JobProcessor {
       
       if (buildResult.success) {
         console.log(`Build successful`);
-        return appDirectory;
+        return { 
+          finalAppDirectory: appDirectory, 
+          dependencyInstallTime: buildResult.dependencyInstallTime || 0, 
+          buildTime: buildResult.buildTime || 0 
+        };
       }
 
       // Build failed - throw error immediately without retry
@@ -218,7 +266,7 @@ export class JobProcessor {
     }
   }
 
-  private async tryBuild(appDirectory: string): Promise<{ success: boolean; output?: string; error?: string }> {
+  private async tryBuild(appDirectory: string): Promise<{ success: boolean; output?: string; error?: string; dependencyInstallTime?: number; buildTime?: number }> {
     const execAsync = promisify(exec);
     
     try {
@@ -240,29 +288,34 @@ export class JobProcessor {
 
       // Install dependencies first
       console.log('Installing dependencies...');
-      const packageLockPath = path.join(appDirectory, 'package-lock.json');
-      const installCommand = fs.existsSync(packageLockPath)
-        ? 'npm ci --silent --no-audit --no-fund'
-        : 'npm install --silent --no-audit --no-fund';
+      
+      // Always use npm install to handle any package.json/package-lock.json discrepancies
+      const installCommand = 'npm install --silent --no-audit --no-fund';
 
+      const installStartTime = Date.now();
       await execAsync(installCommand, {
         cwd: appDirectory,
         timeout: 180000, // 3 minutes timeout
         killSignal: 'SIGTERM'
       });
+      const dependencyInstallTime = Date.now() - installStartTime;
 
       // Run build command
       console.log('Running build...');
+      const buildStartTime = Date.now();
       const { stdout, stderr } = await execAsync(buildCommand, {
         cwd: appDirectory,
         timeout: 120000, // 2 minutes timeout
         killSignal: 'SIGTERM'
       });
+      const buildTime = Date.now() - buildStartTime;
 
       return {
         success: true,
         output: stdout,
-        error: stderr || undefined
+        error: stderr || undefined,
+        dependencyInstallTime,
+        buildTime
       };
 
     } catch (error: any) {

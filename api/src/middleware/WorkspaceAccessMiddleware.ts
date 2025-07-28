@@ -51,6 +51,16 @@ export class WorkspaceAccessMiddleware {
           return res.status(400).json({ error: 'Project ID is required' });
         }
 
+        // First check if project exists
+        const project = await this.dbService.getProjectById(projectId);
+        if (!project) {
+          // Let the endpoint handler deal with project not found
+          // This allows endpoints to return 404 instead of 403
+          next();
+          return;
+        }
+
+        // Then check if user has access to the project
         const hasAccess = await this.dbService.checkUserProjectAccess(req.user.id, projectId);
         
         if (!hasAccess) {

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { ApiService, type JobStatus, type Prompt } from '../services/api'
 import { LoadingSpinner } from './LoadingSpinner'
 import { Timer } from './Timer'
@@ -11,7 +12,7 @@ import { Card, CardContent, CardHeader } from './ui/card'
 import { Alert, AlertDescription } from './ui/alert'
 import { Badge } from './ui/badge'
 import { Separator } from './ui/separator'
-import { Code2, Settings, Plus, RotateCcw, ExternalLink, Loader2, AlertCircle, Clock, ArrowRight, RefreshCw } from 'lucide-react'
+import { Code2, Settings, Plus, RotateCcw, ExternalLink, Loader2, AlertCircle, Clock, ArrowRight, RefreshCw, ArrowLeft } from 'lucide-react'
 
 type AppState = 'initial' | 'submitted' | 'loading' | 'ready' | 'error'
 
@@ -30,6 +31,10 @@ export const Dashboard = () => {
   const startTimeRef = useRef<Date | null>(null)
   const { user, signOut } = useAuth()
   const { currentProject } = useProject()
+  const location = useLocation()
+  const navigate = useNavigate()
+  
+  const isEditMode = location.pathname.includes('/edit')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -188,6 +193,19 @@ export const Dashboard = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-4">
+              {isEditMode && currentProject && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => navigate(`/project/${currentProject.id}`)}
+                  >
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Back to Preview
+                  </Button>
+                  <Separator orientation="vertical" className="h-6" />
+                </>
+              )}
               <h1 className="text-2xl font-bold">Husky AI</h1>
               {currentProject && (
                 <>
@@ -466,6 +484,8 @@ export const Dashboard = () => {
           </div>
         </div>
       )}
+
+      {/* Chat Widget */}
     </div>
   )
 }

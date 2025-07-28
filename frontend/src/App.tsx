@@ -3,7 +3,9 @@ import { useEffect } from 'react'
 import { SignIn } from './components/auth/SignIn'
 import { SignUp } from './components/auth/SignUp'
 import { ForgotPassword } from './components/auth/ForgotPassword'
+import { Home } from './components/Home'
 import { Dashboard } from './components/Dashboard'
+import { ProjectPage } from './components/ProjectPage'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { ConfigurationNotice } from './components/ConfigurationNotice'
 import { useAuth } from './hooks/useAuth'
@@ -69,6 +71,26 @@ function App() {
       />
       <Route 
         path="/" 
+        element={
+          <ProtectedRoute>
+            <ProjectProvider>
+              <Home />
+            </ProjectProvider>
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/project/:project_id" 
+        element={
+          <ProtectedRoute>
+            <ProjectProvider>
+              <ProjectPage />
+            </ProjectProvider>
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/project/:project_id/edit" 
         element={
           <ProtectedRoute>
             <ProjectProvider>

@@ -1,0 +1,148 @@
+import { useState, useEffect } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
+import { ApiService, type JobStatus, type ProjectDetails } from '../services/api'
+import { useProject } from '../contexts/ProjectContext'
+import { Dashboard } from './Dashboard'
+import { ChatWidget } from './ChatWidget'
+import { Button } from './ui/button'
+import { Code2, ArrowLeft, Loader2 } from 'lucide-react'
+
+export const ProjectPage = () => {
+  const { project_id } = useParams<{ project_id: string }>()
+  const navigate = useNavigate()
+  const { setCurrentProject } = useProject()
+  const [projectDetails, setProjectDetails] = useState<ProjectDetails | null>(null)
+  const [latestJobStatus, setLatestJobStatus] = useState<JobStatus | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [iframeKey, setIframeKey] = useState(0)
+
+  useEffect(() => {
+    const loadProject = async () => {
+      if (!project_id) return
+
+      try {
+        setLoading(true)
+        
+        // Get all project details in one API call
+        const details = await ApiService.getProjectDetails(project_id)
+        setProjectDetails(details)
+        
+        // Find the latest READY prompt for preview
+        const readyPrompts = details.recentPrompts.filter(p => p.status === 'READY')
+        if (readyPrompts.length > 0) {
+          const latest = readyPrompts[0] // recentPrompts are already sorted by created_at desc
+          
+          // Get job status for the latest prompt to get preview URL
+          try {
+            const jobStatus = await ApiService.getJobStatus(latest.id)
+            if (jobStatus.previewUrl) {
+              setLatestJobStatus(jobStatus)
+            }
+          } catch {
+            console.warn('Could not fetch job status for prompt:', latest.id)
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load project:', err)
+        setError(err instanceof Error ? err.message : 'Failed to load project')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadProject()
+  }, [project_id])
+
+  // Set current project in context when project details are loaded
+  useEffect(() => {
+    if (projectDetails) {
+      setCurrentProject({
+        id: projectDetails.project.id,
+        name: projectDetails.project.name,
+        workspace_id: projectDetails.project.workspace_id,
+        created_at: projectDetails.project.created_at,
+        modified_at: projectDetails.project.modified_at
+      })
+    }
+  }, [projectDetails, setCurrentProject])
+
+  // Listen for preview reload events from ChatWidget
+  useEffect(() => {
+    const handleReloadPreview = (event: CustomEvent) => {
+      const { previewUrl } = event.detail
+      
+      // Update the job status with new preview URL if provided
+      if (previewUrl && latestJobStatus) {
+        setLatestJobStatus(prev => prev ? { ...prev, previewUrl } : null)
+      }
+      
+      // Force iframe reload by changing key
+      setIframeKey(prev => prev + 1)
+    }
+
+    window.addEventListener('reloadPreview', handleReloadPreview as EventListener)
+    
+    return () => {
+      window.removeEventListener('reloadPreview', handleReloadPreview as EventListener)
+    }
+  }, [latestJobStatus])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading project...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error || !projectDetails) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-muted rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Code2 className="w-8 h-8 text-muted-foreground" />
+          </div>
+          <h2 className="text-xl font-semibold mb-2">Project not found</h2>
+          <p className="text-muted-foreground mb-6">{error || 'The requested project could not be found.'}</p>
+          <Button onClick={() => navigate('/')}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Projects
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  // Check if there's a latest READY prompt with preview URL
+  const latestReadyPrompt = projectDetails.recentPrompts.find(p => p.status === 'READY')
+  
+  // If there's a latest prompt with preview, show the preview page
+  if (latestReadyPrompt && latestJobStatus?.previewUrl) {
+    return (
+      <div className="h-screen flex flex-col">
+        <iframe
+          key={iframeKey}
+          src={latestJobStatus.previewUrl}
+          className="w-full h-full border-0"
+          title="Project Preview"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+        />
+        
+        {/* Chat Widget */}
+        <ChatWidget />
+      </div>
+    )
+  }
+
+  // If no preview available, redirect to edit mode (Dashboard)
+  return (
+    <>
+      <Dashboard />
+      <ChatWidget />
+    </>
+  )
+}

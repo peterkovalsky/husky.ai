@@ -276,6 +276,85 @@ app.get('/api/prompts/:projectId', authMiddleware.authenticate, workspaceAccessM
   }
 });
 
+app.get('/api/project/:projectId', authMiddleware.authenticate, workspaceAccessMiddleware.checkProjectAccess('projectId'), async (req: AuthRequest, res) => {
+  try {
+    const { projectId } = req.params;
+    console.log(`GET /api/project/${projectId} - User: ${req.user?.id}, ProjectId: ${projectId}`);
+    
+    // Get project details
+    const project = await databaseService.getProjectById(projectId);
+    console.log(`Project query result:`, project ? 'Found' : 'Not found', project?.id);
+    
+    if (!project) {
+      console.log(`Project ${projectId} not found in database`);
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    
+    // Get workspace details
+    const workspaces = await databaseService.getWorkspacesByUserId(req.user!.id);
+    const workspace = workspaces.find(w => w.id === project.workspace_id);
+    
+    // Get recent prompts (last 10)
+    const allPrompts = await databaseService.getPromptsByProjectId(projectId);
+    const recentPrompts = allPrompts.slice(-10).reverse();
+    
+    // Get builds/versions
+    const builds = await databaseService.getBuildsByProjectId(projectId);
+    
+    // Get previews
+    const previews = await databaseService.getPreviewsByProjectId(projectId);
+    
+    // Get latest build for current version info
+    const latestBuild = await databaseService.getLatestBuildByProjectId(projectId);
+    
+    res.json({
+      project: {
+        id: project.id,
+        name: project.name,
+        workspace_id: project.workspace_id,
+        created_at: project.created_at,
+        modified_at: project.modified_at
+      },
+      workspace: workspace ? {
+        id: workspace.id,
+        name: workspace.name
+      } : null,
+      stats: {
+        totalPrompts: allPrompts.length,
+        totalBuilds: builds.length,
+        totalPreviews: previews.length,
+        currentVersion: latestBuild?.version || 0
+      },
+      recentPrompts: recentPrompts.map(prompt => ({
+        id: prompt.id,
+        prompt: prompt.prompt.length > 100 ? prompt.prompt.substring(0, 100) + '...' : prompt.prompt,
+        status: prompt.status,
+        created_at: prompt.created_at,
+        modified_at: prompt.modified_at
+      })),
+      builds: builds.slice(0, 5).map(build => ({
+        id: build.id,
+        version: build.version,
+        created_at: build.created_at,
+        metrics: build.metrics
+      })),
+      previews: previews.slice(0, 5).map(preview => ({
+        id: preview.id,
+        preview_url: preview.preview_url,
+        created_at: preview.created_at,
+        prompt_id: preview.prompt_id
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching project details:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ 
+      error: 'Failed to fetch project details',
+      details: errorMessage
+    });
+  }
+});
+
 const server = app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
   

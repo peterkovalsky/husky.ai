@@ -141,34 +141,46 @@ export class AnthropicService extends AIService {
     return normalized;
   }
 
-  private startCopyingNodeModules(): Promise<string> {
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const appDir = path.join(this.appsDir, `app-${timestamp}`);
+  private async startCopyingNodeModules(): Promise<string> {
+    if (!this.projectId) {
+      throw new Error("Project ID is required for copying node_modules");
+    }
+
+    // Get the next version number for this project
+    const nextVersion = await this.databaseService!.getNextVersionForProject(this.projectId);
+    const appDir = path.join(this.appsDir, this.projectId, `v${nextVersion}`);
 
     return new Promise((resolve, reject) => {
       try {
-        // Create apps directory if it doesn't exist
-        if (!fs.existsSync(this.appsDir)) {
-          fs.mkdirSync(this.appsDir, { recursive: true });
-        }
-
-        // Create app directory
+        // Create project and version directories if they don't exist
         fs.mkdirSync(appDir, { recursive: true });
 
-        // Start copying node_modules and package-lock.json from base project
-        const baseDir = path.join(__dirname, "../../../templates/react18-ts");
-        const baseNodeModules = path.join(baseDir, "node_modules");
-        const basePackageLock = path.join(baseDir, "package-lock.json");
+        let sourceDir: string;
+        let sourceDescription: string;
+
+        if (nextVersion === 1) {
+          // First version: copy from template
+          sourceDir = path.join(__dirname, "../../../templates/react18-ts");
+          sourceDescription = "template";
+        } else {
+          // Subsequent versions: copy from previous version
+          const previousVersion = nextVersion - 1;
+          sourceDir = path.join(this.appsDir, this.projectId!, `v${previousVersion}`);
+          sourceDescription = `previous version (v${previousVersion})`;
+        }
+
+        const sourceNodeModules = path.join(sourceDir, "node_modules");
+        const sourcePackageLock = path.join(sourceDir, "package-lock.json");
         const targetNodeModules = path.join(appDir, "node_modules");
         const targetPackageLock = path.join(appDir, "package-lock.json");
 
         // Check what needs to be copied
-        const hasNodeModules = fs.existsSync(baseNodeModules);
-        const hasPackageLock = fs.existsSync(basePackageLock);
+        const hasNodeModules = fs.existsSync(sourceNodeModules);
+        const hasPackageLock = fs.existsSync(sourcePackageLock);
 
         if (hasNodeModules || hasPackageLock) {
           console.log(
-            "Starting parallel copy of node_modules and package-lock.json from base project..."
+            `Starting parallel copy of node_modules and package-lock.json from ${sourceDescription}...`
           );
 
           // Use async copying to not block the AI call
@@ -176,7 +188,7 @@ export class AnthropicService extends AIService {
             try {
               // Copy node_modules if it exists
               if (hasNodeModules) {
-                fs.cpSync(baseNodeModules, targetNodeModules, {
+                fs.cpSync(sourceNodeModules, targetNodeModules, {
                   recursive: true,
                   force: true,
                 });
@@ -185,7 +197,7 @@ export class AnthropicService extends AIService {
 
               // Copy package-lock.json if it exists
               if (hasPackageLock) {
-                fs.copyFileSync(basePackageLock, targetPackageLock);
+                fs.copyFileSync(sourcePackageLock, targetPackageLock);
                 console.log("Successfully copied package-lock.json");
               }
 
@@ -241,15 +253,14 @@ export class AnthropicService extends AIService {
       console.log("Parallel copy completed, using prepared directory:", appDir);
     } else {
       // Fallback: create directory structure if no parallel copying was started
-      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-      appDir = path.join(this.appsDir, `app-${timestamp}`);
-
-      // Create apps directory if it doesn't exist
-      if (!fs.existsSync(this.appsDir)) {
-        fs.mkdirSync(this.appsDir, { recursive: true });
+      if (!this.projectId) {
+        throw new Error("Project ID is required for saving files to disk");
       }
 
-      // Create app directory
+      const nextVersion = await this.databaseService!.getNextVersionForProject(this.projectId);
+      appDir = path.join(this.appsDir, this.projectId, `v${nextVersion}`);
+
+      // Create project and version directories
       fs.mkdirSync(appDir, { recursive: true });
     }
 
@@ -301,12 +312,8 @@ export class AnthropicService extends AIService {
 
       // Install dependencies first with timeout and optimizations
       console.log("Installing dependencies...");
-
-      // Check if package-lock.json exists, use npm ci if it does, otherwise npm install
-      const packageLockPath = path.join(appDir, "package-lock.json");
-      const installCommand = fs.existsSync(packageLockPath)
-        ? "npm ci --silent --no-audit --no-fund"
-        : "npm install --silent --no-audit --no-fund";
+      
+      const installCommand = "npm install --silent --no-audit --no-fund";
 
       console.log(`Running: ${installCommand}`);
       await this.execAsync(installCommand, {
@@ -508,7 +515,14 @@ ${userRequest}`;
       };
 
       return {
-        content: JSON.stringify(responseData),
+        content: JSON.stringify(responseData, (key, value) => {
+          if (typeof value === 'string') {
+            return value.replace(/[\u0000-\u001f]/g, (match) => {
+              return '\\u' + ('0000' + match.charCodeAt(0).toString(16)).slice(-4);
+            });
+          }
+          return value;
+        }),
         model: response.model,
         usage: {
           input_tokens: response.usage.input_tokens,
