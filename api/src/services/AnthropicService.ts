@@ -30,7 +30,7 @@ export class AnthropicService extends AIService {
     });
     this.databaseService = databaseService;
     this.projectId = projectId;
-    this.reactAppFilesPath = path.join(__dirname, "../react-app-files.json");
+    this.reactAppFilesPath = path.join(__dirname, "../template-react18-ts.json");
     this.appsDir = path.join(__dirname, "../../../apps");
     this.loadInitialFileTree().catch(console.error);
   }
@@ -71,7 +71,7 @@ export class AnthropicService extends AIService {
       }
 
       // Fall back to initial file tree from JSON file
-      console.log("Using initial file tree from react-app-files.json");
+      console.log("Using initial file tree from template-react18-tsS.json");
       const fileContent = fs.readFileSync(this.reactAppFilesPath, "utf8");
       const parsedContent = JSON.parse(fileContent);
       this.currentFileTree =
@@ -375,6 +375,7 @@ You receive:
 DEVELOPMENT & DESIGN RULES:
 The current app is built with React, TypeScript, Tailwind CSS, and DaisyUI - you should continue using these technologies.
 When executing user requests, ensure there are no missing imports and create visually stunning, professional designs.
+Use appropriate real stock images and photos instead of placeholders.
 
 DESIGN PRINCIPLES:
 1. INDUSTRY APPROPRIATENESS: Match the visual design to the industry/domain of the request:

@@ -4,6 +4,7 @@ import { ApiService, type JobStatus, type ProjectDetails } from '../services/api
 import { useProject } from '../contexts/ProjectContext'
 import { Dashboard } from './Dashboard'
 import { ChatWidget } from './ChatWidget'
+import { NewProjectStarter } from './NewProjectStarter'
 import { Button } from './ui/button'
 import { Code2, ArrowLeft, Loader2 } from 'lucide-react'
 
@@ -138,7 +139,17 @@ export const ProjectPage = () => {
     )
   }
 
-  // If no preview available, redirect to edit mode (Dashboard)
+  // If no prompts exist yet (new project), show the new project starter
+  if (projectDetails.recentPrompts.length === 0) {
+    return (
+      <NewProjectStarter 
+        projectId={projectDetails.project.id}
+        projectName={projectDetails.project.name}
+      />
+    )
+  }
+
+  // If there are prompts but no ready preview, redirect to edit mode (Dashboard)
   return (
     <>
       <Dashboard />

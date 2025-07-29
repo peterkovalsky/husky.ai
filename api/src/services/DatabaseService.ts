@@ -128,10 +128,25 @@ export class DatabaseService {
   }
 
   // Project operations
-  async createProject(name: string, workspaceId: string): Promise<Project> {
+  async createProject(projectData: { name: string; description?: string | null; workspace_id: string; user_id: string } | string, workspaceId?: string): Promise<Project> {
+    // Support both old and new interfaces for backward compatibility
+    let insertData;
+    
+    if (typeof projectData === 'string') {
+      // Old interface - for backward compatibility
+      insertData = { name: projectData, workspace_id: workspaceId! };
+    } else {
+      // New interface
+      insertData = {
+        name: projectData.name,
+        description: projectData.description,
+        workspace_id: projectData.workspace_id
+      };
+    }
+
     const { data, error } = await this.supabase
       .from('projects')
-      .insert({ name, workspace_id: workspaceId })
+      .insert(insertData)
       .select()
       .single();
 

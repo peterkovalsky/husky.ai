@@ -189,7 +189,7 @@ export const ChatWidget = () => {
             <div className="flex items-center justify-between p-4 border-b bg-primary text-primary-foreground rounded-t-lg">
               <div className="flex items-center gap-2">
                 <MessageCircle className="h-5 w-5" />
-                <span className="font-medium">Quick Build</span>
+                <span className="font-medium">{currentProject?.name || 'Quick Build'}</span>
               </div>
               <Button
                 variant="ghost"

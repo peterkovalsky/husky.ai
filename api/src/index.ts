@@ -265,6 +265,52 @@ app.get('/api/projects/:workspaceId', authMiddleware.authenticate, workspaceAcce
   }
 });
 
+app.post('/api/projects', authMiddleware.authenticate, ensureUserSetup, async (req: AuthRequest, res) => {
+  try {
+    const { name, description, workspaceId } = req.body;
+    
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      return res.status(400).json({ error: 'Project name is required' });
+    }
+
+    let targetWorkspaceId = workspaceId;
+    
+    // If no workspaceId provided, use user's default workspace
+    if (!targetWorkspaceId) {
+      const workspaces = await databaseService.getWorkspacesByUserId(req.user!.id);
+      if (workspaces.length === 0) {
+        return res.status(400).json({ error: 'No workspace found. Please contact support.' });
+      }
+      targetWorkspaceId = workspaces[0].id; // Use first/default workspace
+    } else {
+      // Verify user has access to the specified workspace
+      const hasAccess = await databaseService.checkUserWorkspaceAccess(req.user!.id, targetWorkspaceId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied to workspace' });
+      }
+    }
+
+    // Create the project
+    const project = await databaseService.createProject({
+      name: name.trim(),
+      description: description?.trim() || null,
+      workspace_id: targetWorkspaceId,
+      user_id: req.user!.id
+    });
+
+    console.log(`Created project ${project.id} for user ${req.user!.id}`);
+    
+    res.status(201).json(project);
+  } catch (error) {
+    console.error('Error creating project:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ 
+      error: 'Failed to create project',
+      details: errorMessage
+    });
+  }
+});
+
 app.get('/api/prompts/:projectId', authMiddleware.authenticate, workspaceAccessMiddleware.checkProjectAccess('projectId'), async (req: AuthRequest, res) => {
   try {
     const { projectId } = req.params;

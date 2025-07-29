@@ -105,6 +105,12 @@ export interface ProjectDetails {
   previews: Preview[];
 }
 
+export interface CreateProjectRequest {
+  name: string;
+  description?: string;
+  workspaceId?: string;
+}
+
 
 import { supabase } from '../lib/supabase';
 
@@ -180,6 +186,13 @@ export class ApiService {
   static async setupUser(): Promise<UserSetupResponse> {
     return this.request<UserSetupResponse>('/api/user/setup', {
       method: 'POST',
+    });
+  }
+
+  static async createProject(request: CreateProjectRequest): Promise<Project> {
+    return this.request<Project>('/api/projects', {
+      method: 'POST',
+      body: JSON.stringify(request),
     });
   }
 
