@@ -5,6 +5,7 @@ import { Button } from './ui/button'
 import { Textarea } from './ui/textarea'
 import { Card, CardContent } from './ui/card'
 import { Badge } from './ui/badge'
+import { Spinner } from './ui/shadcn-io/spinner'
 import { MessageCircle, X, Send, Loader2, CheckCircle, AlertCircle } from 'lucide-react'
 
 interface ChatMessage {
@@ -21,6 +22,7 @@ export const ChatWidget = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [currentPrompt, setCurrentPrompt] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false)
   const { currentProject } = useProject()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -93,6 +95,8 @@ export const ChatWidget = () => {
       addSystemMessage('🚀 Building your app update...')
       lastStatusRef.current = 'QUEUED'
 
+      setIsProcessing(true)
+      
       const cleanup = await ApiService.pollJobStatus(
         response.promptId || response.jobId,
         (status: JobStatus) => {
@@ -109,20 +113,33 @@ export const ChatWidget = () => {
           if (status.status === 'READY' && status.previewUrl) {
             updateMessageStatus(messageId, 'completed')
             addSystemMessage('✅ Your app has been updated! Preview refreshed.', 'success')
+            setIsProcessing(false)
             
-            // Trigger preview iframe refresh instead of full page reload
+            // Cache-busting iframe reload
             setTimeout(() => {
-              // Dispatch custom event to trigger iframe reload
-              window.dispatchEvent(new CustomEvent('reloadPreview', { detail: { previewUrl: status.previewUrl } }))
+              // Add timestamp to URL to force cache bypass
+              const cacheBustUrl = status.previewUrl.includes('?') 
+                ? `${status.previewUrl}&t=${Date.now()}`
+                : `${status.previewUrl}?t=${Date.now()}`
+              
+              // Dispatch event with cache-busted URL
+              window.dispatchEvent(new CustomEvent('reloadPreview', { 
+                detail: { 
+                  previewUrl: cacheBustUrl, 
+                  forceReload: true 
+                } 
+              }))
             }, 500)
           } else if (status.status === 'FAILED' || status.errorMessage) {
             updateMessageStatus(messageId, 'failed')
             addSystemMessage(`❌ Build failed: ${status.errorMessage || 'Unknown error'}`, 'error')
+            setIsProcessing(false)
           }
         },
         (error) => {
           updateMessageStatus(messageId, 'failed')
           addSystemMessage(`❌ Error: ${error.message}`, 'error')
+          setIsProcessing(false)
         }
       )
       
@@ -130,6 +147,7 @@ export const ChatWidget = () => {
     } catch (error) {
       updateMessageStatus(messageId, 'failed')
       addSystemMessage(`❌ Failed to submit: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error')
+      setIsProcessing(false)
     } finally {
       setIsSubmitting(false)
       lastStatusRef.current = null // Reset for next submission
@@ -239,6 +257,15 @@ export const ChatWidget = () => {
                   </div>
                 </div>
               ))}
+              
+              {isProcessing && (
+                <div className="flex justify-start">
+                  <div className="bg-muted rounded-lg px-3 py-2 text-sm max-w-[80%]">
+                    <Spinner variant="ellipsis" size={24} className="text-muted-foreground" />
+                  </div>
+                </div>
+              )}
+              
               <div ref={messagesEndRef} />
             </div>
 

@@ -17,6 +17,7 @@ export interface UploadResult {
 export class S3Service {
   private client: S3Client;
   private bucketName: string;
+  private versionsBucketName: string;
   private bucketRegion: string;
 
   constructor(bucketName?: string) {
@@ -30,10 +31,34 @@ export class S3Service {
     });
     
     this.bucketName = bucketName || process.env.S3_BUCKET_NAME || '';
+    this.versionsBucketName = process.env.S3_VERSIONS_BUCKET_NAME || 'prod-husky-versions';
     
     if (!this.bucketName) {
       throw new Error('S3 Bucket name is required. Set S3_BUCKET_NAME environment variable.');
     }
+  }
+
+  private shouldExcludeFile(filePath: string, fileName: string): boolean {
+    const excludePatterns = [
+      'node_modules',
+      'dist',
+      '.git',
+      '.env',
+      '.env.local',
+      '.env.development',
+      '.env.production',
+      'npm-debug.log',
+      'yarn-debug.log',
+      'yarn-error.log',
+      '.DS_Store',
+      'Thumbs.db'
+    ];
+
+    const relativePath = path.relative(process.cwd(), filePath);
+    
+    return excludePatterns.some(pattern => 
+      relativePath.includes(pattern) || fileName.includes(pattern) || fileName.endsWith('.log')
+    );
   }
 
   private getMimeType(filePath: string): string {
@@ -60,12 +85,17 @@ export class S3Service {
   }
 
   private async uploadFile(localPath: string, s3Key: string): Promise<void> {
+    return this.uploadFileToSpecificBucket(localPath, s3Key, this.bucketName);
+  }
+
+  private async uploadFileToSpecificBucket(localPath: string, s3Key: string, bucketName: string): Promise<void> {
     try {
       const fileContent = await readFile(localPath);
       const mimeType = this.getMimeType(localPath);
       
+      
       const command = new PutObjectCommand({
-        Bucket: this.bucketName,
+        Bucket: bucketName,
         Key: s3Key,
         Body: fileContent,
         ContentType: mimeType
@@ -73,7 +103,7 @@ export class S3Service {
 
       await this.client.send(command);
     } catch (error) {
-      console.error(`Error uploading file ${localPath} to S3:`, error);
+      console.error(`Error uploading file ${localPath} to S3 bucket ${bucketName}:`, error);
       throw error;
     }
   }
@@ -81,7 +111,9 @@ export class S3Service {
   private async uploadDirectoryRecursive(
     localDir: string, 
     s3Prefix: string, 
-    uploadedFiles: string[]
+    uploadedFiles: string[],
+    bucketName?: string,
+    excludeFiles: boolean = false
   ): Promise<void> {
     const files = await readdir(localDir);
     
@@ -89,24 +121,30 @@ export class S3Service {
       const localPath = path.join(localDir, file);
       const fileStat = await stat(localPath);
       
+      if (excludeFiles && this.shouldExcludeFile(localPath, file)) {
+        continue;
+      }
+      
       if (fileStat.isDirectory()) {
         // Recursively upload subdirectory
         const newPrefix = s3Prefix ? `${s3Prefix}/${file}` : file;
         await this.uploadDirectoryRecursive(
           localPath, 
           newPrefix, 
-          uploadedFiles
+          uploadedFiles,
+          bucketName,
+          excludeFiles
         );
       } else {
         // Upload file
         const s3Key = s3Prefix ? `${s3Prefix}/${file}` : file;
-        await this.uploadFile(localPath, s3Key);
+        await this.uploadFileToSpecificBucket(localPath, s3Key, bucketName || this.bucketName);
         uploadedFiles.push(s3Key);
       }
     }
   }
 
-  async uploadReactApp(appDirectory: string, jobId: string): Promise<UploadResult> {
+  async uploadReactApp(appDirectory: string, _jobId: string, projectId: string): Promise<UploadResult> {
     try {
       // Check if dist directory exists
       const distPath = path.join(appDirectory, 'dist');
@@ -117,14 +155,17 @@ export class S3Service {
         };
       }
 
-      // Upload to root of bucket (no prefix)
+      // Upload to project-specific folder
       const uploadedFiles: string[] = [];
+      const s3Prefix = `projects/${projectId}`;
 
-      // Upload all files from the dist directory to bucket root
-      await this.uploadDirectoryRecursive(distPath, '', uploadedFiles);
+      // Upload all files from the dist directory to project-specific folder
+      await this.uploadDirectoryRecursive(distPath, s3Prefix, uploadedFiles);
+      
+      console.log(`Successfully uploaded ${uploadedFiles.length} files to S3 prefix: ${s3Prefix}`);
 
-      // Generate S3 static website URL
-      const previewUrl = `http://${this.bucketName}.s3-website-${this.bucketRegion}.amazonaws.com`;
+      // Generate S3 static website URL with project path
+      const previewUrl = `http://${this.bucketName}.s3-website-${this.bucketRegion}.amazonaws.com/projects/${projectId}/`;
 
       return {
         success: true,
@@ -140,11 +181,12 @@ export class S3Service {
     }
   }
 
-  async listAppFiles(jobId: string): Promise<string[]> {
+  async listAppFiles(_jobId: string, projectId: string): Promise<string[]> {
     try {
-      // List all files in bucket since we upload to root
+      // List files in project-specific folder
       const command = new ListObjectsV2Command({
-        Bucket: this.bucketName
+        Bucket: this.bucketName,
+        Prefix: `projects/${projectId}/`
       });
 
       const response = await this.client.send(command);
@@ -155,7 +197,73 @@ export class S3Service {
     }
   }
 
-  generatePreviewUrl(jobId: string): string {
-    return `http://${this.bucketName}.s3-website-${this.bucketRegion}.amazonaws.com`;
+  async uploadSourceCode(appDirectory: string, projectId: string, version: number): Promise<UploadResult> {
+    try {
+      const uploadedFiles: string[] = [];
+      const s3Prefix = `projects/${projectId}/v${version}/source`;
+
+      // Upload source code excluding node_modules, dist, etc.
+      await this.uploadDirectoryRecursive(
+        appDirectory, 
+        s3Prefix, 
+        uploadedFiles,
+        this.versionsBucketName,
+        true // Enable file exclusion
+      );
+
+      console.log(`Source code uploaded to ${this.versionsBucketName}/${s3Prefix} - ${uploadedFiles.length} files`);
+
+      return {
+        success: true,
+        uploadedFiles
+      };
+    } catch (error) {
+      console.error('Error uploading source code to versions bucket:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error occurred during source upload'
+      };
+    }
+  }
+
+  async uploadProductionVersion(appDirectory: string, projectId: string, version: number): Promise<UploadResult> {
+    try {
+      // Check if dist directory exists
+      const distPath = path.join(appDirectory, 'dist');
+      if (!fs.existsSync(distPath)) {
+        return {
+          success: false,
+          error: 'Build directory (dist) not found. Make sure the React app was built successfully.'
+        };
+      }
+
+      const uploadedFiles: string[] = [];
+      const s3Prefix = `projects/${projectId}/v${version}/dist`;
+
+      // Upload all files from the dist directory to versions bucket
+      await this.uploadDirectoryRecursive(
+        distPath, 
+        s3Prefix, 
+        uploadedFiles,
+        this.versionsBucketName
+      );
+
+      console.log(`Production version uploaded to ${this.versionsBucketName}/${s3Prefix} - ${uploadedFiles.length} files`);
+
+      return {
+        success: true,
+        uploadedFiles
+      };
+    } catch (error) {
+      console.error('Error uploading production version to versions bucket:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error occurred during production upload'
+      };
+    }
+  }
+
+  generatePreviewUrl(_jobId: string, projectId: string): string {
+    return `http://${this.bucketName}.s3-website-${this.bucketRegion}.amazonaws.com/projects/${projectId}/`;
   }
 }

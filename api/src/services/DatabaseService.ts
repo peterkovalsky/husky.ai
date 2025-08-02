@@ -30,6 +30,8 @@ export interface BuildMetrics {
   dependency_install_time_ms?: number;
   build_time_ms?: number;
   s3_upload_time_ms?: number;
+  version_source_upload_time_ms?: number;
+  version_production_upload_time_ms?: number;
   total_time_ms?: number;
 }
 
@@ -262,6 +264,17 @@ export class DatabaseService {
       .eq('id', buildId);
 
     if (error) throw error;
+  }
+
+  async getBuildById(buildId: string): Promise<Build | null> {
+    const { data, error } = await this.supabase
+      .from('builds')
+      .select('*')
+      .eq('id', buildId)
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error;
+    return data || null;
   }
 
   async getNextVersionForProject(projectId: string): Promise<number> {

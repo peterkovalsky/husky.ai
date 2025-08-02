@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ApiService, type JobStatus, type ProjectDetails } from '../services/api'
 import { useProject } from '../contexts/ProjectContext'
@@ -17,6 +17,8 @@ export const ProjectPage = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [iframeKey, setIframeKey] = useState(0)
+  const [iframeLoading, setIframeLoading] = useState(true)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
 
   useEffect(() => {
     const loadProject = async () => {
@@ -71,14 +73,15 @@ export const ProjectPage = () => {
   // Listen for preview reload events from ChatWidget
   useEffect(() => {
     const handleReloadPreview = (event: CustomEvent) => {
-      const { previewUrl } = event.detail
+      const { previewUrl, forceReload } = event.detail
       
       // Update the job status with new preview URL if provided
       if (previewUrl && latestJobStatus) {
         setLatestJobStatus(prev => prev ? { ...prev, previewUrl } : null)
       }
       
-      // Force iframe reload by changing key
+      // Force iframe reload by changing key and reset loading state
+      setIframeLoading(true)
       setIframeKey(prev => prev + 1)
     }
 
@@ -124,13 +127,26 @@ export const ProjectPage = () => {
   // If there's a latest prompt with preview, show the preview page
   if (latestReadyPrompt && latestJobStatus?.previewUrl) {
     return (
-      <div className="h-screen flex flex-col">
+      <div className="h-screen flex flex-col relative">
+        {/* Loading overlay */}
+        {iframeLoading && (
+          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-10">
+            <div className="text-center">
+              <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">Loading preview...</p>
+            </div>
+          </div>
+        )}
+        
         <iframe
+          ref={iframeRef}
           key={iframeKey}
           src={latestJobStatus.previewUrl}
           className="w-full h-full border-0"
           title="Project Preview"
           sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+          onLoad={() => setIframeLoading(false)}
+          onError={() => setIframeLoading(false)}
         />
         
         {/* Chat Widget */}

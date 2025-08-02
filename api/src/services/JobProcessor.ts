@@ -143,6 +143,22 @@ export class JobProcessor {
         const latestBuild = await this.databaseService.getLatestBuildByProjectId(projectId);
         if (latestBuild) {
           buildId = latestBuild.id;
+          
+          // Stage 1: Upload source code to versions bucket (async, don't block)
+          this.uploadSourceCodeAsync(appDirectory, projectId, latestBuild.version, actualPromptId)
+            .then(result => {
+              // Store the source upload timing for metrics
+              if (buildId) {
+                this.databaseService.updateBuildMetrics(buildId, { 
+                  version_source_upload_time_ms: result.duration 
+                }).catch(error => {
+                  console.error(`Failed to update source upload metrics for build ${buildId}:`, error);
+                });
+              }
+            })
+            .catch(error => {
+              console.error(`Source upload promise error for prompt ${actualPromptId}:`, error);
+            });
         }
       }
 
@@ -161,12 +177,56 @@ export class JobProcessor {
       
       // Upload to S3
       console.log(`Uploading to S3 for prompt ${actualPromptId}...`);
+      
+      // Validate projectId is available for upload
+      if (!projectId) {
+        throw new Error('Project ID is required for S3 upload. Cannot deploy app without project context.');
+      }
+      
+      
+      if (buildId) {
+        console.log(`Running parallel uploads: main app + versioned source/production for project ${projectId}`);
+      }
       const uploadStartTime = Date.now();
-      const uploadResult = await this.s3Service.uploadReactApp(finalAppDirectory, actualPromptId);
+      
+      // Run main upload and production version upload in parallel
+      const [uploadResult, versionUploadResult] = await Promise.allSettled([
+        this.s3Service.uploadReactApp(finalAppDirectory, actualPromptId, projectId),
+        projectId && buildId ? 
+          this.uploadProductionVersionAsync(finalAppDirectory, projectId, buildId, actualPromptId) :
+          Promise.resolve({ success: true, uploadedFiles: [], duration: 0 })
+      ]);
+      
       metrics.s3_upload_time_ms = Date.now() - uploadStartTime;
       
-      if (!uploadResult.success) {
-        throw new Error(`Failed to upload app to S3: ${uploadResult.error}`);
+      // Check main upload result
+      if (uploadResult.status === 'rejected' || !uploadResult.value.success) {
+        const error = uploadResult.status === 'rejected' ? 
+          uploadResult.reason : 
+          uploadResult.value.error;
+        throw new Error(`Failed to upload app to S3: ${error}`);
+      }
+      
+      const mainUploadResult = uploadResult.value;
+
+      // Log version upload result and capture metrics (but don't fail if it failed)
+      if (versionUploadResult.status === 'rejected') {
+        console.error(`Version upload failed for prompt ${actualPromptId}:`, versionUploadResult.reason);
+      } else if (versionUploadResult.value.success) {
+        console.log(`Version upload completed for prompt ${actualPromptId} - ${versionUploadResult.value.uploadedFiles?.length || 0} files uploaded`);
+        
+        // Update production version upload timing in metrics
+        if (buildId && versionUploadResult.value.duration) {
+          try {
+            await this.databaseService.updateBuildMetrics(buildId, { 
+              version_production_upload_time_ms: versionUploadResult.value.duration 
+            });
+          } catch (error) {
+            console.error(`Failed to update production upload metrics for build ${buildId}:`, error);
+          }
+        }
+      } else {
+        console.error(`Version upload failed for prompt ${actualPromptId}: No error details available`);
       }
 
       // Calculate total time
@@ -179,16 +239,16 @@ export class JobProcessor {
 
       // Save preview URL to database
       if (projectId) {
-        await this.databaseService.createPreview(uploadResult.previewUrl!, projectId, actualPromptId);
+        await this.databaseService.createPreview(mainUploadResult.previewUrl!, projectId, actualPromptId);
       }
 
       // Update prompt status to READY
       await this.databaseService.updatePromptStatus(actualPromptId, 'READY');
       this.jobStatusService.updateJobStatus(actualPromptId, 'READY', {
-        previewUrl: uploadResult.previewUrl
+        previewUrl: mainUploadResult.previewUrl
       });
 
-      console.log(`Prompt ${actualPromptId} completed successfully. Preview URL: ${uploadResult.previewUrl}`);
+      console.log(`Prompt ${actualPromptId} completed successfully. Preview URL: ${mainUploadResult.previewUrl}`);
       console.log(`Build metrics:`, metrics);
       
       // Delete the message from SQS since it was processed successfully
@@ -227,6 +287,55 @@ export class JobProcessor {
     return {
       isProcessing: this.isProcessing
     };
+  }
+
+  private async uploadSourceCodeAsync(appDirectory: string, projectId: string, version: number, promptId: string): Promise<{ duration: number; success: boolean }> {
+    const startTime = Date.now();
+    try {
+      console.log(`Starting source code upload for prompt ${promptId}, project ${projectId}, version ${version}...`);
+      const uploadResult = await this.s3Service.uploadSourceCode(appDirectory, projectId, version);
+      const duration = Date.now() - startTime;
+      
+      if (uploadResult.success) {
+        console.log(`Source code upload completed for prompt ${promptId} - ${uploadResult.uploadedFiles?.length || 0} files uploaded (${duration}ms)`);
+        return { duration, success: true };
+      } else {
+        console.error(`Source code upload failed for prompt ${promptId}:`, uploadResult.error);
+        return { duration, success: false };
+      }
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      console.error(`Source code upload error for prompt ${promptId}:`, error);
+      return { duration, success: false };
+    }
+  }
+
+  private async uploadProductionVersionAsync(appDirectory: string, projectId: string, buildId: string, promptId: string): Promise<{ success: boolean; uploadedFiles?: string[]; duration: number }> {
+    const startTime = Date.now();
+    try {
+      // Get build information to get the version
+      const build = await this.databaseService.getBuildById(buildId);
+      if (!build) {
+        console.error(`Build not found for buildId ${buildId}`);
+        return { success: false, duration: Date.now() - startTime };
+      }
+
+      console.log(`Starting production version upload for prompt ${promptId}, project ${projectId}, version ${build.version}...`);
+      const uploadResult = await this.s3Service.uploadProductionVersion(appDirectory, projectId, build.version);
+      const duration = Date.now() - startTime;
+      
+      if (uploadResult.success) {
+        console.log(`Production version upload completed for prompt ${promptId} - ${uploadResult.uploadedFiles?.length || 0} files uploaded (${duration}ms)`);
+        return { success: true, uploadedFiles: uploadResult.uploadedFiles, duration };
+      } else {
+        console.error(`Production version upload failed for prompt ${promptId}:`, uploadResult.error);
+        return { success: false, duration };
+      }
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      console.error(`Production version upload error for prompt ${promptId}:`, error);
+      return { success: false, duration };
+    }
   }
 
   private async handleBuildWithRetry(appDirectory: string, promptId: string, projectId?: string): Promise<{ finalAppDirectory: string; dependencyInstallTime: number; buildTime: number }> {

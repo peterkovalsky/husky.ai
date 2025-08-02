@@ -1,11 +1,15 @@
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import HomePage from "./pages/HomePage";
+
 function App() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-base-200">
-      <div className="text-center">
-        <h1 className="text-3xl font-bold underline">Hello world!</h1>
-        <button className="btn btn-primary">Click Me</button>
+    <Router basename={import.meta.env.VITE_BASE_PATH || "/"}>
+      <div className="min-h-screen bg-base-100">
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+        </Routes>
       </div>
-    </div>
+    </Router>
   );
 }
 
