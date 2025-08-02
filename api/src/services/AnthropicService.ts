@@ -71,7 +71,7 @@ export class AnthropicService extends AIService {
       }
 
       // Fall back to initial file tree from JSON file
-      console.log("Using initial file tree from template-react18-tsS.json");
+      console.log("Using initial file tree from template-react18-ts.json");
       const fileContent = fs.readFileSync(this.reactAppFilesPath, "utf8");
       const parsedContent = JSON.parse(fileContent);
       this.currentFileTree =
@@ -288,7 +288,7 @@ export class AnthropicService extends AIService {
     try {
       // Check if package.json exists to determine the build command
       const packageJsonPath = path.join(appDir, "package.json");
-      let buildCommand = "npm run build";
+      let buildCommand = `VITE_BASE_PATH=/projects/${this.projectId}/ npm run build`;
 
       if (fs.existsSync(packageJsonPath)) {
         try {
@@ -300,7 +300,9 @@ export class AnthropicService extends AIService {
             packageJson.devDependencies?.vite ||
             packageJson.dependencies?.vite
           ) {
-            buildCommand = "npx vite build";
+            buildCommand = `VITE_BASE_PATH=/projects/${this.projectId}/ npx vite build`;
+          } else {
+            buildCommand = `VITE_BASE_PATH=/projects/${this.projectId}/ npm run build`;
           }
         } catch (error) {
           console.warn(
