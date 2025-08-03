@@ -1,0 +1,13 @@
+export interface UploadResult {
+  success: boolean;
+  previewUrl?: string;
+  uploadedFiles?: string[];
+  error?: string;
+  duration?: number;
+}
+
+export interface IStorageService {
+  uploadReactApp(appDirectory: string, promptId: string, projectId: string): Promise<UploadResult>;
+  uploadSourceCode(appDirectory: string, projectId: string, version: number): Promise<UploadResult>;
+  uploadProductionVersion(appDirectory: string, projectId: string, version: number): Promise<UploadResult>;
+}

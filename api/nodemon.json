@@ -9,7 +9,7 @@
     "*.log",
     "*.tmp"
   ],
-  "exec": "ts-node src/index.ts",
+  "exec": "ts-node src/server.ts",
   "env": {
     "NODE_ENV": "development"
   },

@@ -79,23 +79,31 @@ Health check endpoint with system status.
 Copy `.env.example` to `.env` and fill in the required values:
 
 ```bash
-# Server Configuration
-PORT=3000
+# Supabase Configuration (Required)
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
-# Anthropic AI Configuration
-ANTHROPIC_API_KEY=your_anthropic_api_key_here
+# Anthropic AI Configuration (Required)
+ANTHROPIC_API_KEY=your-anthropic-api-key
 
-# AWS Configuration
+# AWS Configuration (Required)
 AWS_REGION=us-east-1
-AWS_ACCESS_KEY_ID=your_aws_access_key_id
-AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
+AWS_ACCESS_KEY_ID=your-aws-access-key-id
+AWS_SECRET_ACCESS_KEY=your-aws-secret-access-key
 
-# SQS Configuration
-SQS_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/123456789012/husky-jobs
+# S3 Configuration (Required)
+S3_BUCKET_NAME=your-main-bucket-name
+S3_VERSIONS_BUCKET_NAME=your-versions-bucket-name
 
-# S3 Configuration
-S3_BUCKET_NAME=husky-apps-preview
+# SQS Configuration (Required)
+SQS_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/123456789012/your-queue-name
+
+# Server Configuration
+PORT=3333
+NODE_ENV=development
 ```
+
+**⚠️ All environment variables are required for the application to start. The server will fail to start with clear error messages if any are missing.**
 
 ## AWS Setup
 
