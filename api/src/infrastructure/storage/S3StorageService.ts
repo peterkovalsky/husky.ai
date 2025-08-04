@@ -52,7 +52,7 @@ export class S3StorageService implements IStorageService {
       }
 
       const uploadedFiles = await this.uploadDirectory(distPath, `projects/${projectId}/`);
-      const previewUrl = `https://${this.bucketName}.s3.amazonaws.com/projects/${projectId}/index.html`;
+      const previewUrl = `https://${this.bucketName}.s3.amazonaws.com/projects/${projectId}/`;
 
       return {
         success: true,

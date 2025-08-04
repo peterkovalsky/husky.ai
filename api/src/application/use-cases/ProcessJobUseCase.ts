@@ -1,6 +1,6 @@
 import { IPromptRepository } from '../../domain/repositories/IPromptRepository';
 import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
-import { IPreviewRepository } from '../../domain/repositories/IPreviewRepository';
+import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
 import { IAIService } from '../../domain/services/IAIService';
 import { IBuildService } from '../../domain/services/IBuildService';
 import { IStorageService } from '../../domain/services/IStorageService';
@@ -11,7 +11,7 @@ export class ProcessJobUseCase {
   constructor(
     private promptRepository: IPromptRepository,
     private buildRepository: IBuildRepository,
-    private previewRepository: IPreviewRepository,
+    private projectRepository: IProjectRepository,
     private aiService: IAIService,
     private buildService: IBuildService,
     private storageService: IStorageService
@@ -112,13 +112,12 @@ export class ProcessJobUseCase {
         await this.buildRepository.updateMetrics(buildId, metrics);
       }
 
-      // Save preview URL to database
+      // Save preview URL to project (only set if it's not already set)
       if (uploadResult.previewUrl) {
-        await this.previewRepository.create({
-          previewUrl: uploadResult.previewUrl,
-          projectId: safeProjectId,
-          promptId: safePromptId
-        });
+        const project = await this.projectRepository.findById(safeProjectId);
+        if (project && !project.previewUrl) {
+          await this.projectRepository.updatePreviewUrl(safeProjectId, uploadResult.previewUrl);
+        }
       }
 
       // Update prompt status to READY

@@ -5,7 +5,6 @@ import { IWorkspaceRepository } from '../../domain/repositories/IWorkspaceReposi
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
 import { IPromptRepository } from '../../domain/repositories/IPromptRepository';
 import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
-import { IPreviewRepository } from '../../domain/repositories/IPreviewRepository';
 
 // Domain Services
 import { IAIService } from '../../domain/services/IAIService';
@@ -18,7 +17,6 @@ import { SupabaseWorkspaceRepository } from '../../infrastructure/database/Supab
 import { SupabaseProjectRepository } from '../../infrastructure/database/SupabaseProjectRepository';
 import { SupabasePromptRepository } from '../../infrastructure/database/SupabasePromptRepository';
 import { SupabaseBuildRepository } from '../../infrastructure/database/SupabaseBuildRepository';
-import { SupabasePreviewRepository } from '../../infrastructure/database/SupabasePreviewRepository';
 import { AnthropicAIService } from '../../infrastructure/ai/AnthropicAIService';
 import { S3StorageService } from '../../infrastructure/storage/S3StorageService';
 import { SQSQueueService } from '../../infrastructure/queue/SQSQueueService';
@@ -49,7 +47,6 @@ export function setupContainer(): DIContainer {
   container.registerFactory<IProjectRepository>('projectRepository', () => new SupabaseProjectRepository());
   container.registerFactory<IPromptRepository>('promptRepository', () => new SupabasePromptRepository());
   container.registerFactory<IBuildRepository>('buildRepository', () => new SupabaseBuildRepository());
-  container.registerFactory<IPreviewRepository>('previewRepository', () => new SupabasePreviewRepository());
 
   // Register Infrastructure Services
   container.registerFactory<IAIService>('aiService', () => {
@@ -76,7 +73,7 @@ export function setupContainer(): DIContainer {
 
   container.registerFactory<GetPromptStatusUseCase>('getPromptStatusUseCase', () => new GetPromptStatusUseCase(
     container.get<IPromptRepository>('promptRepository'),
-    container.get<IPreviewRepository>('previewRepository')
+    container.get<IProjectRepository>('projectRepository')
   ));
 
   container.registerFactory<CreateProjectUseCase>('createProjectUseCase', () => new CreateProjectUseCase(
@@ -88,14 +85,13 @@ export function setupContainer(): DIContainer {
     container.get<IProjectRepository>('projectRepository'),
     container.get<IWorkspaceRepository>('workspaceRepository'),
     container.get<IPromptRepository>('promptRepository'),
-    container.get<IBuildRepository>('buildRepository'),
-    container.get<IPreviewRepository>('previewRepository')
+    container.get<IBuildRepository>('buildRepository')
   ));
 
   container.registerFactory<ProcessJobUseCase>('processJobUseCase', () => new ProcessJobUseCase(
     container.get<IPromptRepository>('promptRepository'),
     container.get<IBuildRepository>('buildRepository'),
-    container.get<IPreviewRepository>('previewRepository'),
+    container.get<IProjectRepository>('projectRepository'),
     container.get<IAIService>('aiService'),
     container.get<IBuildService>('buildService'),
     container.get<IStorageService>('storageService')

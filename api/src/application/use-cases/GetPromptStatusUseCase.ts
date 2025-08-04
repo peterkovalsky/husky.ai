@@ -1,5 +1,5 @@
 import { IPromptRepository } from '../../domain/repositories/IPromptRepository';
-import { IPreviewRepository } from '../../domain/repositories/IPreviewRepository';
+import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
 
 export interface GetPromptStatusResponse {
   promptId: string;
@@ -15,7 +15,7 @@ export interface GetPromptStatusResponse {
 export class GetPromptStatusUseCase {
   constructor(
     private promptRepository: IPromptRepository,
-    private previewRepository: IPreviewRepository
+    private projectRepository: IProjectRepository
   ) {}
 
   async execute(promptId: string): Promise<GetPromptStatusResponse> {
@@ -30,11 +30,11 @@ export class GetPromptStatusUseCase {
       throw new Error('Prompt not found');
     }
 
-    // Get preview URL if status is READY
+    // Get preview URL from project
     let previewUrl = null;
     if (prompt.status === 'READY') {
-      const preview = await this.previewRepository.findByPromptId(promptId);
-      previewUrl = preview?.previewUrl || null;
+      const project = await this.projectRepository.findById(prompt.projectId);
+      previewUrl = project?.previewUrl || null;
     }
 
     return {

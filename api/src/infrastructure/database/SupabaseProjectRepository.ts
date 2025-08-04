@@ -78,11 +78,21 @@ export class SupabaseProjectRepository implements IProjectRepository {
     return !!userWorkspace;
   }
 
+  async updatePreviewUrl(projectId: string, previewUrl: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('projects')
+      .update({ preview_url: previewUrl })
+      .eq('id', projectId);
+
+    if (error) throw error;
+  }
+
   private mapToEntity(data: any): Project {
     return {
       id: data.id,
       name: data.name,
       description: data.description,
+      previewUrl: data.preview_url,
       workspaceId: data.workspace_id,
       createdAt: new Date(data.created_at),
       modifiedAt: new Date(data.modified_at)

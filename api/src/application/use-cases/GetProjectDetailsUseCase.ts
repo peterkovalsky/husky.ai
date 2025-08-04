@@ -2,7 +2,6 @@ import { IProjectRepository } from '../../domain/repositories/IProjectRepository
 import { IWorkspaceRepository } from '../../domain/repositories/IWorkspaceRepository';
 import { IPromptRepository } from '../../domain/repositories/IPromptRepository';
 import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
-import { IPreviewRepository } from '../../domain/repositories/IPreviewRepository';
 import { ProjectDetailsDto } from '../dto/ProjectDto';
 import { User } from '../../domain/entities/User';
 
@@ -11,8 +10,7 @@ export class GetProjectDetailsUseCase {
     private projectRepository: IProjectRepository,
     private workspaceRepository: IWorkspaceRepository,
     private promptRepository: IPromptRepository,
-    private buildRepository: IBuildRepository,
-    private previewRepository: IPreviewRepository
+    private buildRepository: IBuildRepository
   ) {}
 
   async execute(projectId: string, user: User): Promise<ProjectDetailsDto> {
@@ -34,8 +32,6 @@ export class GetProjectDetailsUseCase {
     // Get builds/versions
     const builds = await this.buildRepository.findByProjectId(projectId);
     
-    // Get previews
-    const previews = await this.previewRepository.findByProjectId(projectId);
     
     // Get latest build for current version info
     const latestBuild = await this.buildRepository.findLatestByProjectId(projectId);
@@ -45,6 +41,7 @@ export class GetProjectDetailsUseCase {
         id: project.id,
         name: project.name,
         workspaceId: project.workspaceId,
+        previewUrl: project.previewUrl,
         createdAt: project.createdAt,
         modifiedAt: project.modifiedAt
       },
@@ -55,7 +52,7 @@ export class GetProjectDetailsUseCase {
       stats: {
         totalPrompts: allPrompts.length,
         totalBuilds: builds.length,
-        totalPreviews: previews.length,
+        totalPreviews: project.previewUrl ? 1 : 0,
         currentVersion: latestBuild?.version || 0
       },
       recentPrompts: recentPrompts.map(prompt => ({
@@ -71,12 +68,12 @@ export class GetProjectDetailsUseCase {
         createdAt: build.createdAt,
         metrics: build.metrics
       })),
-      previews: previews.slice(0, 5).map(preview => ({
-        id: preview.id,
-        previewUrl: preview.previewUrl,
-        createdAt: preview.createdAt,
-        promptId: preview.promptId
-      }))
+      previews: project.previewUrl ? [{
+        id: project.id,
+        previewUrl: project.previewUrl,
+        createdAt: project.createdAt,
+        promptId: undefined
+      }] : []
     };
   }
 }

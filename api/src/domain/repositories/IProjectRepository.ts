@@ -5,4 +5,5 @@ export interface IProjectRepository {
   findById(id: string): Promise<Project | null>;
   findByWorkspaceId(workspaceId: string): Promise<Project[]>;
   checkUserAccess(userId: string, projectId: string): Promise<boolean>;
+  updatePreviewUrl(projectId: string, previewUrl: string): Promise<void>;
 }

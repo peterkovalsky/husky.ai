@@ -2,6 +2,7 @@ export interface Project {
   id: string;
   name: string;
   description?: string;
+  previewUrl?: string;
   workspaceId: string;
   createdAt: Date;
   modifiedAt: Date;

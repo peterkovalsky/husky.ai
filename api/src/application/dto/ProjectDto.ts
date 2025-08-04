@@ -9,6 +9,7 @@ export interface ProjectDetailsDto {
     id: string;
     name: string;
     workspaceId: string;
+    previewUrl?: string;
     createdAt: Date;
     modifiedAt: Date;
   };
