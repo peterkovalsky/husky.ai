@@ -1,5 +1,5 @@
 import { SQSClient, SendMessageCommand, ReceiveMessageCommand, DeleteMessageCommand } from "@aws-sdk/client-sqs";
-import { IQueueService, JobMessage, ReceiveMessageResult } from '../../domain/services/IQueueService';
+import { IQueueService, QueueMessage, ReceiveMessageResult } from '../../domain/services/IQueueService';
 
 export class SQSQueueService implements IQueueService {
   private sqsClient: SQSClient;
@@ -31,7 +31,7 @@ export class SQSQueueService implements IQueueService {
     console.log(`SQSQueueService initialized with region: ${region}, queue: ${this.queueUrl}`);
   }
 
-  async sendMessage(message: JobMessage): Promise<void> {
+  async sendMessage(message: QueueMessage): Promise<void> {
     const command = new SendMessageCommand({
       QueueUrl: this.queueUrl,
       MessageBody: JSON.stringify(message),
@@ -50,7 +50,7 @@ export class SQSQueueService implements IQueueService {
     const result = await this.sqsClient.send(command);
     
     const messages = (result.Messages || []).map(msg => ({
-      body: JSON.parse(msg.Body!) as JobMessage,
+      body: JSON.parse(msg.Body!) as QueueMessage,
       receiptHandle: msg.ReceiptHandle!
     }));
 

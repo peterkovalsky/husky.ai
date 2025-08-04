@@ -3,14 +3,24 @@ import { useAuth } from '../hooks/useAuth'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
 import { Separator } from './ui/separator'
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from './ui/dropdown-menu'
 import { CreateProjectDialog } from './CreateProjectDialog'
-import { Code2, Calendar, FolderOpen, Plus } from 'lucide-react'
+import { DeleteProjectDialog } from './DeleteProjectDialog'
+import { Code2, Calendar, FolderOpen, Plus, MoreVertical, Trash2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { useState } from 'react'
 
 export const Home = () => {
-  const { projects, loading } = useProject()
+  const { projects, loading, deleteProject } = useProject()
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [selectedProject, setSelectedProject] = useState<{ id: string; name: string } | null>(null)
 
   const handleSignOut = async () => {
     try {
@@ -26,6 +36,18 @@ export const Home = () => {
       month: 'short',
       day: 'numeric'
     })
+  }
+
+  const handleDeleteProject = (project: { id: string; name: string }, event: React.MouseEvent) => {
+    event.stopPropagation() // Prevent card click
+    setSelectedProject(project)
+    setDeleteDialogOpen(true)
+  }
+
+  const confirmDeleteProject = async (projectId: string) => {
+    if (deleteProject) {
+      await deleteProject(projectId)
+    }
   }
 
   if (loading) {
@@ -148,6 +170,27 @@ export const Home = () => {
                     <div className="w-10 h-10 bg-gradient-to-r from-primary to-primary/80 rounded-lg flex items-center justify-center mb-3">
                       <Code2 className="w-5 h-5 text-primary-foreground" />
                     </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-8 w-8 p-0"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={(e) => handleDeleteProject(project, e)}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete Project
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                   <CardTitle className="text-lg">{project.name}</CardTitle>
                 </CardHeader>
@@ -173,6 +216,17 @@ export const Home = () => {
           </div>
         )}
       </div>
+
+      {/* Delete Project Dialog */}
+      {selectedProject && (
+        <DeleteProjectDialog
+          open={deleteDialogOpen}
+          onOpenChange={setDeleteDialogOpen}
+          projectName={selectedProject.name}
+          projectId={selectedProject.id}
+          onConfirm={confirmDeleteProject}
+        />
+      )}
 
       {/* Chat Widget */}
     </div>

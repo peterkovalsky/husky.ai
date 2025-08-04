@@ -8,4 +8,5 @@ export interface IBuildRepository {
   findByProjectAndVersion(projectId: string, version: number): Promise<Build | null>;
   getNextVersionForProject(projectId: string): Promise<number>;
   updateMetrics(id: string, metrics: BuildMetrics): Promise<void>;
+  deleteByProjectId(projectId: string): Promise<void>;
 }

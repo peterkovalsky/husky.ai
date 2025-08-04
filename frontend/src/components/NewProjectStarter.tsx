@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ApiService, type JobStatus } from '../services/api'
@@ -7,7 +7,7 @@ import { Button } from './ui/button'
 import { Textarea } from './ui/textarea'
 import { Card, CardContent } from './ui/card'
 import { NewProjectLoading } from './NewProjectLoading'
-import { Code2, ArrowRight, Loader2, Sparkles, ArrowLeft } from 'lucide-react'
+import { ArrowRight, Loader2, ArrowLeft } from 'lucide-react'
 import { ChatWidget } from './ChatWidget'
 
 interface NewProjectStarterProps {

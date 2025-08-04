@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectCommand, DeleteObjectsCommand } from "@aws-sdk/client-s3";
 import { IStorageService, UploadResult } from '../../domain/services/IStorageService';
 import fs from "fs";
 import path from "path";
@@ -179,5 +179,69 @@ export class S3StorageService implements IStorageService {
     };
 
     return contentTypes[ext] || 'application/octet-stream';
+  }
+
+  async deleteFile(key: string): Promise<void> {
+    const command = new DeleteObjectCommand({
+      Bucket: this.bucketName,
+      Key: key,
+    });
+
+    await this.s3Client.send(command);
+  }
+
+  async deleteFolder(prefix: string): Promise<void> {
+    // List all objects with the given prefix
+    const listCommand = new ListObjectsV2Command({
+      Bucket: this.bucketName,
+      Prefix: prefix,
+    });
+
+    const listResult = await this.s3Client.send(listCommand);
+    
+    if (!listResult.Contents || listResult.Contents.length === 0) {
+      return; // No objects to delete
+    }
+
+    // Delete objects in batches (S3 allows up to 1000 objects per delete request)
+    const objectsToDelete = listResult.Contents.map(obj => ({ Key: obj.Key! }));
+    
+    while (objectsToDelete.length > 0) {
+      const batch = objectsToDelete.splice(0, 1000);
+      
+      const deleteCommand = new DeleteObjectsCommand({
+        Bucket: this.bucketName,
+        Delete: {
+          Objects: batch,
+        },
+      });
+
+      await this.s3Client.send(deleteCommand);
+    }
+
+    // Also check versions bucket if we have objects there
+    const versionsListCommand = new ListObjectsV2Command({
+      Bucket: this.versionsBucketName,
+      Prefix: prefix,
+    });
+
+    const versionsListResult = await this.s3Client.send(versionsListCommand);
+    
+    if (versionsListResult.Contents && versionsListResult.Contents.length > 0) {
+      const versionsToDelete = versionsListResult.Contents.map(obj => ({ Key: obj.Key! }));
+      
+      while (versionsToDelete.length > 0) {
+        const batch = versionsToDelete.splice(0, 1000);
+        
+        const deleteVersionsCommand = new DeleteObjectsCommand({
+          Bucket: this.versionsBucketName,
+          Delete: {
+            Objects: batch,
+          },
+        });
+
+        await this.s3Client.send(deleteVersionsCommand);
+      }
+    }
   }
 }

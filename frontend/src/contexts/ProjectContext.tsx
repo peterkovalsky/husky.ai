@@ -8,6 +8,7 @@ interface ProjectContextType {
   projects: Project[];
   currentProject: Project | null;
   setCurrentProject: (project: Project) => void;
+  deleteProject?: (projectId: string) => Promise<void>;
   loading: boolean;
   error: string | null;
 }
@@ -81,12 +82,29 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
     setCurrentProject(project);
   }, []);
 
+  const handleDeleteProject = useCallback(async (projectId: string) => {
+    try {
+      await ApiService.deleteProject(projectId);
+      
+      // Remove from projects list
+      setProjects(prev => prev.filter(p => p.id !== projectId));
+      
+      // If deleted project was current project, clear it
+      if (currentProject?.id === projectId) {
+        setCurrentProject(null);
+      }
+    } catch (err) {
+      throw new Error(err instanceof Error ? err.message : 'Failed to delete project');
+    }
+  }, [currentProject]);
+
   const value: ProjectContextType = {
     workspaces,
     currentWorkspace,
     projects,
     currentProject,
     setCurrentProject: handleSetCurrentProject,
+    deleteProject: handleDeleteProject,
     loading,
     error,
   };

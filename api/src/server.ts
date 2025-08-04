@@ -27,6 +27,7 @@ try {
 const jobProcessorService = new JobProcessorService(
   container.get('queueService'),
   container.get('processJobUseCase'),
+  container.get('deleteProjectUseCase'),
   logger,
   config.jobProcessor.intervalMs
 );

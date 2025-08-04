@@ -44,7 +44,9 @@ const DialogTrigger = ({ children, asChild = false }: DialogTriggerProps) => {
   }
 
   if (asChild) {
-    return React.cloneElement(children as React.ReactElement, {
+    const childElement = children as React.ReactElement<any>
+    return React.cloneElement(childElement, {
+      ...(childElement.props || {}),
       onClick: handleClick
     })
   }
@@ -157,6 +159,19 @@ const DialogDescription = ({ children, className }: DialogDescriptionProps) => {
   )
 }
 
+interface DialogFooterProps {
+  children: React.ReactNode
+  className?: string
+}
+
+const DialogFooter = ({ children, className }: DialogFooterProps) => {
+  return (
+    <div className={cn("flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 p-6 pt-0", className)}>
+      {children}
+    </div>
+  )
+}
+
 export {
   Dialog,
   DialogTrigger,
@@ -164,4 +179,5 @@ export {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 }

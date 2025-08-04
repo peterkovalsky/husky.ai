@@ -1,5 +1,6 @@
-import { IQueueService } from '../../domain/services/IQueueService';
+import { IQueueService, QueueMessage, JobMessage, DeleteProjectMessage } from '../../domain/services/IQueueService';
 import { ProcessJobUseCase } from '../use-cases/ProcessJobUseCase';
+import { DeleteProjectUseCase } from '../use-cases/DeleteProjectUseCase';
 import { ILogger } from '../../shared/logger/Logger';
 
 export class JobProcessorService {
@@ -9,6 +10,7 @@ export class JobProcessorService {
   constructor(
     private queueService: IQueueService,
     private processJobUseCase: ProcessJobUseCase,
+    private deleteProjectUseCase: DeleteProjectUseCase,
     private logger: ILogger,
     private intervalMs: number = 5000
   ) {}
@@ -65,7 +67,7 @@ export class JobProcessorService {
       }
 
       for (const message of result.messages) {
-        await this.processJob(message.body, message.receiptHandle);
+        await this.processMessage(message.body, message.receiptHandle);
       }
     } catch (error) {
       this.logger.error("Error processing messages", { error });
@@ -73,17 +75,25 @@ export class JobProcessorService {
     }
   }
 
-  private async processJob(jobMessage: any, receiptHandle: string): Promise<void> {
+  private async processMessage(message: QueueMessage, receiptHandle: string): Promise<void> {
     try {
-      this.logger.info(`Processing job message`, { promptId: jobMessage.promptId });
-
-      await this.processJobUseCase.execute(jobMessage);
+      if ('action' in message && message.action === 'DELETE_PROJECT') {
+        // Handle project deletion
+        this.logger.info(`Processing delete project message`, { projectId: message.projectId });
+        await this.deleteProjectUseCase.execute(message as DeleteProjectMessage);
+      } else {
+        // Handle regular job processing
+        const jobMessage = message as JobMessage;
+        this.logger.info(`Processing job message`, { promptId: jobMessage.promptId });
+        await this.processJobUseCase.execute(jobMessage);
+      }
 
       // Delete the message from queue since it was processed successfully
       await this.queueService.deleteMessage(receiptHandle);
     } catch (error) {
-      this.logger.error(`Error processing job`, { 
-        promptId: jobMessage.promptId,
+      const messageId = 'action' in message ? message.projectId : (message as JobMessage).promptId;
+      this.logger.error(`Error processing message`, { 
+        messageId,
         error: error instanceof Error ? error.message : 'Unknown error'
       });
 

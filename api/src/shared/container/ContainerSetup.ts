@@ -29,6 +29,7 @@ import { GetPromptStatusUseCase } from '../../application/use-cases/GetPromptSta
 import { CreateProjectUseCase } from '../../application/use-cases/CreateProjectUseCase';
 import { GetProjectDetailsUseCase } from '../../application/use-cases/GetProjectDetailsUseCase';
 import { ProcessJobUseCase } from '../../application/use-cases/ProcessJobUseCase';
+import { DeleteProjectUseCase } from '../../application/use-cases/DeleteProjectUseCase';
 import { SetupUserUseCase } from '../../application/use-cases/SetupUserUseCase';
 
 // Presentation Layer
@@ -97,6 +98,13 @@ export function setupContainer(): DIContainer {
     container.get<IStorageService>('storageService')
   ));
 
+  container.registerFactory<DeleteProjectUseCase>('deleteProjectUseCase', () => new DeleteProjectUseCase(
+    container.get<IProjectRepository>('projectRepository'),
+    container.get<IPromptRepository>('promptRepository'),
+    container.get<IBuildRepository>('buildRepository'),
+    container.get<IStorageService>('storageService')
+  ));
+
   container.registerFactory<SetupUserUseCase>('setupUserUseCase', () => new SetupUserUseCase(
     container.get<IWorkspaceRepository>('workspaceRepository'),
     container.get<IProjectRepository>('projectRepository')
@@ -123,7 +131,8 @@ export function setupContainer(): DIContainer {
     container.get<CreateProjectUseCase>('createProjectUseCase'),
     container.get<GetProjectDetailsUseCase>('getProjectDetailsUseCase'),
     container.get<IProjectRepository>('projectRepository'),
-    container.get<IPromptRepository>('promptRepository')
+    container.get<IPromptRepository>('promptRepository'),
+    container.get<IQueueService>('queueService')
   ));
 
   container.registerFactory<WorkspaceController>('workspaceController', () => new WorkspaceController(

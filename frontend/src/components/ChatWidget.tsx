@@ -118,7 +118,7 @@ export const ChatWidget = () => {
             // Cache-busting iframe reload
             setTimeout(() => {
               // Add timestamp to URL to force cache bypass
-              const cacheBustUrl = status.previewUrl.includes('?') 
+              const cacheBustUrl = status.previewUrl?.includes('?') 
                 ? `${status.previewUrl}&t=${Date.now()}`
                 : `${status.previewUrl}?t=${Date.now()}`
               

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Code2, Sparkles, Wand2, Rocket } from 'lucide-react'
 
 interface LoadingStage {

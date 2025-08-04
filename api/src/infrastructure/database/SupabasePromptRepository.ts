@@ -66,6 +66,15 @@ export class SupabasePromptRepository implements IPromptRepository {
     if (error) throw error;
   }
 
+  async deleteByProjectId(projectId: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('prompts')
+      .delete()
+      .eq('project_id', projectId);
+
+    if (error) throw error;
+  }
+
   private mapToEntity(data: any): Prompt {
     return {
       id: data.id,

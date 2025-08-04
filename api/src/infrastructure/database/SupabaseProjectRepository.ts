@@ -50,7 +50,8 @@ export class SupabaseProjectRepository implements IProjectRepository {
     const { data, error } = await this.supabase
       .from('projects')
       .select('*')
-      .eq('workspace_id', workspaceId);
+      .eq('workspace_id', workspaceId)
+      .neq('status', 'DELETING');
 
     if (error) throw error;
     
@@ -87,6 +88,36 @@ export class SupabaseProjectRepository implements IProjectRepository {
     if (error) throw error;
   }
 
+  async findByIdForOperations(id: string): Promise<Project | null> {
+    const { data, error } = await this.supabase
+      .from('projects')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error;
+    
+    return data ? this.mapToEntity(data) : null;
+  }
+
+  async updateStatus(projectId: string, status: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('projects')
+      .update({ status })
+      .eq('id', projectId);
+
+    if (error) throw error;
+  }
+
+  async deleteById(projectId: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('projects')
+      .delete()
+      .eq('id', projectId);
+
+    if (error) throw error;
+  }
+
   private mapToEntity(data: any): Project {
     return {
       id: data.id,
@@ -94,6 +125,7 @@ export class SupabaseProjectRepository implements IProjectRepository {
       description: data.description,
       previewUrl: data.preview_url,
       workspaceId: data.workspace_id,
+      status: data.status || 'ACTIVE',
       createdAt: new Date(data.created_at),
       modifiedAt: new Date(data.modified_at)
     };

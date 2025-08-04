@@ -10,4 +10,6 @@ export interface IStorageService {
   uploadReactApp(appDirectory: string, promptId: string, projectId: string): Promise<UploadResult>;
   uploadSourceCode(appDirectory: string, projectId: string, version: number): Promise<UploadResult>;
   uploadProductionVersion(appDirectory: string, projectId: string, version: number): Promise<UploadResult>;
+  deleteFile(key: string): Promise<void>;
+  deleteFolder(prefix: string): Promise<void>;
 }

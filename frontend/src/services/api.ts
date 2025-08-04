@@ -196,6 +196,12 @@ export class ApiService {
     });
   }
 
+  static async deleteProject(projectId: string): Promise<{ message: string; projectId: string }> {
+    return this.request<{ message: string; projectId: string }>(`/api/projects/${projectId}`, {
+      method: 'DELETE',
+    });
+  }
+
   static async pollJobStatus(
     jobId: string,
     onUpdate: (status: JobStatus) => void,

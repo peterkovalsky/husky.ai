@@ -93,5 +93,10 @@ export function createApiRoutes(deps: ApiRoutesDependencies): Router {
     deps.projectController.getPromptsByProject
   );
 
+  router.delete('/projects/:projectId', 
+    deps.authMiddleware.authenticate, 
+    deps.projectController.deleteProject
+  );
+
   return router;
 }

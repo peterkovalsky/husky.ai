@@ -73,7 +73,7 @@ export const ProjectPage = () => {
   // Listen for preview reload events from ChatWidget
   useEffect(() => {
     const handleReloadPreview = (event: CustomEvent) => {
-      const { previewUrl, forceReload } = event.detail
+      const { previewUrl } = event.detail
       
       // Update the job status with new preview URL if provided
       if (previewUrl && latestJobStatus) {
