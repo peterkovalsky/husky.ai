@@ -11,14 +11,14 @@ export class PromptController {
 
   createPrompt = async (req: AuthRequest, res: Response) => {
     try {
-      const { prompt, project_id } = req.body;
+      const { prompt, projectId } = req.body;
       
       if (!req.user) {
         return res.status(401).json({ error: 'User not authenticated' });
       }
 
       const result = await this.createPromptUseCase.execute(
-        { prompt, projectId: project_id },
+        { prompt, projectId },
         req.user
       );
 

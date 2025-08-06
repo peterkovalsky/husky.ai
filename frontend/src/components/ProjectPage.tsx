@@ -34,7 +34,7 @@ export const ProjectPage = () => {
         // Find the latest READY prompt for preview
         const readyPrompts = details.recentPrompts.filter(p => p.status === 'READY')
         if (readyPrompts.length > 0) {
-          const latest = readyPrompts[0] // recentPrompts are already sorted by created_at desc
+          const latest = readyPrompts[0] // recentPrompts are already sorted by createdAt desc
           
           // Get job status for the latest prompt to get preview URL
           try {
@@ -63,9 +63,9 @@ export const ProjectPage = () => {
       setCurrentProject({
         id: projectDetails.project.id,
         name: projectDetails.project.name,
-        workspace_id: projectDetails.project.workspace_id,
-        created_at: projectDetails.project.created_at,
-        modified_at: projectDetails.project.modified_at
+        workspaceId: projectDetails.project.workspaceId,
+        createdAt: projectDetails.project.createdAt,
+        modifiedAt: projectDetails.project.modifiedAt
       })
     }
   }, [projectDetails, setCurrentProject])

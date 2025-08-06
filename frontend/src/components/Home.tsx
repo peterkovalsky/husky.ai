@@ -31,7 +31,12 @@ export const Home = () => {
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    if (!dateString) return 'Unknown Date'
+    
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return 'Invalid Date'
+    
+    return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric'
@@ -54,10 +59,7 @@ export const Home = () => {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 bg-gradient-to-r from-primary to-primary/80 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <Code2 className="w-8 h-8 text-primary-foreground animate-pulse" />
-          </div>
-          <p className="text-muted-foreground">Loading projects...</p>
+          <div className="w-8 h-8 border-4 border-primary/30 border-t-primary rounded-full animate-spin mx-auto"></div>
         </div>
       </div>
     )
@@ -141,7 +143,7 @@ export const Home = () => {
           )}
         </div>
 
-        {projects.length === 0 ? (
+        {!loading && projects.length === 0 ? (
           <div className="text-center py-16">
             <div className="w-16 h-16 bg-muted rounded-2xl flex items-center justify-center mx-auto mb-6">
               <FolderOpen className="w-8 h-8 text-muted-foreground" />
@@ -198,12 +200,12 @@ export const Home = () => {
                   <div className="space-y-2">
                     <div className="flex items-center text-sm text-muted-foreground">
                       <Calendar className="mr-2 h-4 w-4" />
-                      Created {formatDate(project.created_at)}
+                      Created {formatDate(project.createdAt)}
                     </div>
                     <Separator />
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">
-                        Last modified {formatDate(project.modified_at)}
+                        Last modified {formatDate(project.modifiedAt)}
                       </span>
                       <Button size="sm" variant="ghost">
                         Open →

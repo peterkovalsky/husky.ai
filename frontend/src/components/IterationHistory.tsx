@@ -28,7 +28,7 @@ export const IterationHistory = ({
         const response = await ApiService.getPrompts(projectId)
         // Sort by creation date, newest first
         const sortedPrompts = response.prompts.sort((a, b) => 
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         )
         setPrompts(sortedPrompts)
       } catch (err) {
@@ -175,7 +175,7 @@ export const IterationHistory = ({
                       #{index + 1}
                     </span>
                     <span className="text-xs text-gray-500">
-                      {formatRelativeTime(prompt.created_at)}
+                      {formatRelativeTime(prompt.createdAt)}
                     </span>
                   </div>
                   

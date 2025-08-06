@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { ApiService, type JobStatus } from '../services/api'
 import { useProject } from '../contexts/ProjectContext'
 import { Button } from './ui/button'
@@ -6,7 +7,7 @@ import { Textarea } from './ui/textarea'
 import { Card, CardContent } from './ui/card'
 import { Badge } from './ui/badge'
 import { Spinner } from './ui/shadcn-io/spinner'
-import { MessageCircle, X, Send, Loader2, CheckCircle, AlertCircle } from 'lucide-react'
+import { MessageCircle, X, Send, Loader2, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react'
 
 interface ChatMessage {
   id: string
@@ -24,6 +25,7 @@ export const ChatWidget = () => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const { currentProject } = useProject()
+  const navigate = useNavigate()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const pollCleanupRef = useRef<(() => void) | null>(null)
@@ -209,14 +211,25 @@ export const ChatWidget = () => {
                 <MessageCircle className="h-5 w-5" />
                 <span className="font-medium">{currentProject?.name || 'Quick Build'}</span>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsOpen(false)}
-                className="text-primary-foreground hover:bg-primary-foreground/20 h-8 w-8 p-0"
-              >
-                <X className="h-4 w-4" />
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate('/')}
+                  className="text-primary-foreground hover:bg-primary-foreground/20 h-8 w-8 p-0 cursor-pointer"
+                  title="Back to Projects"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsOpen(false)}
+                  className="text-primary-foreground hover:bg-primary-foreground/20 h-8 w-8 p-0 cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
 
             {/* Messages */}

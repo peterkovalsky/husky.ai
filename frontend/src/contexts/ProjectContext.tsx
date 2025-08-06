@@ -33,6 +33,7 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
+  const [projectsLoaded, setProjectsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -49,8 +50,6 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load workspaces');
-      } finally {
-        setLoading(false);
       }
     };
 
@@ -70,13 +69,23 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
           const defaultProject = projects.find(p => p.name === 'My Project') || projects[0];
           setCurrentProject(defaultProject);
         }
+        
+        setProjectsLoaded(true);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load projects');
+        setProjectsLoaded(true);
       }
     };
 
     loadProjects();
-  }, [currentWorkspace, currentProject]);
+  }, [currentWorkspace]);
+
+  // Update loading state when both workspaces and projects are loaded
+  useEffect(() => {
+    if (currentWorkspace !== null && projectsLoaded) {
+      setLoading(false);
+    }
+  }, [currentWorkspace, projectsLoaded]);
 
   const handleSetCurrentProject = useCallback((project: Project) => {
     setCurrentProject(project);

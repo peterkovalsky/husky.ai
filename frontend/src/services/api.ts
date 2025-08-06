@@ -22,26 +22,26 @@ export interface PromptResponse {
 export interface Workspace {
   id: string;
   name: string;
-  created_at: string;
-  modified_at: string;
+  createdAt: string;
+  modifiedAt: string;
 }
 
 export interface Project {
   id: string;
   name: string;
-  workspace_id: string;
-  created_at: string;
-  modified_at: string;
+  workspaceId: string;
+  createdAt: string;
+  modifiedAt: string;
 }
 
 export interface Prompt {
   id: string;
   prompt: string;
   status: 'QUEUED' | 'PROCESSING' | 'BUILDING' | 'READY' | 'FAILED';
-  project_id: string;
-  user_id: string;
-  created_at: string;
-  modified_at: string;
+  projectId: string;
+  userId: string;
+  createdAt: string;
+  modifiedAt: string;
 }
 
 export interface ApiError {
@@ -59,30 +59,30 @@ export interface UserSetupResponse {
 export interface Build {
   id: string;
   version: number;
-  created_at: string;
+  createdAt: string;
   metrics?: {
-    ai_generation_time_ms?: number;
-    dependency_install_time_ms?: number;
-    build_time_ms?: number;
-    s3_upload_time_ms?: number;
-    total_time_ms?: number;
+    aiGenerationTimeMs?: number;
+    dependencyInstallTimeMs?: number;
+    buildTimeMs?: number;
+    s3UploadTimeMs?: number;
+    totalTimeMs?: number;
   };
 }
 
 export interface Preview {
   id: string;
-  preview_url: string;
-  created_at: string;
-  prompt_id?: string;
+  previewUrl: string;
+  createdAt: string;
+  promptId?: string;
 }
 
 export interface ProjectDetails {
   project: {
     id: string;
     name: string;
-    workspace_id: string;
-    created_at: string;
-    modified_at: string;
+    workspaceId: string;
+    createdAt: string;
+    modifiedAt: string;
   };
   workspace: {
     id: string;
@@ -98,8 +98,8 @@ export interface ProjectDetails {
     id: string;
     prompt: string;
     status: 'QUEUED' | 'PROCESSING' | 'BUILDING' | 'READY' | 'FAILED';
-    created_at: string;
-    modified_at: string;
+    createdAt: string;
+    modifiedAt: string;
   }[];
   builds: Build[];
   previews: Preview[];
@@ -158,7 +158,7 @@ export class ApiService {
   static async submitPrompt(prompt: string, projectId?: string): Promise<PromptResponse> {
     return this.request<PromptResponse>('/api/prompt', {
       method: 'POST',
-      body: JSON.stringify({ prompt, project_id: projectId }),
+      body: JSON.stringify({ prompt, projectId }),
     });
   }
 
