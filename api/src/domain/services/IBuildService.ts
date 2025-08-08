@@ -9,4 +9,5 @@ export interface BuildResult {
 export interface IBuildService {
   buildApp(appDirectory: string, projectId?: string): Promise<BuildResult>;
   saveFileTreeToDisk(fileTree: Record<string, string>, projectId: string): Promise<string>;
+  copyNodeModulesAsync(targetDirectory: string, projectId: string): Promise<void>;
 }

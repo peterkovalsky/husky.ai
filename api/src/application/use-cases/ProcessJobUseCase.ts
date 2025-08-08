@@ -69,6 +69,10 @@ export class ProcessJobUseCase {
       const responseData = JSON.parse(aiResponse.content);
       const appDirectory = responseData.appDirectory;
 
+      // Start node_modules copying in parallel (don't await)
+      console.log(`Starting parallel node_modules copy for prompt ${safePromptId}...`);
+      const nodeModulesCopyPromise = this.buildService.copyNodeModulesAsync(appDirectory, safeProjectId);
+
       if (!appDirectory) {
         throw new Error("No app directory found in AI response");
       }
@@ -81,6 +85,10 @@ export class ProcessJobUseCase {
 
       // Update prompt status to BUILDING
       await this.promptRepository.updateStatus(safePromptId, "BUILDING");
+
+      // Wait for node_modules copying to complete before building
+      console.log(`Waiting for node_modules copy to complete for prompt ${safePromptId}...`);
+      await nodeModulesCopyPromise;
 
       // Build stage
       console.log(`Running build stage for prompt ${safePromptId}...`);
