@@ -22,7 +22,7 @@ COPY tsconfig.json ./
 COPY jest.config.js ./
 COPY nodemon.json ./
 COPY apps ./apps
-COPY ../templates ./templates
+COPY templates ./templates
 
 # Install dependencies for templates folder
 RUN if [ -f "templates/package.json" ]; then \
