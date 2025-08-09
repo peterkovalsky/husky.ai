@@ -10,8 +10,8 @@ on:
   workflow_dispatch:
 
 env:
-  AWS_REGION: us-west-1
-  ECR_REPOSITORY: 085843960390.dkr.ecr.us-west-1.amazonaws.com/husky.ai/api
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: 085843960390.dkr.ecr.us-east-1.amazonaws.com/husky.ai/api
 
 jobs:
   build-and-deploy:
@@ -26,7 +26,7 @@ jobs:
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
+        aws-region: us-east-1
     
     - name: Login to Amazon ECR
       id: login-ecr
@@ -44,10 +44,7 @@ jobs:
         cp -r templates build-context/templates
         
         # Remove unwanted directories from build context
-        rm -rf build-context/apps build-context/logs build-context/node_modules build-context/dist
-        
-        # Verify the BuildService file exists (debug step)
-        ls -la build-context/src/infrastructure/build/BuildService.ts
+        rm -rf build-context/apps build-context/logs build-context/node_modules build-context/dist       
         
         # Build the Docker image from the build context
         docker build -t $ECR_REPOSITORY:latest -t $ECR_REPOSITORY:$GITHUB_SHA build-context
@@ -59,7 +56,7 @@ jobs:
     - name: Update App Runner service
       run: |
         # Get the App Runner service ARN
-        SERVICE_ARN=arn:aws:apprunner:us-west-2:085843960390:service/husky-ai-api/a3b47e1f7251424b956243d349d96726
+        SERVICE_ARN=arn:aws:apprunner:us-east-1:085843960390:service/husky-ai-api/d7c6bacda9f24f9cae52b48192434d90
         
         if [ -z "$SERVICE_ARN" ]; then
           echo "App Runner service 'husky-ai-api' not found. Please create it first."
