@@ -58,8 +58,8 @@ jobs:
     
     - name: Update App Runner service
       run: |
-        # Get the App Runner service ARN (you'll need to replace this with your actual service name)
-        SERVICE_ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='husky-ai-api'].ServiceArn" --output text)
+        # Get the App Runner service ARN
+        SERVICE_ARN=arn:aws:apprunner:us-west-2:085843960390:service/husky-ai-api/a3b47e1f7251424b956243d349d96726
         
         if [ -z "$SERVICE_ARN" ]; then
           echo "App Runner service 'husky-ai-api' not found. Please create it first."
