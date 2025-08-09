@@ -6,7 +6,7 @@ on:
     paths:
       - 'api/**'
       - 'templates/**'
-      - '.github/workflows/deploy-api.yml'
+      - '.github/workflows/deploy-prod-api.yml'
   workflow_dispatch:
 
 env:
@@ -36,8 +36,18 @@ jobs:
       run: |
         # Create build context with api and templates
         mkdir -p build-context
+        
+        # Copy everything from api directory
         cp -r api/* build-context/
+        
+        # Copy templates directory
         cp -r templates build-context/templates
+        
+        # Remove unwanted directories from build context
+        rm -rf build-context/apps build-context/logs build-context/node_modules build-context/dist
+        
+        # Verify the BuildService file exists (debug step)
+        ls -la build-context/src/infrastructure/build/BuildService.ts
         
         # Build the Docker image from the build context
         docker build -t $ECR_REPOSITORY:latest -t $ECR_REPOSITORY:$GITHUB_SHA build-context
