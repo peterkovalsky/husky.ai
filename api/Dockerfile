@@ -21,28 +21,13 @@ COPY src ./src
 COPY tsconfig.json ./
 COPY jest.config.js ./
 COPY nodemon.json ./
-COPY apps ./apps
 COPY templates ./templates
-
-# Install dependencies for templates folder
-RUN if [ -f "templates/package.json" ]; then \
-        echo "Installing dependencies for templates"; \
-        cd templates && npm ci --only=production && cd /app; \
-    fi
 
 # Install dependencies for react18-ts template
 RUN if [ -f "templates/react18-ts/package.json" ]; then \
-        echo "Installing dependencies for templates/react18-ts"; \
-        cd templates/react18-ts && npm ci --only=production && cd /app; \
+    echo "Installing dependencies for templates/react18-ts"; \
+    cd templates/react18-ts && npm ci --only=production && cd /app; \
     fi
-
-# Install dependencies for each template app in apps folder
-RUN for dir in apps/*/v*; do \
-    if [ -d "$dir" ] && [ -f "$dir/package.json" ]; then \
-        echo "Installing dependencies for $dir"; \
-        cd "$dir" && npm ci --only=production && cd /app; \
-    fi \
-done
 
 # Build the TypeScript code
 RUN npm run build
