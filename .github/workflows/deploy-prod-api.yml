@@ -37,8 +37,8 @@ jobs:
         # Create build context with api and templates
         mkdir -p build-context
         
-        # Copy everything from api directory
-        cp -r api/* build-context/
+        # Copy everything from api directory (including hidden files)
+        cp -r api/. build-context/
         
         # Copy templates directory
         cp -r templates build-context/templates
