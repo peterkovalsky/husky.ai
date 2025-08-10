@@ -52,24 +52,3 @@ jobs:
         # Push both tags to ECR
         docker push $ECR_REPOSITORY:latest
         docker push $ECR_REPOSITORY:$GITHUB_SHA
-    
-    - name: Update App Runner service
-      run: |
-        # Get the App Runner service ARN
-        SERVICE_ARN=${{ vars.PROD_APP_RUNNER_ARN }}
-        
-        if [ -z "$SERVICE_ARN" ]; then
-          echo "App Runner service 'husky-ai-api' not found. Please create it first."
-          exit 1
-        fi
-        
-        # Start deployment with the new image
-        aws apprunner start-deployment --service-arn $SERVICE_ARN
-        
-        # Wait for deployment to complete
-        echo "Waiting for deployment to complete..."
-        aws apprunner wait service-operation-completed --service-arn $SERVICE_ARN
-        
-        # Get the service URL
-        SERVICE_URL=$(aws apprunner describe-service --service-arn $SERVICE_ARN --query 'Service.ServiceUrl' --output text)
-        echo "Deployment completed. Service URL: https://$SERVICE_URL"

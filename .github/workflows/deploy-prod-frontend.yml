@@ -1,4 +1,4 @@
-name: Deploy husky.ai app to prod S3
+name: Deploy Prod UI
 
 on:
   push:
