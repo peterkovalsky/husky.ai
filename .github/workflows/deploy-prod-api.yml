@@ -11,7 +11,7 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  ECR_REPOSITORY: 085843960390.dkr.ecr.us-east-1.amazonaws.com/husky.ai/api
+  ECR_REPOSITORY: ${{ vars.PROD_ECR_REPOSITORY }}
 
 jobs:
   build-and-deploy:
@@ -56,7 +56,7 @@ jobs:
     - name: Update App Runner service
       run: |
         # Get the App Runner service ARN
-        SERVICE_ARN=arn:aws:apprunner:us-east-1:085843960390:service/husky-ai-api/d7c6bacda9f24f9cae52b48192434d90
+        SERVICE_ARN=${{ vars.PROD_APP_RUNNER_ARN }}
         
         if [ -z "$SERVICE_ARN" ]; then
           echo "App Runner service 'husky-ai-api' not found. Please create it first."
