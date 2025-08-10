@@ -19,7 +19,9 @@ export function loadAppConfig(): AppConfig {
     corsOrigins: [
       'http://localhost:5173',
       'http://localhost:5174', 
-      'http://localhost:3000'
+      'http://localhost:3000',
+      'https://huskystudio.co',
+      'https://app.huskystudio.co'
     ],
     timeouts: {
       request: 300000, // 5 minutes
