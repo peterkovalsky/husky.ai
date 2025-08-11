@@ -183,10 +183,9 @@ export class ApiService {
     return this.request<ProjectDetails>(`/api/project/${projectId}`);
   }
 
-  static async setupUser(): Promise<UserSetupResponse> {
-    return this.request<UserSetupResponse>('/api/user/setup', {
-      method: 'POST',
-    });
+
+  static async getDefaultProject(): Promise<{ project: Project }> {
+    return this.request<{ project: Project }>('/api/user/default-project');
   }
 
   static async createProject(request: CreateProjectRequest): Promise<Project> {

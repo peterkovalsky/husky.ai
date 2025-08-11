@@ -36,8 +36,7 @@ export class CreateProjectUseCase {
     const project = await this.projectRepository.create({
       name: dto.name.trim(),
       description: dto.description?.trim() || undefined,
-      workspaceId: targetWorkspaceId,
-      userId: user.id
+      workspaceId: targetWorkspaceId
     });
 
     return project;

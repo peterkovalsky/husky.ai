@@ -1,34 +1,30 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
+import { useToast } from '../../contexts/ToastContext'
 import { AuthLayout } from './AuthLayout'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Alert, AlertDescription } from '../ui/alert'
 import { Separator } from '../ui/separator'
-import { Loader2, User, Mail, Lock, CheckCircle, AlertCircle, UserPlus, ArrowRight } from 'lucide-react'
+import { Loader2, User, Mail, Lock, AlertCircle, UserPlus, ArrowRight } from 'lucide-react'
 
 export const SignUp = () => {
   const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { signUp } = useAuth()
   const navigate = useNavigate()
+  const { showToast } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!displayName || !email || !password || !confirmPassword) {
+    if (!displayName || !email || !password) {
       setError('Please fill in all fields')
-      return
-    }
-
-    if (password !== confirmPassword) {
-      setError('Passwords do not match')
       return
     }
 
@@ -40,13 +36,24 @@ export const SignUp = () => {
     try {
       setError('')
       setLoading(true)
+      
+      // Create account in Supabase and log user in
       await signUp(email, password, displayName)
-      navigate('/signin', { 
-        state: { message: 'Account created! Please check your email to confirm your account.' }
+      
+      // Show success toast
+      showToast({
+        type: 'success',
+        title: 'Welcome to Husky AI!',
+        message: 'Your account has been created successfully.',
+        duration: 3000
       })
+      
+      // Redirect to dashboard - it will handle the setup check
+      navigate('/', { replace: true })
+      
     } catch (error) {
+      console.error('Signup error:', error)
       setError(error instanceof Error ? error.message : 'Failed to create account')
-    } finally {
       setLoading(false)
     }
   }
@@ -62,6 +69,7 @@ export const SignUp = () => {
             </AlertDescription>
           </Alert>
         )}
+
 
         <div className="space-y-4">
           <div className="space-y-2">
@@ -116,22 +124,6 @@ export const SignUp = () => {
             <p className="text-xs text-muted-foreground mt-2">Must be at least 6 characters long</p>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="confirmPassword">Confirm Password</Label>
-            <div className="relative">
-              <CheckCircle className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="password"
-                id="confirmPassword"
-                name="confirmPassword"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="pl-9"
-                placeholder="Confirm your password"
-                required
-              />
-            </div>
-          </div>
         </div>
 
         <div className="space-y-4">

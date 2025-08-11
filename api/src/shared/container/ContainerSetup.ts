@@ -136,7 +136,8 @@ export function setupContainer(): DIContainer {
   ));
 
   container.registerFactory<WorkspaceController>('workspaceController', () => new WorkspaceController(
-    container.get<IWorkspaceRepository>('workspaceRepository')
+    container.get<IWorkspaceRepository>('workspaceRepository'),
+    container.get<SetupUserUseCase>('setupUserUseCase')
   ));
 
   container.registerFactory<UserController>('userController', () => new UserController(

@@ -7,11 +7,13 @@ import {
   DropdownMenu, 
   DropdownMenuContent, 
   DropdownMenuItem, 
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger 
 } from './ui/dropdown-menu'
 import { CreateProjectDialog } from './CreateProjectDialog'
 import { DeleteProjectDialog } from './DeleteProjectDialog'
-import { Code2, Calendar, FolderOpen, Plus, MoreVertical, Trash2 } from 'lucide-react'
+import { Code2, Calendar, FolderOpen, Plus, MoreVertical, Trash2, LogOut } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 
@@ -81,45 +83,31 @@ export const Home = () => {
             </div>
             
             {/* User Menu Dropdown */}
-            <div className="hs-dropdown relative inline-flex">
-              <button 
-                id="hs-dropdown-with-header" 
-                type="button" 
-                className="hs-dropdown-toggle w-8 h-8 inline-flex justify-center items-center gap-x-2 text-sm font-semibold rounded-full border border-transparent hover:bg-accent disabled:opacity-50 disabled:pointer-events-none"
-                aria-haspopup="menu" 
-                aria-expanded="false" 
-                aria-label="Dropdown"
-              >
-                <div className="w-8 h-8 bg-gradient-to-r from-primary to-primary/80 rounded-full flex items-center justify-center text-primary-foreground text-sm font-medium">
-                  {(user?.user_metadata?.display_name || user?.email || 'U').charAt(0).toUpperCase()}
-                </div>
-              </button>
-
-              <div className="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-60 bg-popover shadow-md rounded-lg p-2 mt-2 after:h-4 after:absolute after:-top-4 after:start-0 after:w-full before:h-4 before:absolute before:-top-4 before:start-0 before:w-full" 
-                   role="menu" 
-                   aria-orientation="vertical" 
-                   aria-labelledby="hs-dropdown-with-header">
-                <div className="py-3 px-5 -m-2 bg-muted rounded-t-lg">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  className="w-8 h-8 rounded-full p-0"
+                >
+                  <div className="w-8 h-8 bg-gradient-to-r from-primary to-primary/80 rounded-full flex items-center justify-center text-primary-foreground text-sm font-medium">
+                    {(user?.user_metadata?.display_name || user?.email || 'U').charAt(0).toUpperCase()}
+                  </div>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-60">
+                <DropdownMenuLabel className="pb-0">
                   <p className="text-sm text-muted-foreground">Signed in as</p>
                   <p className="text-sm font-medium truncate">
                     {user?.user_metadata?.display_name || user?.email}
                   </p>
-                </div>
-                <div className="mt-2 py-2 first:pt-0 last:pb-0">
-                  <button
-                    onClick={handleSignOut}
-                    className="flex items-center gap-x-3.5 py-2 px-3 rounded-lg text-sm hover:bg-accent focus:outline-none focus:bg-accent w-full text-left"
-                  >
-                    <svg className="size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                      <polyline points="16,17 21,12 16,7"/>
-                      <line x1="21" x2="9" y1="12" y2="12"/>
-                    </svg>
-                    Sign Out
-                  </button>
-                </div>
-              </div>
-            </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleSignOut}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </div>

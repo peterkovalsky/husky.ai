@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ApiService } from '../services/api';
+import { useAuth } from '../hooks/useAuth';
 import type { Workspace, Project } from '../services/api';
 
 interface ProjectContextType {
@@ -35,26 +37,32 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
   const [loading, setLoading] = useState(true);
   const [projectsLoaded, setProjectsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
-    const loadWorkspaces = async () => {
+    const loadUserWorkspaces = async () => {
+      if (!user?.id) return;
+      
       try {
         setLoading(true);
+        // Get workspaces (backend will auto-setup if needed)
         const { workspaces } = await ApiService.getWorkspaces();
-        setWorkspaces(workspaces);
         
-        // Select first workspace (usually "Personal")
+        setWorkspaces(workspaces);
         if (workspaces.length > 0) {
-          const personalWorkspace = workspaces.find(w => w.name === 'Personal') || workspaces[0];
-          setCurrentWorkspace(personalWorkspace);
+          setCurrentWorkspace(workspaces[0]);
+          // Projects will be loaded by the second useEffect when currentWorkspace changes
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load workspaces');
+      } finally {
+        setLoading(false);
       }
     };
 
-    loadWorkspaces();
-  }, []);
+    loadUserWorkspaces();
+  }, [user?.id]);
 
   useEffect(() => {
     const loadProjects = async () => {
@@ -68,6 +76,12 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
         if (projects.length > 0 && !currentProject) {
           const defaultProject = projects.find(p => p.name === 'My Project') || projects[0];
           setCurrentProject(defaultProject);
+          
+          // Check if this is a newly created user (single workspace with single "My Project")
+          if (workspaces.length === 1 && projects.length === 1 && projects[0].name === 'My Project') {
+            // Navigate to the newly created project
+            navigate(`/project/${projects[0].id}`, { replace: true });
+          }
         }
         
         setProjectsLoaded(true);
@@ -80,12 +94,12 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
     loadProjects();
   }, [currentWorkspace]);
 
-  // Update loading state when both workspaces and projects are loaded
+  // Update loading state when projects are loaded  
   useEffect(() => {
-    if (currentWorkspace !== null && projectsLoaded) {
+    if ((currentWorkspace !== null || workspaces.length === 0) && projectsLoaded) {
       setLoading(false);
     }
-  }, [currentWorkspace, projectsLoaded]);
+  }, [currentWorkspace, workspaces.length, projectsLoaded]);
 
   const handleSetCurrentProject = useCallback((project: Project) => {
     setCurrentProject(project);
@@ -117,6 +131,20 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
     loading,
     error,
   };
+
+  // Show loading screen while loading
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-primary/30 border-t-primary rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-muted-foreground">
+            Loading your dashboard...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <ProjectContext.Provider value={value}>

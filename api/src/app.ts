@@ -58,7 +58,6 @@ const apiRoutes = createApiRoutes({
   projectController: container.get('projectController'),
   workspaceController: container.get('workspaceController'),
   userController: container.get('userController'),
-  setupUserUseCase: container.get('setupUserUseCase')
 });
 
 app.use('/api', apiRoutes);

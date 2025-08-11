@@ -7,7 +7,6 @@ module.exports = {
     "./src/**/*.tsx",
     "./src/**/*.js",
     "./src/**/*.jsx",
-    './node_modules/preline/preline.js',
   ],
   theme: {
     extend: {},
