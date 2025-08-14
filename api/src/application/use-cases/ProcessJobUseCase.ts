@@ -186,6 +186,11 @@ export class ProcessJobUseCase {
       // Update build status to READY
       await this.buildRepository.updateStatus(buildId!, "READY");
 
+      // Update token usage data
+      if (aiResponse.usage && aiResponse.usage.inputTokens && aiResponse.usage.outputTokens) {
+        await this.buildRepository.updateTokens(buildId!, aiResponse.usage.inputTokens, aiResponse.usage.outputTokens);
+      }
+
       console.log(`Prompt ${safePromptId} completed successfully. Preview URL: ${uploadResult.previewUrl}`);
       console.log(`Build metrics:`, metrics);
 

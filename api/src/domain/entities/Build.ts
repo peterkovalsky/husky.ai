@@ -17,6 +17,8 @@ export interface Build {
   version: number;
   status: BuildStatus;
   metrics: BuildMetrics;
+  inputTokens?: number;
+  outputTokens?: number;
   createdAt: Date;
   modifiedAt: Date;
 }
@@ -26,4 +28,6 @@ export interface CreateBuildRequest {
   projectId: string;
   status?: BuildStatus;
   metrics?: BuildMetrics;
+  inputTokens?: number;
+  outputTokens?: number;
 }

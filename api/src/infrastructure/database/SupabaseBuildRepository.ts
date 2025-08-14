@@ -21,7 +21,9 @@ export class SupabaseBuildRepository implements IBuildRepository {
         project_id: request.projectId,
         version: nextVersion,
         status: request.status || 'QUEUED',
-        metrics: request.metrics || {}
+        metrics: request.metrics || {},
+        input_tokens: request.inputTokens,
+        output_tokens: request.outputTokens
       })
       .select()
       .single();
@@ -137,6 +139,18 @@ export class SupabaseBuildRepository implements IBuildRepository {
     if (error) throw error;
   }
 
+  async updateTokens(id: string, inputTokens: number, outputTokens: number): Promise<void> {
+    const { error } = await this.supabase
+      .from('builds')
+      .update({ 
+        input_tokens: inputTokens, 
+        output_tokens: outputTokens 
+      })
+      .eq('id', id);
+
+    if (error) throw error;
+  }
+
   async deleteByProjectId(projectId: string): Promise<void> {
     const { error } = await this.supabase
       .from('builds')
@@ -154,6 +168,8 @@ export class SupabaseBuildRepository implements IBuildRepository {
       version: data.version,
       status: data.status,
       metrics: data.metrics || {},
+      inputTokens: data.input_tokens,
+      outputTokens: data.output_tokens,
       createdAt: new Date(data.created_at),
       modifiedAt: new Date(data.modified_at)
     };
