@@ -1,19 +1,13 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseClient } from '@supabase/supabase-js';
 import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
-import { Build, CreateBuildRequest, BuildMetrics } from '../../domain/entities/Build';
+import { Build, CreateBuildRequest, BuildMetrics, BuildStatus } from '../../domain/entities/Build';
+import { SupabaseClientFactory } from '../../shared/database/SupabaseClientFactory';
 
 export class SupabaseBuildRepository implements IBuildRepository {
   private supabase: SupabaseClient;
 
   constructor() {
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !supabaseServiceKey) {
-      throw new Error('Missing Supabase configuration');
-    }
-
-    this.supabase = createClient(supabaseUrl, supabaseServiceKey);
+    this.supabase = SupabaseClientFactory.getClient();
   }
 
   async create(request: CreateBuildRequest): Promise<Build> {
@@ -26,6 +20,7 @@ export class SupabaseBuildRepository implements IBuildRepository {
         file_tree: request.fileTree,
         project_id: request.projectId,
         version: nextVersion,
+        status: request.status || 'QUEUED',
         metrics: request.metrics || {}
       })
       .select()
@@ -74,6 +69,21 @@ export class SupabaseBuildRepository implements IBuildRepository {
     return data ? this.mapToEntity(data) : null;
   }
 
+  async findLatestSuccessfulByProjectId(projectId: string): Promise<Build | null> {
+    const { data, error } = await this.supabase
+      .from('builds')
+      .select('*')
+      .eq('project_id', projectId)
+      .eq('status', 'READY')
+      .order('version', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error;
+    
+    return data ? this.mapToEntity(data) : null;
+  }
+
   async findByProjectAndVersion(projectId: string, version: number): Promise<Build | null> {
     const { data, error } = await this.supabase
       .from('builds')
@@ -109,6 +119,24 @@ export class SupabaseBuildRepository implements IBuildRepository {
     if (error) throw error;
   }
 
+  async updateStatus(id: string, status: BuildStatus): Promise<void> {
+    const { error } = await this.supabase
+      .from('builds')
+      .update({ status })
+      .eq('id', id);
+
+    if (error) throw error;
+  }
+
+  async updateFileTree(id: string, fileTree: Record<string, string>): Promise<void> {
+    const { error } = await this.supabase
+      .from('builds')
+      .update({ file_tree: fileTree })
+      .eq('id', id);
+
+    if (error) throw error;
+  }
+
   async deleteByProjectId(projectId: string): Promise<void> {
     const { error } = await this.supabase
       .from('builds')
@@ -124,6 +152,7 @@ export class SupabaseBuildRepository implements IBuildRepository {
       fileTree: data.file_tree,
       projectId: data.project_id,
       version: data.version,
+      status: data.status,
       metrics: data.metrics || {},
       createdAt: new Date(data.created_at),
       modifiedAt: new Date(data.modified_at)

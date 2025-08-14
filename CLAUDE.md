@@ -78,7 +78,6 @@ The API follows Clean Architecture with four distinct layers:
 ### Multi-Version App System
 Generated apps are stored in versioned directories:
 - `/apps/{project-id}/v{version}/` - Each iteration creates a new version
-- `/api/apps/{project-id}/v{version}/` - API-generated apps follow same pattern
 - Templates in `/templates/` provide base structure for generated apps
 
 ### Job Processing Flow

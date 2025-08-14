@@ -6,8 +6,15 @@ import { IBuildService } from '../../domain/services/IBuildService';
 import { IStorageService } from '../../domain/services/IStorageService';
 import { JobMessage } from '../../domain/services/IQueueService';
 import { BuildMetrics } from '../../domain/entities/Build';
+import { BuildLogger } from '../../shared/logger/BuildLogger';
+import { FileTreeMerger } from '../../shared/utils/FileTreeMerger';
+import fs from 'fs';
+import path from 'path';
 
 export class ProcessJobUseCase {
+  private readonly templateFilePath: string;
+  private readonly buildLogger: BuildLogger;
+
   constructor(
     private promptRepository: IPromptRepository,
     private buildRepository: IBuildRepository,
@@ -15,7 +22,31 @@ export class ProcessJobUseCase {
     private aiService: IAIService,
     private buildService: IBuildService,
     private storageService: IStorageService
-  ) {}
+  ) {
+    this.templateFilePath = path.join(__dirname, "../../template-react18-ts.json");
+    this.buildLogger = new BuildLogger();
+  }
+
+  private async loadFileTreeForProject(projectId: string): Promise<Record<string, string>> {
+    try {
+      // First, check if we have a successful file tree in the database for this project
+      const successfulBuild = await this.buildRepository.findLatestSuccessfulByProjectId(projectId);
+      if (successfulBuild && successfulBuild.fileTree && typeof successfulBuild.fileTree === "object") {
+        console.log("Using file tree from latest successful build (version", successfulBuild.version, ") for project:", projectId);
+        return successfulBuild.fileTree;
+      }
+
+      // Fall back to initial file tree from JSON file for new projects
+      console.log("No successful builds found, using initial file tree from template-react18-ts.json");
+      const fileContent = fs.readFileSync(this.templateFilePath, "utf8");
+      const parsedContent = JSON.parse(fileContent);
+      return typeof parsedContent === "object" && parsedContent !== null ? parsedContent : {};
+    } catch (error) {
+      console.error("Error loading file tree:", error);
+      return {};
+    }
+  }
+
 
   async execute(jobMessage: JobMessage): Promise<void> {
     const { promptId, jobId, prompt, projectId, userId } = jobMessage;
@@ -41,50 +72,75 @@ export class ProcessJobUseCase {
     try {
       console.log(`Processing prompt ${safePromptId}...`);
 
-      // Update prompt status to PROCESSING
-      await this.promptRepository.updateStatus(safePromptId, "PROCESSING");
+      // Create build with PROCESSING status
+      const createdBuild = await this.buildRepository.create({
+        fileTree: {},
+        projectId: safeProjectId,
+        status: 'PROCESSING'
+      });
+      buildId = createdBuild.id;
 
-      // Set project context for AI service
-      await this.aiService.setProjectContext(safeProjectId);
+      // Link prompt to build
+      await this.promptRepository.updateBuildId(safePromptId, buildId);
+
+      // Load file tree for the project and set AI service context
+      const fileTree = await this.loadFileTreeForProject(safeProjectId);
+      await this.aiService.setProjectContext(safeProjectId, fileTree, buildId);
 
       // Get conversation context
       const previousPrompts = await this.promptRepository.findByProjectId(safeProjectId);
-      let contextPrompt = prompt;
       const conversation = previousPrompts
         .filter((p) => p.id !== safePromptId) // Exclude current prompt
         .map((p) => `User: ${p.prompt}`)
         .join("\n\n");
 
-      if (conversation) {
-        contextPrompt = `Previous conversation:\n${conversation}\n\nCurrent request: ${prompt}`;
-      }
-
       // AI stage: Generate response
       console.log(`Running AI stage for prompt ${safePromptId}...`);
       const aiStartTime = Date.now();
-      const aiResponse = await this.aiService.generateResponse(contextPrompt, safePromptId);
+      const aiResponse = await this.aiService.generateResponse(prompt, safePromptId);
       metrics.aiGenerationTimeMs = Date.now() - aiStartTime;
 
-      // Parse the AI response to get the app directory
+      // Parse the AI response to get the updated file tree
       const responseData = JSON.parse(aiResponse.content);
-      const appDirectory = responseData.appDirectory;
+      const aiResponseFileTree = responseData.fileTree;
+
+      if (!aiResponseFileTree) {
+        throw new Error("No file tree found in AI response");
+      }
+
+      // Merge AI response with current file tree
+      console.log(`Merging AI response with current file tree for prompt ${safePromptId}...`);
+      const mergeResult = FileTreeMerger.merge(fileTree, aiResponseFileTree);
+      
+      // Log merge statistics
+      FileTreeMerger.logMergeStats(mergeResult);
+
+      // Update build with the merged file tree
+      console.log(`Updating build with merged file tree for prompt ${safePromptId}...`);
+      await this.buildRepository.updateFileTree(buildId!, mergeResult.mergedFileTree);
+
+      // Log merged result and merge details in dev mode (AI response already logged in AnthropicAIService)
+      this.buildLogger.logMergedResult(safeProjectId, buildId, mergeResult.mergedFileTree);
+      this.buildLogger.logMergeDetails(safeProjectId, buildId, mergeResult);
+      this.buildLogger.logBuildInfo(safeProjectId, buildId, {
+        promptId: safePromptId,
+        prompt: prompt,
+        contextPrompt: prompt,
+        hasConversationHistory: !!conversation,
+        fileTreeSize: Object.keys(mergeResult.mergedFileTree).length,
+        aiGenerationTimeMs: metrics.aiGenerationTimeMs
+      });
+
+      // Save files to disk using BuildService (this creates the versioned directory)
+      console.log(`Saving merged files to disk for prompt ${safePromptId}...`);
+      const appDirectory = await this.buildService.saveFileTreeToDisk(mergeResult.mergedFileTree, safeProjectId);
 
       // Start node_modules copying in parallel (don't await)
       console.log(`Starting parallel node_modules copy for prompt ${safePromptId}...`);
       const nodeModulesCopyPromise = this.buildService.copyNodeModulesAsync(appDirectory, safeProjectId);
 
-      if (!appDirectory) {
-        throw new Error("No app directory found in AI response");
-      }
-
-      // Get the latest build for this project
-      const latestBuild = await this.buildRepository.findLatestByProjectId(safeProjectId);
-      if (latestBuild) {
-        buildId = latestBuild.id;
-      }
-
-      // Update prompt status to BUILDING
-      await this.promptRepository.updateStatus(safePromptId, "BUILDING");
+      // Update build status to BUILDING
+      await this.buildRepository.updateStatus(buildId!, "BUILDING");
 
       // Wait for node_modules copying to complete before building
       console.log(`Waiting for node_modules copy to complete for prompt ${safePromptId}...`);
@@ -92,7 +148,6 @@ export class ProcessJobUseCase {
 
       // Build stage
       console.log(`Running build stage for prompt ${safePromptId}...`);
-      const buildStartTime = Date.now();
       const buildResult = await this.buildService.buildApp(appDirectory, safeProjectId);
       
       if (!buildResult.success) {
@@ -128,8 +183,8 @@ export class ProcessJobUseCase {
         }
       }
 
-      // Update prompt status to READY
-      await this.promptRepository.updateStatus(safePromptId, "READY");
+      // Update build status to READY
+      await this.buildRepository.updateStatus(buildId!, "READY");
 
       console.log(`Prompt ${safePromptId} completed successfully. Preview URL: ${uploadResult.previewUrl}`);
       console.log(`Build metrics:`, metrics);
@@ -149,8 +204,10 @@ export class ProcessJobUseCase {
         }
       }
 
-      // Update prompt status with error
-      await this.promptRepository.updateStatus(safePromptId, "FAILED");
+      // Update build status with error
+      if (buildId) {
+        await this.buildRepository.updateStatus(buildId, "FAILED");
+      }
 
       throw error; // Re-throw to be handled by job processor
     }

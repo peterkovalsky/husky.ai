@@ -29,6 +29,20 @@ export class GetProjectDetailsUseCase {
     const allPrompts = await this.promptRepository.findByProjectId(projectId);
     const recentPrompts = allPrompts.slice(-10).reverse();
     
+    // Get builds for status mapping
+    const buildIds = recentPrompts.map(p => p.buildId).filter(Boolean) as string[];
+    const buildsMap = new Map();
+    if (buildIds.length > 0) {
+      const buildsForPrompts = await Promise.all(
+        buildIds.map(id => this.buildRepository.findById(id))
+      );
+      buildsForPrompts.forEach((build, index) => {
+        if (build) {
+          buildsMap.set(buildIds[index], build);
+        }
+      });
+    }
+    
     // Get builds/versions
     const builds = await this.buildRepository.findByProjectId(projectId);
     
@@ -55,13 +69,16 @@ export class GetProjectDetailsUseCase {
         totalPreviews: project.previewUrl ? 1 : 0,
         currentVersion: latestBuild?.version || 0
       },
-      recentPrompts: recentPrompts.map(prompt => ({
-        id: prompt.id,
-        prompt: prompt.prompt.length > 100 ? prompt.prompt.substring(0, 100) + '...' : prompt.prompt,
-        status: prompt.status,
-        createdAt: prompt.createdAt,
-        modifiedAt: prompt.modifiedAt
-      })),
+      recentPrompts: recentPrompts.map(prompt => {
+        const build = prompt.buildId ? buildsMap.get(prompt.buildId) : null;
+        return {
+          id: prompt.id,
+          prompt: prompt.prompt.length > 100 ? prompt.prompt.substring(0, 100) + '...' : prompt.prompt,
+          status: build?.status || 'QUEUED',
+          createdAt: prompt.createdAt,
+          modifiedAt: prompt.modifiedAt
+        };
+      }),
       builds: builds.slice(0, 5).map(build => ({
         id: build.id,
         version: build.version,

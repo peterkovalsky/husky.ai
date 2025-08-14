@@ -121,8 +121,23 @@ export const ProjectPage = () => {
     )
   }
 
+  // Check if there are no builds or all builds have failed
+  const hasNoBuilds = projectDetails.stats.totalBuilds === 0
+  const allBuildsFailed = projectDetails.recentPrompts.length > 0 && 
+    projectDetails.recentPrompts.every(p => p.status === 'FAILED')
+  
   // Check if there's a latest READY prompt with preview URL
   const latestReadyPrompt = projectDetails.recentPrompts.find(p => p.status === 'READY')
+  
+  // If no builds exist or all builds failed, show the default screen (new project starter)
+  if (hasNoBuilds || allBuildsFailed) {
+    return (
+      <NewProjectStarter 
+        projectId={projectDetails.project.id}
+        projectName={projectDetails.project.name}
+      />
+    )
+  }
   
   // If there's a latest prompt with preview, show the preview page
   if (latestReadyPrompt && latestJobStatus?.previewUrl) {
@@ -155,15 +170,8 @@ export const ProjectPage = () => {
     )
   }
 
-  // If no prompts exist yet (new project), show the new project starter
-  if (projectDetails.recentPrompts.length === 0) {
-    return (
-      <NewProjectStarter 
-        projectId={projectDetails.project.id}
-        projectName={projectDetails.project.name}
-      />
-    )
-  }
+  // This case is now handled by the hasNoBuilds check above
+  // If no prompts exist, totalBuilds will be 0 and hasNoBuilds will be true
 
   // If there are prompts but no ready preview, redirect to edit mode (Dashboard)
   return (

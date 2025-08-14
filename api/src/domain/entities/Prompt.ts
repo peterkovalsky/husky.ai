@@ -1,11 +1,9 @@
-export type PromptStatus = 'QUEUED' | 'PROCESSING' | 'BUILDING' | 'READY' | 'FAILED';
-
 export interface Prompt {
   id: string;
   prompt: string;
-  status: PromptStatus;
   projectId: string;
   userId: string;
+  buildId?: string;
   createdAt: Date;
   modifiedAt: Date;
 }

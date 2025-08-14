@@ -9,6 +9,6 @@ export interface AIResponse {
 
 export interface IAIService {
   generateResponse(prompt: string, promptId?: string): Promise<AIResponse>;
-  setProjectContext(projectId: string): Promise<void>;
+  setProjectContext(projectId: string, fileTree: Record<string, string>, buildId?: string): Promise<void>;
   getCurrentFileTree(): Record<string, string>;
 }

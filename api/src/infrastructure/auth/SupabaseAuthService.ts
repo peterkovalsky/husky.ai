@@ -1,18 +1,12 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseClient } from '@supabase/supabase-js';
 import { User } from '../../domain/entities/User';
+import { SupabaseClientFactory } from '../../shared/database/SupabaseClientFactory';
 
 export class SupabaseAuthService {
   private supabase: SupabaseClient;
 
   constructor() {
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !supabaseServiceKey) {
-      throw new Error('Missing Supabase configuration');
-    }
-
-    this.supabase = createClient(supabaseUrl, supabaseServiceKey);
+    this.supabase = SupabaseClientFactory.getClient();
   }
 
   async validateToken(token: string): Promise<User | null> {

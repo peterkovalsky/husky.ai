@@ -1,19 +1,13 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseClient } from '@supabase/supabase-js';
 import { IPromptRepository } from '../../domain/repositories/IPromptRepository';
-import { Prompt, CreatePromptRequest, PromptStatus } from '../../domain/entities/Prompt';
+import { Prompt, CreatePromptRequest } from '../../domain/entities/Prompt';
+import { SupabaseClientFactory } from '../../shared/database/SupabaseClientFactory';
 
 export class SupabasePromptRepository implements IPromptRepository {
   private supabase: SupabaseClient;
 
   constructor() {
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !supabaseServiceKey) {
-      throw new Error('Missing Supabase configuration');
-    }
-
-    this.supabase = createClient(supabaseUrl, supabaseServiceKey);
+    this.supabase = SupabaseClientFactory.getClient();
   }
 
   async create(request: CreatePromptRequest): Promise<Prompt> {
@@ -22,8 +16,7 @@ export class SupabasePromptRepository implements IPromptRepository {
       .insert({
         prompt: request.prompt,
         project_id: request.projectId,
-        user_id: request.userId,
-        status: 'QUEUED'
+        user_id: request.userId
       })
       .select()
       .single();
@@ -57,10 +50,10 @@ export class SupabasePromptRepository implements IPromptRepository {
     return (data || []).map(this.mapToEntity);
   }
 
-  async updateStatus(id: string, status: PromptStatus): Promise<void> {
+  async updateBuildId(id: string, buildId: string): Promise<void> {
     const { error } = await this.supabase
       .from('prompts')
-      .update({ status })
+      .update({ build_id: buildId })
       .eq('id', id);
 
     if (error) throw error;
@@ -79,9 +72,9 @@ export class SupabasePromptRepository implements IPromptRepository {
     return {
       id: data.id,
       prompt: data.prompt,
-      status: data.status,
       projectId: data.project_id,
       userId: data.user_id,
+      buildId: data.build_id,
       createdAt: new Date(data.created_at),
       modifiedAt: new Date(data.modified_at)
     };

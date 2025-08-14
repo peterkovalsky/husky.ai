@@ -1,57 +1,31 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { IAIService, AIResponse } from '../../domain/services/IAIService';
-import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
-import fs from "fs";
-import path from "path";
+import { BuildLogger } from '../../shared/logger/BuildLogger';
 
 export class AnthropicAIService implements IAIService {
   private client: Anthropic;
   private currentFileTree: Record<string, string> = {};
-  private readonly reactAppFilesPath: string;
-  private buildRepository?: IBuildRepository;
-  private projectId?: string;
-  private currentPromptId?: string;
+  private buildLogger: BuildLogger;
+  private currentProjectId: string = '';
+  private currentBuildId: string = '';
 
-  constructor(apiKey?: string, buildRepository?: IBuildRepository) {
+  constructor(apiKey?: string) {
     this.client = new Anthropic({
       apiKey: apiKey || process.env.ANTHROPIC_API_KEY,
     });
-    this.buildRepository = buildRepository;
-    this.reactAppFilesPath = path.join(__dirname, "../../template-react18-ts.json");
-    this.loadInitialFileTree().catch(console.error);
+    this.buildLogger = new BuildLogger();
   }
 
   getCurrentFileTree(): Record<string, string> {
     return this.currentFileTree;
   }
 
-  async setProjectContext(projectId: string): Promise<void> {
-    this.projectId = projectId;
-    await this.loadInitialFileTree();
+  async setProjectContext(projectId: string, fileTree: Record<string, string>, buildId?: string): Promise<void> {
+    this.currentProjectId = projectId;
+    this.currentFileTree = fileTree;
+    this.currentBuildId = buildId || '';
   }
 
-  private async loadInitialFileTree(): Promise<void> {
-    try {
-      // First, check if we have a recent file tree in the database for this project
-      if (this.buildRepository && this.projectId) {
-        const recentBuild = await this.buildRepository.findLatestByProjectId(this.projectId);
-        if (recentBuild && recentBuild.fileTree && typeof recentBuild.fileTree === "object") {
-          console.log("Using recent file tree from database for project:", this.projectId);
-          this.currentFileTree = recentBuild.fileTree;
-          return;
-        }
-      }
-
-      // Fall back to initial file tree from JSON file
-      console.log("Using initial file tree from template-react18-ts.json");
-      const fileContent = fs.readFileSync(this.reactAppFilesPath, "utf8");
-      const parsedContent = JSON.parse(fileContent);
-      this.currentFileTree = typeof parsedContent === "object" && parsedContent !== null ? parsedContent : {};
-    } catch (error) {
-      console.error("Error loading initial file tree:", error);
-      this.currentFileTree = {};
-    }
-  }
 
   private formatFileTreeForPrompt(fileTree: Record<string, string>): string {
     return Object.entries(fileTree)
@@ -61,23 +35,6 @@ export class AnthropicAIService implements IAIService {
       .join("\n\n---\n\n");
   }
 
-  private saveToLogFile(filename: string, content: any): void {
-    if (!this.currentPromptId) return;
-
-    try {
-      const logsDir = path.join(process.cwd(), "logs", this.currentPromptId);
-      if (!fs.existsSync(logsDir)) {
-        fs.mkdirSync(logsDir, { recursive: true });
-      }
-
-      const filePath = path.join(logsDir, filename);
-      const contentStr = typeof content === "string" ? content : JSON.stringify(content, null, 2);
-      fs.writeFileSync(filePath, contentStr, "utf8");
-      console.log(`Saved log: ${filePath}`);
-    } catch (error) {
-      console.warn("Failed to save log file:", error instanceof Error ? error.message : "Unknown error");
-    }
-  }
 
   private normalizeChanges(rawChanges: any): Record<string, string> {
     const normalized: Record<string, string> = {};
@@ -120,42 +77,10 @@ export class AnthropicAIService implements IAIService {
     return newFileTree;
   }
 
-  private async saveFileTreeToDisk(fileTree: Record<string, string>): Promise<string> {
-    if (!this.projectId || !this.buildRepository) {
-      throw new Error("Project ID and build repository are required for saving files to disk");
-    }
 
-    const nextVersion = await this.buildRepository.getNextVersionForProject(this.projectId);
-    const appsDir = path.join(__dirname, "../../../apps");
-    const appDir = path.join(appsDir, this.projectId, `v${nextVersion}`);
-
-    // Create project and version directories
-    fs.mkdirSync(appDir, { recursive: true });
-
-    // Write all files to disk
-    for (const [filePath, content] of Object.entries(fileTree)) {
-      const fullFilePath = path.join(appDir, filePath);
-      const fileDir = path.dirname(fullFilePath);
-
-      // Create directory if it doesn't exist
-      if (!fs.existsSync(fileDir)) {
-        fs.mkdirSync(fileDir, { recursive: true });
-      }
-
-      // Write file
-      fs.writeFileSync(fullFilePath, content, "utf8");
-    }
-
-    console.log("All files written to disk in directory:", appDir);
-    return appDir;
-  }
-
-  async generateResponse(userRequest: string, promptId?: string): Promise<AIResponse> {
+  async generateResponse(userRequest: string, _promptId?: string): Promise<AIResponse> {
     try {
       console.log("Starting generateResponse...");
-
-      // Set current promptId for logging
-      this.currentPromptId = promptId;
       
       const systemPrompt = `You are a senior UI/UX developer assistant that creates beautiful, industry-appropriate React applications based on user requests.
 You receive:
@@ -251,55 +176,30 @@ ${userRequest}`;
         .map((block) => block.text)
         .join("");
 
-      // Save raw AI response to disk
-      this.saveToLogFile("raw_ai_response.txt", content);
+      // Log raw AI response immediately after receiving it
+      if (this.currentBuildId && this.currentProjectId) {
+        this.buildLogger.logAIResponse(this.currentProjectId, this.currentBuildId, content);
+      }
 
       // Extract and validate JSON response
       const rawChanges = JSON.parse(content);
-
-      // Save extractAndValidateJSON result to disk
-      this.saveToLogFile("extract_validate_json_result.json", rawChanges);
 
       // Parse and normalize the changes
       console.log("Parsing and normalizing changes...");
       const changes = this.normalizeChanges(rawChanges);
 
-      // Save normalizeChanges result to disk
-      this.saveToLogFile("normalize_changes_result.json", changes);
-
       // Update file tree in memory
       console.log("Updating file tree in memory...");
       this.currentFileTree = this.updateFileTree(changes);
-      this.saveToLogFile("merged_changes.json", this.currentFileTree);
-
-      // Save files to disk and get app directory
-      const appDirectory = await this.saveFileTreeToDisk(this.currentFileTree);
-
-      // Save updated file tree to database
-      if (this.buildRepository && this.projectId) {
-        console.log("Saving updated file tree to database...");
-        await this.buildRepository.create({
-          fileTree: this.currentFileTree,
-          projectId: this.projectId
-        });
-      }
 
       const responseData = {
         changes,
-        appDirectory,
         fileTree: this.currentFileTree,
         message: `AI processing completed successfully.`,
       };
 
       return {
-        content: JSON.stringify(responseData, (key, value) => {
-          if (typeof value === 'string') {
-            return value.replace(/[\u0000-\u001f]/g, (match) => {
-              return '\\u' + ('0000' + match.charCodeAt(0).toString(16)).slice(-4);
-            });
-          }
-          return value;
-        }),
+        content: JSON.stringify(responseData),
         model: response.model,
         usage: {
           inputTokens: response.usage.input_tokens,

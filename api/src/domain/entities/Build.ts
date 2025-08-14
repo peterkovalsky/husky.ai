@@ -1,3 +1,5 @@
+export type BuildStatus = 'QUEUED' | 'PROCESSING' | 'BUILDING' | 'READY' | 'FAILED';
+
 export interface BuildMetrics {
   aiGenerationTimeMs?: number;
   dependencyInstallTimeMs?: number;
@@ -13,6 +15,7 @@ export interface Build {
   fileTree: Record<string, string>;
   projectId: string;
   version: number;
+  status: BuildStatus;
   metrics: BuildMetrics;
   createdAt: Date;
   modifiedAt: Date;
@@ -21,5 +24,6 @@ export interface Build {
 export interface CreateBuildRequest {
   fileTree: Record<string, string>;
   projectId: string;
+  status?: BuildStatus;
   metrics?: BuildMetrics;
 }

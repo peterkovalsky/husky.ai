@@ -7,7 +7,7 @@ import { AuthProvider } from "./contexts/AuthContext.tsx";
 import { ToastProvider } from "./contexts/ToastContext.tsx";
 
 createRoot(document.getElementById("root")!).render(
-  <StrictMode>
+  // <StrictMode>
     <BrowserRouter>
       <AuthProvider>
         <ToastProvider>
@@ -15,5 +15,5 @@ createRoot(document.getElementById("root")!).render(
         </ToastProvider>
       </AuthProvider>
     </BrowserRouter>
-  </StrictMode>
+  // </StrictMode>
 );

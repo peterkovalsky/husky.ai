@@ -1,7 +1,7 @@
-import { AnthropicService } from '../src/services/AnthropicService';
+import { AnthropicAIService } from '../src/infrastructure/ai/AnthropicAIService';
 
 // Create a test class to access the private normalizeChanges method
-class TestableAnthropicService extends AnthropicService {
+class TestableAnthropicService extends AnthropicAIService {
   constructor() {
     super();
   }

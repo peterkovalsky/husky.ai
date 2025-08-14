@@ -1,5 +1,6 @@
 import { IPromptRepository } from '../../domain/repositories/IPromptRepository';
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
+import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
 
 export interface GetPromptStatusResponse {
   promptId: string;
@@ -15,7 +16,8 @@ export interface GetPromptStatusResponse {
 export class GetPromptStatusUseCase {
   constructor(
     private promptRepository: IPromptRepository,
-    private projectRepository: IProjectRepository
+    private projectRepository: IProjectRepository,
+    private buildRepository: IBuildRepository
   ) {}
 
   async execute(promptId: string): Promise<GetPromptStatusResponse> {
@@ -30,17 +32,27 @@ export class GetPromptStatusUseCase {
       throw new Error('Prompt not found');
     }
 
-    // Get preview URL from project
+    // Get build status if build exists
+    let status = 'QUEUED'; // Default status
     let previewUrl = null;
-    if (prompt.status === 'READY') {
-      const project = await this.projectRepository.findById(prompt.projectId);
-      previewUrl = project?.previewUrl || null;
+    
+    if (prompt.buildId) {
+      const build = await this.buildRepository.findById(prompt.buildId);
+      if (build) {
+        status = build.status;
+        
+        // Get preview URL from project if build is ready
+        if (build.status === 'READY') {
+          const project = await this.projectRepository.findById(prompt.projectId);
+          previewUrl = project?.previewUrl || null;
+        }
+      }
     }
 
     return {
       promptId: prompt.id,
       jobId: prompt.id, // Keep for backward compatibility
-      status: prompt.status,
+      status,
       projectId: prompt.projectId,
       createdAt: prompt.createdAt,
       updatedAt: prompt.modifiedAt,

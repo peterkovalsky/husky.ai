@@ -1,19 +1,13 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseClient } from '@supabase/supabase-js';
 import { IWorkspaceRepository } from '../../domain/repositories/IWorkspaceRepository';
 import { Workspace, CreateWorkspaceRequest } from '../../domain/entities/Workspace';
+import { SupabaseClientFactory } from '../../shared/database/SupabaseClientFactory';
 
 export class SupabaseWorkspaceRepository implements IWorkspaceRepository {
   private supabase: SupabaseClient;
 
   constructor() {
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !supabaseServiceKey) {
-      throw new Error('Missing Supabase configuration');
-    }
-
-    this.supabase = createClient(supabaseUrl, supabaseServiceKey);
+    this.supabase = SupabaseClientFactory.getClient();
   }
 
   async create(request: CreateWorkspaceRequest): Promise<Workspace> {

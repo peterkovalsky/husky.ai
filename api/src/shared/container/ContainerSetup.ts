@@ -51,8 +51,7 @@ export function setupContainer(): DIContainer {
 
   // Register Infrastructure Services
   container.registerFactory<IAIService>('aiService', () => {
-    const buildRepository = container.get<IBuildRepository>('buildRepository');
-    return new AnthropicAIService(undefined, buildRepository);
+    return new AnthropicAIService();
   });
   
   container.registerFactory<IStorageService>('storageService', () => new S3StorageService());
@@ -74,7 +73,8 @@ export function setupContainer(): DIContainer {
 
   container.registerFactory<GetPromptStatusUseCase>('getPromptStatusUseCase', () => new GetPromptStatusUseCase(
     container.get<IPromptRepository>('promptRepository'),
-    container.get<IProjectRepository>('projectRepository')
+    container.get<IProjectRepository>('projectRepository'),
+    container.get<IBuildRepository>('buildRepository')
   ));
 
   container.registerFactory<CreateProjectUseCase>('createProjectUseCase', () => new CreateProjectUseCase(

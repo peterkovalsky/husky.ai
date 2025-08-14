@@ -1,19 +1,13 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseClient } from '@supabase/supabase-js';
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
 import { Project, CreateProjectRequest } from '../../domain/entities/Project';
+import { SupabaseClientFactory } from '../../shared/database/SupabaseClientFactory';
 
 export class SupabaseProjectRepository implements IProjectRepository {
   private supabase: SupabaseClient;
 
   constructor() {
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !supabaseServiceKey) {
-      throw new Error('Missing Supabase configuration');
-    }
-
-    this.supabase = createClient(supabaseUrl, supabaseServiceKey);
+    this.supabase = SupabaseClientFactory.getClient();
   }
 
   async create(request: CreateProjectRequest): Promise<Project> {

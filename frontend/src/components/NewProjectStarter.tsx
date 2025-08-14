@@ -98,9 +98,12 @@ export const NewProjectStarter = ({ projectId, projectName }: NewProjectStarterP
       const { previewUrl } = event.detail
       
       // Update the job status with new preview URL if provided
-      if (previewUrl && jobStatus) {
-        setJobStatus(prev => prev ? { ...prev, previewUrl } : null)
-      }
+      setJobStatus(prev => {
+        if (previewUrl && prev) {
+          return { ...prev, previewUrl }
+        }
+        return prev
+      })
       
       // Force iframe reload by changing key
       setIframeKey(prev => prev + 1)
@@ -114,7 +117,7 @@ export const NewProjectStarter = ({ projectId, projectName }: NewProjectStarterP
         pollCleanupRef.current()
       }
     }
-  }, [jobStatus])
+  }, [])
 
   // If app is ready and we have a preview URL, show the full-screen preview
   if (appState === 'ready' && jobStatus?.previewUrl) {

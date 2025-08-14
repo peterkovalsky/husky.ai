@@ -63,7 +63,7 @@ export class CreatePromptUseCase {
     return {
       promptId: prompt.id,
       jobId: prompt.id, // Keep for backward compatibility
-      status: prompt.status,
+      status: 'QUEUED', // Default status since build hasn't been created yet
       projectId,
       timestamp: prompt.createdAt
     };
