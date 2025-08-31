@@ -71,8 +71,9 @@ export class S3StorageService implements IStorageService {
     try {
       const uploadedFiles = await this.uploadDirectory(
         appDirectory, 
-        `${projectId}/v${version}/source/`,
-        this.versionsBucketName
+        `projects/${projectId}/v${version}/source/`,
+        this.versionsBucketName,
+        ['dist', 'node_modules']
       );
 
       return {
@@ -98,9 +99,23 @@ export class S3StorageService implements IStorageService {
         };
       }
 
+      // Check if dist folder has contents
+      const distContents = fs.readdirSync(distPath);
+      console.log(`[S3StorageService] Dist folder contents: ${distContents.join(', ')}`);
+      
+      if (distContents.length === 0) {
+        return {
+          success: false,
+          error: "Dist folder is empty - no files to upload"
+        };
+      }
+
+      const s3Prefix = `projects/${projectId}/v${version}/build/`;
+      console.log(`[S3StorageService] Uploading from ${distPath} to ${s3Prefix} in bucket ${this.versionsBucketName}`);
+
       const uploadedFiles = await this.uploadDirectory(
         distPath, 
-        `${projectId}/v${version}/production/`,
+        s3Prefix,
         this.versionsBucketName
       );
 
@@ -119,7 +134,8 @@ export class S3StorageService implements IStorageService {
   private async uploadDirectory(
     localDir: string, 
     s3Prefix: string, 
-    bucketName?: string
+    bucketName?: string,
+    excludeFolders?: string[]
   ): Promise<string[]> {
     const bucket = bucketName || this.bucketName;
     const uploadedFiles: string[] = [];
@@ -137,6 +153,7 @@ export class S3StorageService implements IStorageService {
 
       await this.s3Client.send(command);
       uploadedFiles.push(key);
+      console.log(`[S3StorageService] Uploaded file: ${key}`);
     };
 
     const uploadDirRecursive = async (currentDir: string, currentPrefix: string) => {
@@ -147,6 +164,10 @@ export class S3StorageService implements IStorageService {
         const itemStat = await stat(itemPath);
 
         if (itemStat.isDirectory()) {
+          // Skip excluded folders
+          if (excludeFolders && excludeFolders.includes(item)) {
+            continue;
+          }
           await uploadDirRecursive(itemPath, `${currentPrefix}${item}/`);
         } else {
           const key = `${currentPrefix}${item}`;
@@ -156,6 +177,10 @@ export class S3StorageService implements IStorageService {
     };
 
     await uploadDirRecursive(localDir, s3Prefix);
+    console.log(`[S3StorageService] Upload completed. Total files uploaded: ${uploadedFiles.length}`);
+    if (uploadedFiles.length > 0) {
+      console.log(`[S3StorageService] First few uploaded files: ${uploadedFiles.slice(0, 3).join(', ')}`);
+    }
     return uploadedFiles;
   }
 
@@ -244,7 +269,7 @@ export class S3StorageService implements IStorageService {
     // Also check versions bucket if we have objects there
     const versionsListCommand = new ListObjectsV2Command({
       Bucket: this.versionsBucketName,
-      Prefix: prefix,
+      Prefix: `projects/${prefix}`,
     });
 
     const versionsListResult = await this.s3Client.send(versionsListCommand);

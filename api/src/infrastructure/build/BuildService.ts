@@ -13,9 +13,8 @@ export class BuildService implements IBuildService {
     this.appsDir = path.join(__dirname, "../../../../apps");
   }
 
-  async saveFileTreeToDisk(fileTree: Record<string, string>, projectId: string): Promise<string> {
-    const nextVersion = await this.buildRepository.getNextVersionForProject(projectId);
-    const appDir = path.join(this.appsDir, projectId, `v${nextVersion}`);
+  async saveFileTreeToDisk(fileTree: Record<string, string>, projectId: string, version: number): Promise<string> {
+    const appDir = path.join(this.appsDir, projectId, `v${version}`);
 
     // Create project and version directories
     fs.mkdirSync(appDir, { recursive: true });

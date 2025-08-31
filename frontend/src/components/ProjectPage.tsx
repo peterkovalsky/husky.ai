@@ -5,7 +5,7 @@ import { useProject } from '../contexts/ProjectContext'
 import { Dashboard } from './Dashboard'
 import { ChatWidget } from './ChatWidget'
 import { NewProjectStarter } from './NewProjectStarter'
-import { Button } from './ui/button'
+import { Button } from '@heroui/react'
 import { Code2, ArrowLeft, Loader2 } from 'lucide-react'
 
 export const ProjectPage = () => {
@@ -112,8 +112,7 @@ export const ProjectPage = () => {
           </div>
           <h2 className="text-xl font-semibold mb-2">Project not found</h2>
           <p className="text-muted-foreground mb-6">{error || 'The requested project could not be found.'}</p>
-          <Button onClick={() => navigate('/')}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
+          <Button onPress={() => navigate('/')} startContent={<ArrowLeft className="h-4 w-4" />}>
             Back to Projects
           </Button>
         </div>

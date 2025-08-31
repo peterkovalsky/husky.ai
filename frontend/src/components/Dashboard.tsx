@@ -4,23 +4,9 @@ import { ApiService, type JobStatus, type Prompt } from '../services/api'
 import { LoadingSpinner } from './LoadingSpinner'
 import { Timer } from './Timer'
 import { IterationHistory } from './IterationHistory'
-import { useAuth } from '../hooks/useAuth'
 import { useProject } from '../contexts/ProjectContext'
-import { Button } from './ui/button'
-import { Textarea } from './ui/textarea'
-import { Card, CardContent, CardHeader } from './ui/card'
-import { Alert, AlertDescription } from './ui/alert'
-import { Badge } from './ui/badge'
-import { Separator } from './ui/separator'
-import { Code2, Settings, Plus, RotateCcw, ExternalLink, Loader2, AlertCircle, Clock, ArrowRight, RefreshCw, ArrowLeft, LogOut } from 'lucide-react'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from './ui/dropdown-menu'
+import { Button, Textarea, Card, CardBody, CardHeader, Chip, Divider } from '@heroui/react'
+import { Code2, Settings, Plus, RotateCcw, ExternalLink, Loader2, AlertCircle, Clock, ArrowRight, RefreshCw } from 'lucide-react'
 
 type AppState = 'initial' | 'submitted' | 'loading' | 'ready' | 'error'
 
@@ -37,7 +23,6 @@ export const Dashboard = () => {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const pollCleanupRef = useRef<(() => void) | null>(null)
   const startTimeRef = useRef<Date | null>(null)
-  const { user, signOut } = useAuth()
   const { currentProject } = useProject()
   const location = useLocation()
   const navigate = useNavigate()
@@ -111,7 +96,7 @@ export const Dashboard = () => {
     }
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSubmit(e)
@@ -175,14 +160,6 @@ export const Dashboard = () => {
     setGenerationTime(0)
   }
 
-  const handleSignOut = async () => {
-    try {
-      await signOut()
-    } catch (error) {
-      console.error('Error signing out:', error)
-    }
-  }
-
   useEffect(() => {
     return () => {
       if (pollCleanupRef.current) {
@@ -196,30 +173,19 @@ export const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header Navigation */}
-      <div className="border-b">
+      {/* Header Controls */}
+      <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
+          <div className="flex justify-between items-center h-14">
             <div className="flex items-center gap-4">
               {isEditMode && currentProject && (
-                <>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => navigate(`/project/${currentProject.id}`)}
-                  >
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Back to Preview
-                  </Button>
-                  <Separator orientation="vertical" className="h-6" />
-                </>
-              )}
-              <h1 className="text-2xl font-bold">Husky AI</h1>
-              {currentProject && (
-                <>
-                  <Separator orientation="vertical" className="h-6" />
-                  <span className="text-sm font-medium text-muted-foreground">{currentProject.name}</span>
-                </>
+                <Button
+                  variant="light"
+                  size="sm"
+                  onClick={() => navigate(`/project/${currentProject.id}`)}
+                >
+                  Back to Preview
+                </Button>
               )}
             </div>
 
@@ -231,7 +197,7 @@ export const Dashboard = () => {
               />
               {currentProject && !isInitialState && (
                 <Button
-                  variant="outline"
+                  variant="bordered"
                   size="sm"
                   onClick={() => setShowIterations(!showIterations)}
                 >
@@ -240,38 +206,11 @@ export const Dashboard = () => {
                 </Button>
               )}
             </div>
-            
-            {/* User Menu Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  className="w-8 h-8 rounded-full p-0"
-                >
-                  <div className="w-8 h-8 bg-gradient-to-r from-primary to-primary/80 rounded-full flex items-center justify-center text-primary-foreground text-sm font-medium">
-                    {(user?.user_metadata?.display_name || user?.email || 'U').charAt(0).toUpperCase()}
-                  </div>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-60">
-                <DropdownMenuLabel className="pb-0">
-                  <p className="text-sm text-muted-foreground">Signed in as</p>
-                  <p className="text-sm font-medium truncate">
-                    {user?.user_metadata?.display_name || user?.email}
-                  </p>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleSignOut}>
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Sign Out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
           </div>
         </div>
       </div>
 
-      <div className={`${isInitialState ? 'flex items-center justify-center min-h-[calc(100vh-4rem)]' : 'pt-8 pb-6'} transition-all duration-700 ease-in-out`}>
+      <div className={`${isInitialState ? 'flex items-center justify-center min-h-[calc(100vh-8rem)]' : 'pt-8 pb-6'} transition-all duration-700 ease-in-out`}>
         <div className={`w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8`}>
           <div className={`${isInitialState ? 'text-center' : 'mb-6'}`}>
             {isInitialState && (
@@ -292,7 +231,7 @@ export const Dashboard = () => {
             
             <form onSubmit={handleSubmit} className="relative">
               <Card className={`${isInitialState ? 'max-w-2xl mx-auto' : ''}`}>
-                <CardContent className="p-6">
+                <CardBody className="p-6">
                   <div className="relative">
                     <Textarea
                       ref={textareaRef}
@@ -329,13 +268,13 @@ export const Dashboard = () => {
                   
                   {!isInitialState && (
                     <>
-                      <Separator className="my-4" />
+                      <Divider className="my-4" />
                       <div className="flex justify-between items-center">
                         <div className="flex items-center gap-2">
                           <Button
                             type="button"
                             onClick={handleNewIteration}
-                            variant="secondary"
+                            color="secondary"
                             size="sm"
                           >
                             <Plus className="mr-2 h-4 w-4" />
@@ -345,7 +284,7 @@ export const Dashboard = () => {
                           <Button
                             type="button"
                             onClick={handleReset}
-                            variant="outline"
+                            variant="bordered"
                             size="sm"
                           >
                             <RotateCcw className="mr-2 h-4 w-4" />
@@ -362,17 +301,17 @@ export const Dashboard = () => {
                           
                           {/* Show final generation time when completed */}
                           {generationTime > 0 && (appState === 'ready' || appState === 'error') && (
-                            <Badge variant="secondary">
+                            <Chip color="secondary" size="sm">
                               <Clock className="mr-1 h-3 w-3" />
                               Generated in {Math.floor(generationTime / 60)}:{(generationTime % 60).toString().padStart(2, '0')}
-                            </Badge>
+                            </Chip>
                           )}
                           
                           {jobId && (
-                            <Badge variant="outline">
+                            <Chip variant="bordered" size="sm">
                               <span className="size-1.5 inline-block rounded-full bg-primary mr-1.5"></span>
                               Job ID: {jobId.slice(0, 8)}...
-                            </Badge>
+                            </Chip>
                           )}
                           {appState === 'error' && (
                             <Button
@@ -397,7 +336,7 @@ export const Dashboard = () => {
                       </div>
                     </>
                   )}
-                </CardContent>
+                </CardBody>
               </Card>
             </form>
           </div>
@@ -424,12 +363,12 @@ export const Dashboard = () => {
           <div className="flex-1 px-4 sm:px-6 lg:px-8">
             <div className="max-w-4xl mx-auto">
             {appState === 'error' && (
-              <Alert variant="destructive" className="mb-6">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
+              <div className="mb-6 p-4 border border-danger-200 bg-danger-50 text-danger-700 rounded-lg flex items-start gap-3">
+                <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <div className="text-sm">
                   {error}
-                </AlertDescription>
-              </Alert>
+                </div>
+              </div>
             )}
 
             {(appState === 'submitted' || appState === 'loading') && (
@@ -442,27 +381,24 @@ export const Dashboard = () => {
               <Card className="overflow-hidden">
                 <CardHeader className="bg-muted/50">
                   <div className="flex items-center justify-between">
-                    <Badge variant="secondary" className="bg-green-100 text-green-800">
+                    <Chip color="success" size="sm">
                       <span className="size-1.5 inline-block rounded-full bg-green-800 mr-1.5"></span>
                       Preview Ready
-                    </Badge>
+                    </Chip>
                     <Button
-                      asChild
-                      variant="ghost"
+                      as="a"
+                      href={jobStatus.previewUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      variant="light"
                       size="sm"
+                      startContent={<ExternalLink className="h-3.5 w-3.5" />}
                     >
-                      <a
-                        href={jobStatus.previewUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <ExternalLink className="mr-2 h-3.5 w-3.5" />
-                        Open in New Tab
-                      </a>
+                      Open in New Tab
                     </Button>
                   </div>
                 </CardHeader>
-                <CardContent className="p-0">
+                <CardBody className="p-0">
                   <div className="relative" style={{ height: 'calc(100vh - 300px)', minHeight: '600px' }}>
                     <iframe
                       src={jobStatus.previewUrl}
@@ -471,15 +407,13 @@ export const Dashboard = () => {
                       sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
                     />
                   </div>
-                </CardContent>
+                </CardBody>
               </Card>
             )}
             </div>
           </div>
         </div>
       )}
-
-      {/* Chat Widget */}
     </div>
   )
 }

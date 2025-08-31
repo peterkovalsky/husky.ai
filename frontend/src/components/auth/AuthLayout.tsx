@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Card, CardContent } from '../ui/card'
+import { Card, CardBody } from '@heroui/react'
 
 interface AuthLayoutProps {
   children: ReactNode
@@ -28,9 +28,9 @@ export const AuthLayout = ({ children, title, subtitle }: AuthLayoutProps) => {
           {subtitle && <p className="text-muted-foreground text-sm">{subtitle}</p>}
         </div>
         <Card>
-          <CardContent className="p-8">
+          <CardBody className="p-8">
             {children}
-          </CardContent>
+          </CardBody>
         </Card>
       </div>
     </div>

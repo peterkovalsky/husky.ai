@@ -2,11 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ApiService, type JobStatus } from '../services/api'
 import { useProject } from '../contexts/ProjectContext'
-import { Button } from './ui/button'
-import { Textarea } from './ui/textarea'
-import { Card, CardContent } from './ui/card'
-import { Badge } from './ui/badge'
-import { Spinner } from './ui/shadcn-io/spinner'
+import { Button, Textarea, Card, CardBody, Chip, Spinner } from '@heroui/react'
 import { MessageCircle, X, Send, Loader2, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react'
 
 interface ChatMessage {
@@ -156,7 +152,7 @@ export const ChatWidget = () => {
     }
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSubmit(e)
@@ -194,9 +190,10 @@ export const ChatWidget = () => {
       <div className="fixed bottom-6 right-6 z-50">
         {!isOpen && (
           <Button
-            onClick={() => setIsOpen(true)}
+            onPress={() => setIsOpen(true)}
             size="lg"
-            className="rounded-full w-14 h-14 shadow-lg hover:shadow-xl transition-shadow bg-primary hover:bg-primary/90"
+            className="rounded-full w-14 h-14 shadow-lg hover:shadow-xl transition-shadow"
+            color="primary"
           >
             <MessageCircle className="h-6 w-6" />
           </Button>
@@ -213,19 +210,21 @@ export const ChatWidget = () => {
               </div>
               <div className="flex items-center gap-1">
                 <Button
-                  variant="ghost"
+                  variant="light"
                   size="sm"
-                  onClick={() => navigate('/')}
-                  className="text-primary-foreground hover:bg-primary-foreground/20 h-8 w-8 p-0 cursor-pointer"
+                  onPress={() => navigate('/')}
+                  className="text-primary-foreground h-8 w-8 p-0 cursor-pointer min-w-8"
                   title="Back to Projects"
+                  isIconOnly
                 >
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
                 <Button
-                  variant="ghost"
+                  variant="light"
                   size="sm"
-                  onClick={() => setIsOpen(false)}
-                  className="text-primary-foreground hover:bg-primary-foreground/20 h-8 w-8 p-0 cursor-pointer"
+                  onPress={() => setIsOpen(false)}
+                  className="text-primary-foreground h-8 w-8 p-0 cursor-pointer min-w-8"
+                  isIconOnly
                 >
                   <X className="h-4 w-4" />
                 </Button>
@@ -274,7 +273,7 @@ export const ChatWidget = () => {
               {isProcessing && (
                 <div className="flex justify-start">
                   <div className="bg-muted rounded-lg px-3 py-2 text-sm max-w-[80%]">
-                    <Spinner variant="ellipsis" size={24} className="text-muted-foreground" />
+                    <Spinner size="sm" className="text-muted-foreground" />
                   </div>
                 </div>
               )}
@@ -283,23 +282,29 @@ export const ChatWidget = () => {
             </div>
 
             {/* Input */}
-            <CardContent className="p-3 border-t">
+            <CardBody className="p-3 border-t">
               <form onSubmit={handleSubmit} className="space-y-2">
                 <div className="relative">
                   <Textarea
                     ref={textareaRef}
                     value={currentPrompt}
-                    onChange={(e) => setCurrentPrompt(e.target.value)}
+                    onValueChange={setCurrentPrompt}
                     onKeyDown={handleKeyDown}
                     placeholder={currentProject ? "Describe your changes..." : "Select a project first..."}
-                    className="min-h-[60px] max-h-[120px] resize-none pr-12 text-sm"
-                    disabled={isSubmitting || !currentProject}
+                    className="pr-12"
+                    classNames={{
+                      input: "min-h-[60px] max-h-[120px] resize-none text-sm"
+                    }}
+                    isDisabled={isSubmitting || !currentProject}
+                    minRows={2}
+                    maxRows={5}
                   />
                   <Button
                     type="submit"
                     size="sm"
-                    disabled={!currentPrompt.trim() || isSubmitting || !currentProject}
-                    className="absolute bottom-2 right-2 h-8 w-8 p-0"
+                    isDisabled={!currentPrompt.trim() || isSubmitting || !currentProject}
+                    className="absolute bottom-2 right-2 h-8 w-8 p-0 min-w-8"
+                    isIconOnly
                   >
                     {isSubmitting ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -310,16 +315,16 @@ export const ChatWidget = () => {
                 </div>
                 {currentProject && (
                   <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-xs">
+                    <Chip variant="bordered" size="sm" className="text-xs">
                       {currentProject.name}
-                    </Badge>
+                    </Chip>
                     <span className="text-xs text-muted-foreground">
                       Press Enter to send
                     </span>
                   </div>
                 )}
               </form>
-            </CardContent>
+            </CardBody>
           </Card>
         )}
       </div>

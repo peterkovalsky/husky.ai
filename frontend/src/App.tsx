@@ -8,9 +8,9 @@ import { Dashboard } from './components/Dashboard'
 import { ProjectPage } from './components/ProjectPage'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { ConfigurationNotice } from './components/ConfigurationNotice'
+import { AppLayout } from './components/AppLayout'
 import { useAuth } from './hooks/useAuth'
 import { ProjectProvider } from './contexts/ProjectContext'
-import { Alert, AlertDescription } from './components/ui/alert'
 import { CheckCircle, Loader2 } from 'lucide-react'
 
 function App() {
@@ -49,12 +49,12 @@ function App() {
           ) : (
             <div>
               {message && (
-                <Alert className="fixed top-4 right-4 max-w-sm shadow-lg z-50 border-green-200 bg-green-50">
+                <div className="fixed top-4 right-4 max-w-sm shadow-lg z-50 border border-green-200 bg-green-50 p-4 rounded-lg flex items-center gap-2">
                   <CheckCircle className="h-4 w-4 text-green-600" />
-                  <AlertDescription className="text-green-700">
+                  <p className="text-green-700 text-sm">
                     {message}
-                  </AlertDescription>
-                </Alert>
+                  </p>
+                </div>
               )}
               <SignIn />
             </div>
@@ -74,7 +74,9 @@ function App() {
         element={
           <ProtectedRoute>
             <ProjectProvider>
-              <Home />
+              <AppLayout>
+                <Home />
+              </AppLayout>
             </ProjectProvider>
           </ProtectedRoute>
         } 
@@ -94,7 +96,9 @@ function App() {
         element={
           <ProtectedRoute>
             <ProjectProvider>
-              <Dashboard />
+              <AppLayout>
+                <Dashboard />
+              </AppLayout>
             </ProjectProvider>
           </ProtectedRoute>
         } 

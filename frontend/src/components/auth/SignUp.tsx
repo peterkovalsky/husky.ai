@@ -3,11 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { useToast } from '../../contexts/ToastContext'
 import { AuthLayout } from './AuthLayout'
-import { Button } from '../ui/button'
-import { Input } from '../ui/input'
-import { Label } from '../ui/label'
-import { Alert, AlertDescription } from '../ui/alert'
-import { Separator } from '../ui/separator'
+import { Button, Input, Divider } from '@heroui/react'
 import { Loader2, User, Mail, Lock, AlertCircle, UserPlus, ArrowRight } from 'lucide-react'
 
 export const SignUp = () => {
@@ -62,76 +58,60 @@ export const SignUp = () => {
     <AuthLayout title="Sign Up" subtitle="Create your Husky AI account">
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              {error}
-            </AlertDescription>
-          </Alert>
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center gap-2 text-red-700">
+            <AlertCircle className="h-4 w-4 flex-shrink-0" />
+            <span className="text-sm">{error}</span>
+          </div>
         )}
 
 
         <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="displayName">Full Name</Label>
-            <div className="relative">
-              <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="text"
-                id="displayName"
-                name="displayName"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                className="pl-9"
-                placeholder="Enter your full name"
-                required
-              />
-            </div>
-          </div>
+          <Input
+            type="text"
+            id="displayName"
+            name="displayName"
+            label="Full Name"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            placeholder="Enter your full name"
+            startContent={<User className="h-4 w-4 text-default-400" />}
+            isRequired
+          />
 
-          <div className="space-y-2">
-            <Label htmlFor="email">Email Address</Label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="email"
-                id="email"
-                name="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="pl-9"
-                placeholder="Enter your email address"
-                required
-              />
-            </div>
-          </div>
+          <Input
+            type="email"
+            id="email"
+            name="email"
+            label="Email Address"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Enter your email address"
+            startContent={<Mail className="h-4 w-4 text-default-400" />}
+            isRequired
+          />
 
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="password"
-                id="password"
-                name="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="pl-9"
-                placeholder="Create a strong password"
-                required
-              />
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">Must be at least 6 characters long</p>
-          </div>
+          <Input
+            type="password"
+            id="password"
+            name="password"
+            label="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Create a strong password"
+            description="Must be at least 6 characters long"
+            startContent={<Lock className="h-4 w-4 text-default-400" />}
+            isRequired
+          />
 
         </div>
 
         <div className="space-y-4">
           <Button
             type="submit"
-            disabled={loading}
+            isDisabled={loading}
             className="w-full"
             size="lg"
+            color="primary"
           >
             {loading ? (
               <>
@@ -148,23 +128,22 @@ export const SignUp = () => {
 
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
-              <Separator className="w-full" />
+              <Divider className="w-full" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">Or</span>
+              <span className="bg-background px-2 text-default-500">Or</span>
             </div>
           </div>
 
-          <Button 
-            asChild
-            variant="outline"
+          <Button
+            as={Link}
+            to="/signin"
+            variant="bordered"
             size="lg"
             className="w-full"
           >
-            <Link to="/signin">
-              Sign in instead
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
+            Sign in instead
+            <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>
       </form>

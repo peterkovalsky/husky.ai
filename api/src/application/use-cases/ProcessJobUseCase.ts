@@ -72,6 +72,17 @@ export class ProcessJobUseCase {
     try {
       console.log(`Processing prompt ${safePromptId}...`);
 
+      // Check if prompt already has a build (prevent duplicate processing)
+      const existingPrompt = await this.promptRepository.findById(safePromptId);
+      if (!existingPrompt) {
+        throw new Error(`Prompt ${safePromptId} not found`);
+      }
+      
+      if (existingPrompt.buildId) {
+        console.log(`Prompt ${safePromptId} already has build ${existingPrompt.buildId}, skipping duplicate processing`);
+        return;
+      }
+
       // Create build with PROCESSING status
       const createdBuild = await this.buildRepository.create({
         fileTree: {},
@@ -79,6 +90,7 @@ export class ProcessJobUseCase {
         status: 'PROCESSING'
       });
       buildId = createdBuild.id;
+      const buildVersion = createdBuild.version;
 
       // Link prompt to build
       await this.promptRepository.updateBuildId(safePromptId, buildId);
@@ -133,7 +145,7 @@ export class ProcessJobUseCase {
 
       // Save files to disk using BuildService (this creates the versioned directory)
       console.log(`Saving merged files to disk for prompt ${safePromptId}...`);
-      const appDirectory = await this.buildService.saveFileTreeToDisk(mergeResult.mergedFileTree, safeProjectId);
+      const appDirectory = await this.buildService.saveFileTreeToDisk(mergeResult.mergedFileTree, safeProjectId, buildVersion);
 
       // Start node_modules copying in parallel (don't await)
       console.log(`Starting parallel node_modules copy for prompt ${safePromptId}...`);
@@ -189,6 +201,55 @@ export class ProcessJobUseCase {
       // Update token usage data
       if (aiResponse.usage && aiResponse.usage.inputTokens && aiResponse.usage.outputTokens) {
         await this.buildRepository.updateTokens(buildId!, aiResponse.usage.inputTokens, aiResponse.usage.outputTokens);
+      }
+
+      // Upload version history to S3 versions bucket (after build is READY)
+      try {
+        console.log(`Uploading source code to versions bucket for project ${safeProjectId} version ${buildVersion}...`);
+        console.log(`Source upload directory: ${appDirectory}`);
+        const sourceUploadStartTime = Date.now();
+        const sourceUploadResult = await this.storageService.uploadSourceCode(appDirectory, safeProjectId, buildVersion);
+        
+        if (sourceUploadResult.success) {
+          metrics.versionSourceUploadTimeMs = Date.now() - sourceUploadStartTime;
+          console.log(`Source code uploaded successfully in ${metrics.versionSourceUploadTimeMs}ms. Files: ${sourceUploadResult.uploadedFiles?.length || 0}`);
+        } else {
+          console.warn(`Failed to upload source code to versions bucket: ${sourceUploadResult.error}`);
+        }
+      } catch (error) {
+        console.warn(`Error uploading source code to versions bucket:`, error);
+      }
+
+      try {
+        console.log(`Uploading build to versions bucket for project ${safeProjectId} version ${buildVersion}...`);
+        console.log(`Build upload directory: ${appDirectory}`);
+        const distPath = path.join(appDirectory, "dist");
+        console.log(`Dist path exists: ${fs.existsSync(distPath)}`);
+        if (fs.existsSync(distPath)) {
+          const distFiles = fs.readdirSync(distPath);
+          console.log(`Dist folder contents: ${distFiles.join(', ')}`);
+        }
+        
+        const buildUploadStartTime = Date.now();
+        const buildUploadResult = await this.storageService.uploadProductionVersion(appDirectory, safeProjectId, buildVersion);
+        
+        if (buildUploadResult.success) {
+          metrics.versionProductionUploadTimeMs = Date.now() - buildUploadStartTime;
+          console.log(`Build uploaded successfully in ${metrics.versionProductionUploadTimeMs}ms. Files: ${buildUploadResult.uploadedFiles?.length || 0}`);
+        } else {
+          console.warn(`Failed to upload build to versions bucket: ${buildUploadResult.error}`);
+        }
+      } catch (error) {
+        console.warn(`Error uploading build to versions bucket:`, error);
+      }
+
+      // Update build metrics with version upload timings
+      if (buildId && (metrics.versionSourceUploadTimeMs || metrics.versionProductionUploadTimeMs)) {
+        try {
+          await this.buildRepository.updateMetrics(buildId, metrics);
+        } catch (metricsError) {
+          console.warn("Failed to update version upload metrics:", metricsError);
+        }
       }
 
       console.log(`Prompt ${safePromptId} completed successfully. Preview URL: ${uploadResult.previewUrl}`);

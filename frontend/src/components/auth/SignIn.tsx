@@ -2,11 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { AuthLayout } from './AuthLayout'
-import { Button } from '../ui/button'
-import { Input } from '../ui/input'
-import { Label } from '../ui/label'
-import { Alert, AlertDescription } from '../ui/alert'
-import { Separator } from '../ui/separator'
+import { Button, Input, Divider } from '@heroui/react'
 import { Loader2, Mail, Lock, AlertCircle, ArrowRight, UserPlus } from 'lucide-react'
 
 export const SignIn = () => {
@@ -41,35 +37,30 @@ export const SignIn = () => {
     <AuthLayout title="Sign In" subtitle="Welcome back to Husky AI">
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              {error}
-            </AlertDescription>
-          </Alert>
+          <div className="flex items-center gap-3 p-4 rounded-lg bg-red-50 border border-red-200 text-red-700">
+            <AlertCircle className="h-4 w-4 flex-shrink-0" />
+            <span className="text-sm">{error}</span>
+          </div>
         )}
 
         <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="email">Email Address</Label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="email"
-                id="email"
-                name="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="pl-9"
-                placeholder="Enter your email address"
-                required
-              />
-            </div>
+          <div>
+            <Input
+              type="email"
+              id="email"
+              name="email"
+              label="Email Address"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Enter your email address"
+              startContent={<Mail className="h-4 w-4 text-default-400" />}
+              required
+            />
           </div>
 
-          <div className="space-y-2">
-            <div className="flex justify-between items-center">
-              <Label htmlFor="password">Password</Label>
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-sm font-medium">Password</span>
               <Link 
                 to="/forgot-password" 
                 className="text-sm text-primary hover:underline font-medium"
@@ -77,28 +68,26 @@ export const SignIn = () => {
                 Forgot password?
               </Link>
             </div>
-            <div className="relative">
-              <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="password"
-                id="password"
-                name="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="pl-9"
-                placeholder="Enter your password"
-                required
-              />
-            </div>
+            <Input
+              type="password"
+              id="password"
+              name="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter your password"
+              startContent={<Lock className="h-4 w-4 text-default-400" />}
+              required
+            />
           </div>
         </div>
 
         <div className="space-y-4">
           <Button
             type="submit"
-            disabled={loading}
+            isDisabled={loading}
             className="w-full"
             size="lg"
+            color="primary"
           >
             {loading ? (
               <>
@@ -115,23 +104,22 @@ export const SignIn = () => {
 
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
-              <Separator className="w-full" />
+              <Divider className="w-full" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">Or</span>
+              <span className="bg-white px-2 text-gray-500">Or</span>
             </div>
           </div>
 
           <Button 
-            asChild
-            variant="outline"
+            as={Link}
+            to="/signup"
+            variant="bordered"
             size="lg"
             className="w-full"
           >
-            <Link to="/signup">
-              Create an account
-              <UserPlus className="ml-2 h-4 w-4" />
-            </Link>
+            Create an account
+            <UserPlus className="ml-2 h-4 w-4" />
           </Button>
         </div>
       </form>

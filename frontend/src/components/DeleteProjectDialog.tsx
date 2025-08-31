@@ -1,20 +1,17 @@
 import { useState } from 'react'
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogDescription, 
-  DialogFooter, 
-  DialogHeader, 
-  DialogTitle 
-} from './ui/dialog'
-import { Button } from './ui/button'
-import { Input } from './ui/input'
-import { Label } from './ui/label'
+import {
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  Button,
+  Input
+} from '@heroui/react'
 import { AlertTriangle, Loader2 } from 'lucide-react'
-import { Alert, AlertDescription } from './ui/alert'
 
 interface DeleteProjectDialogProps {
-  open: boolean
+  isOpen: boolean
   onOpenChange: (open: boolean) => void
   projectName: string
   projectId: string
@@ -22,7 +19,7 @@ interface DeleteProjectDialogProps {
 }
 
 export const DeleteProjectDialog = ({ 
-  open, 
+  isOpen, 
   onOpenChange, 
   projectName, 
   projectId, 
@@ -58,86 +55,87 @@ export const DeleteProjectDialog = ({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader className="pb-6">
-          <div className="space-y-1">
-            <DialogTitle className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-              Delete Project
-            </DialogTitle>
-            <DialogDescription className="text-gray-600 dark:text-gray-400">
-              This action cannot be undone
-            </DialogDescription>
-          </div>
-        </DialogHeader>
-
-        <div className="space-y-6 px-6">
-          <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/50 rounded-lg p-4">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+    <Modal isOpen={isOpen} onOpenChange={onOpenChange} size="lg">
+      <ModalContent>
+        {() => (
+          <>
+            <ModalHeader className="pb-6">
               <div className="space-y-1">
-                <p className="text-sm font-medium text-red-900 dark:text-red-100">
-                  This will permanently delete
-                </p>
-                <p className="text-sm text-red-800 dark:text-red-200">
-                  <span className="font-semibold text-red-900 dark:text-red-100">{projectName}</span>
-                </p>
-                <p className="text-sm text-red-700 dark:text-red-300">
-                  and all associated data, including app versions, previews, and prompts. This action cannot be undone.
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                  Delete Project
+                </h2>
+                <p className="text-gray-600 dark:text-gray-400">
+                  This action cannot be undone
                 </p>
               </div>
-            </div>
-          </div>
+            </ModalHeader>
 
-          <div className="space-y-3">
-            <Label htmlFor="confirm-name" className="text-sm font-medium text-gray-900 dark:text-gray-100">
-              Type <span className="font-semibold">{projectName}</span> to confirm:
-            </Label>
-            <Input
-              id="confirm-name"
-              value={confirmName}
-              onChange={(e) => setConfirmName(e.target.value)}
-              placeholder={projectName}
-              autoComplete="off"
-              disabled={isDeleting}
-              className="text-base py-3"
-            />
-          </div>
+            <ModalBody className="space-y-6">
+              <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/50 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-red-900 dark:text-red-100">
+                      This will permanently delete
+                    </p>
+                    <p className="text-sm text-red-800 dark:text-red-200">
+                      <span className="font-semibold text-red-900 dark:text-red-100">{projectName}</span>
+                    </p>
+                    <p className="text-sm text-red-700 dark:text-red-300">
+                      and all associated data, including app versions, previews, and prompts. This action cannot be undone.
+                    </p>
+                  </div>
+                </div>
+              </div>
 
-          {error && (
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-        </div>
+              <div className="space-y-3">
+                <Input
+                  label={<span>Type <span className="font-semibold">{projectName}</span> to confirm:</span>}
+                  value={confirmName}
+                  onValueChange={setConfirmName}
+                  placeholder={projectName}
+                  autoComplete="off"
+                  isDisabled={isDeleting}
+                  size="lg"
+                />
+              </div>
 
-        <DialogFooter className="pt-6 gap-3">
-          <Button
-            variant="outline"
-            onClick={handleCancel}
-            disabled={isDeleting}
-            className="flex-1 sm:flex-none"
-          >
-            Cancel
-          </Button>
-          <Button
-            variant="destructive"
-            onClick={handleConfirm}
-            disabled={!isValid || isDeleting}
-            className="flex-1 sm:flex-none bg-red-600 hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-700"
-          >
-            {isDeleting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Deleting...
-              </>
-            ) : (
-              'Delete Project'
-            )}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+              {error && (
+                <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/50 rounded-lg p-4">
+                  <div className="flex items-center gap-3">
+                    <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400 flex-shrink-0" />
+                    <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
+                  </div>
+                </div>
+              )}
+            </ModalBody>
+
+            <ModalFooter className="gap-3">
+              <Button
+                variant="bordered"
+                onPress={handleCancel}
+                isDisabled={isDeleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                color="danger"
+                onPress={handleConfirm}
+                isDisabled={!isValid || isDeleting}
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete Project'
+                )}
+              </Button>
+            </ModalFooter>
+          </>
+        )}
+      </ModalContent>
+    </Modal>
   )
 }
