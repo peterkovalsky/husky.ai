@@ -1,15 +1,13 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Button, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from '@heroui/react'
-import { Home, FolderOpen, LogOut, Menu, X } from 'lucide-react'
+import { Home, LogOut, Menu, X } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
-import { useProject } from '../contexts/ProjectContext'
 import { useState } from 'react'
 
 export const Sidebar = () => {
   const location = useLocation()
   const navigate = useNavigate()
   const { user, signOut } = useAuth()
-  const { currentProject } = useProject()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   const handleSignOut = async () => {
@@ -21,9 +19,7 @@ export const Sidebar = () => {
   }
 
   const isActive = (path: string) => {
-    if (path === '/' && location.pathname === '/') return true
-    if (path !== '/' && location.pathname.startsWith(path)) return true
-    return false
+    return location.pathname === path
   }
 
   const sidebarContent = (
@@ -56,27 +52,6 @@ export const Sidebar = () => {
           >
             Projects
           </Button>
-
-          {currentProject && (
-            <Button
-              fullWidth
-              variant={isActive(`/project/${currentProject.id}/edit`) ? 'flat' : 'light'}
-              color={isActive(`/project/${currentProject.id}/edit`) ? 'primary' : 'default'}
-              className="justify-start h-11"
-              startContent={<FolderOpen className="h-4 w-4" />}
-              onPress={() => {
-                navigate(`/project/${currentProject.id}/edit`)
-                setIsMobileMenuOpen(false)
-              }}
-            >
-              <div className="flex flex-col items-start">
-                <span className="text-sm">Dashboard</span>
-                <span className="text-xs text-default-500 truncate max-w-32">
-                  {currentProject.name}
-                </span>
-              </div>
-            </Button>
-          )}
         </div>
       </nav>
 

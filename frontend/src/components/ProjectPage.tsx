@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ApiService, type JobStatus, type ProjectDetails } from '../services/api'
 import { useProject } from '../contexts/ProjectContext'
-import { Dashboard } from './Dashboard'
 import { ChatWidget } from './ChatWidget'
 import { NewProjectStarter } from './NewProjectStarter'
 import { Button } from '@heroui/react'
@@ -172,11 +171,10 @@ export const ProjectPage = () => {
   // This case is now handled by the hasNoBuilds check above
   // If no prompts exist, totalBuilds will be 0 and hasNoBuilds will be true
 
-  // If there are prompts but no ready preview, redirect to edit mode (Dashboard)
-  return (
-    <>
-      <Dashboard />
-      <ChatWidget />
-    </>
-  )
+  // If there are prompts but no ready preview, redirect to home
+  useEffect(() => {
+    navigate('/')
+  }, [navigate])
+
+  return null
 }

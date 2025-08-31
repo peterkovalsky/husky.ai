@@ -162,13 +162,13 @@ export const ChatWidget = () => {
   const getStatusIcon = (status?: ChatMessage['status']) => {
     switch (status) {
       case 'sending':
-        return <Loader2 className="h-3 w-3 animate-spin text-blue-500" />
+        return <Loader2 className="h-3 w-3 animate-spin text-primary" />
       case 'processing':
-        return <Loader2 className="h-3 w-3 animate-spin text-yellow-500" />
+        return <Loader2 className="h-3 w-3 animate-spin text-warning" />
       case 'completed':
-        return <CheckCircle className="h-3 w-3 text-green-500" />
+        return <CheckCircle className="h-3 w-3 text-success" />
       case 'failed':
-        return <AlertCircle className="h-3 w-3 text-red-500" />
+        return <AlertCircle className="h-3 w-3 text-danger" />
       default:
         return null
     }
@@ -192,8 +192,10 @@ export const ChatWidget = () => {
           <Button
             onPress={() => setIsOpen(true)}
             size="lg"
-            className="rounded-full w-14 h-14 shadow-lg hover:shadow-xl transition-shadow"
+            className="rounded-full shadow-lg"
             color="primary"
+            isIconOnly
+            isBlurred
           >
             <MessageCircle className="h-6 w-6" />
           </Button>
@@ -201,19 +203,18 @@ export const ChatWidget = () => {
 
         {/* Chat Window */}
         {isOpen && (
-          <Card className="w-80 h-[576px] shadow-xl border-2 py-0">
+          <Card className="w-80 h-[576px] flex flex-col shadow-2xl" isBlurred>
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b bg-primary text-primary-foreground rounded-t-lg">
+            <div className="flex items-center justify-between p-4 border-b border-divider">
               <div className="flex items-center gap-2">
                 <MessageCircle className="h-5 w-5" />
-                <span className="font-medium">{currentProject?.name || 'Quick Build'}</span>
+                <span>{currentProject?.name || 'Quick Build'}</span>
               </div>
               <div className="flex items-center gap-1">
                 <Button
                   variant="light"
                   size="sm"
                   onPress={() => navigate('/')}
-                  className="text-primary-foreground h-8 w-8 p-0 cursor-pointer min-w-8"
                   title="Back to Projects"
                   isIconOnly
                 >
@@ -223,7 +224,6 @@ export const ChatWidget = () => {
                   variant="light"
                   size="sm"
                   onPress={() => setIsOpen(false)}
-                  className="text-primary-foreground h-8 w-8 p-0 cursor-pointer min-w-8"
                   isIconOnly
                 >
                   <X className="h-4 w-4" />
@@ -232,11 +232,13 @@ export const ChatWidget = () => {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-4 space-y-3 h-96">
+            <div className="flex-1 overflow-y-auto px-4 space-y-3 py-4">
               {messages.length === 0 && (
-                <div className="text-center text-muted-foreground text-sm py-8">
-                  <MessageCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p>
+                <div className="text-center py-12">
+                  <div className="bg-content2 rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                    <MessageCircle className="h-8 w-8 opacity-60" />
+                  </div>
+                  <p className="opacity-70 leading-relaxed">
                     {currentProject 
                       ? "Describe changes to your app and I'll build them instantly!"
                       : "Select a project to start building!"
@@ -251,19 +253,19 @@ export const ChatWidget = () => {
                   className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
+                    className={`max-w-[80%] rounded-2xl px-4 py-3 backdrop-blur-sm ${
                       message.type === 'user'
-                        ? 'bg-primary text-primary-foreground'
+                        ? 'bg-primary text-primary-foreground shadow-sm'
                         : message.status === 'failed'
-                        ? 'bg-red-50 text-red-800 border border-red-200'
-                        : 'bg-muted text-muted-foreground'
+                        ? 'bg-danger/10 text-danger border border-danger/20'
+                        : 'bg-content2 text-foreground'
                     }`}
                   >
                     <div className="flex items-start gap-2">
-                      <span className="flex-1">{message.content}</span>
+                      <span className="flex-1 leading-relaxed">{message.content}</span>
                       {message.type === 'user' && getStatusIcon(message.status)}
                     </div>
-                    <div className="text-xs opacity-70 mt-1">
+                    <div className="opacity-60 mt-2 text-xs">
                       {formatTime(message.timestamp)}
                     </div>
                   </div>
@@ -272,8 +274,8 @@ export const ChatWidget = () => {
               
               {isProcessing && (
                 <div className="flex justify-start">
-                  <div className="bg-muted rounded-lg px-3 py-2 text-sm max-w-[80%]">
-                    <Spinner size="sm" className="text-muted-foreground" />
+                  <div className="bg-content2 rounded-2xl px-4 py-3 max-w-[80%] backdrop-blur-sm">
+                    <Spinner size="sm" />
                   </div>
                 </div>
               )}
@@ -282,8 +284,8 @@ export const ChatWidget = () => {
             </div>
 
             {/* Input */}
-            <CardBody className="p-3 border-t">
-              <form onSubmit={handleSubmit} className="space-y-2">
+            <div className="p-4 border-t border-divider">
+              <form onSubmit={handleSubmit}>
                 <div className="relative">
                   <Textarea
                     ref={textareaRef}
@@ -293,18 +295,20 @@ export const ChatWidget = () => {
                     placeholder={currentProject ? "Describe your changes..." : "Select a project first..."}
                     className="pr-12"
                     classNames={{
-                      input: "min-h-[60px] max-h-[120px] resize-none text-sm"
+                      input: "min-h-[60px] max-h-[120px] resize-none"
                     }}
                     isDisabled={isSubmitting || !currentProject}
                     minRows={2}
                     maxRows={5}
+                    variant="bordered"
                   />
                   <Button
                     type="submit"
                     size="sm"
                     isDisabled={!currentPrompt.trim() || isSubmitting || !currentProject}
-                    className="absolute bottom-2 right-2 h-8 w-8 p-0 min-w-8"
+                    className="absolute bottom-2 right-2"
                     isIconOnly
+                    color="primary"
                   >
                     {isSubmitting ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -313,18 +317,8 @@ export const ChatWidget = () => {
                     )}
                   </Button>
                 </div>
-                {currentProject && (
-                  <div className="flex items-center gap-2">
-                    <Chip variant="bordered" size="sm" className="text-xs">
-                      {currentProject.name}
-                    </Chip>
-                    <span className="text-xs text-muted-foreground">
-                      Press Enter to send
-                    </span>
-                  </div>
-                )}
               </form>
-            </CardBody>
+            </div>
           </Card>
         )}
       </div>
