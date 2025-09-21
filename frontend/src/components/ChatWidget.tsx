@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ApiService, type JobStatus } from '../services/api'
 import { useProject } from '../contexts/ProjectContext'
-import { Button, Textarea, Card, CardBody, Chip, Spinner } from '@heroui/react'
+import { Button, Textarea, Card, Spinner } from '@heroui/react'
 import { MessageCircle, X, Send, Loader2, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react'
 
 interface ChatMessage {
@@ -194,8 +194,7 @@ export const ChatWidget = () => {
             size="lg"
             className="rounded-full shadow-lg"
             color="primary"
-            isIconOnly
-            isBlurred
+            isIconOnly            
           >
             <MessageCircle className="h-6 w-6" />
           </Button>
@@ -203,7 +202,7 @@ export const ChatWidget = () => {
 
         {/* Chat Window */}
         {isOpen && (
-          <Card className="w-80 h-[576px] flex flex-col shadow-2xl" isBlurred>
+          <Card className="w-80 h-[576px] flex flex-col shadow-2xl" isBlurred={true}>
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-divider">
               <div className="flex items-center gap-2">
