@@ -27,6 +27,30 @@ export class AnthropicAIService implements IAIService {
   }
 
 
+  private extractJSON(content: string): any {
+    try {
+      // First try to parse as is
+      return JSON.parse(content);
+    } catch {
+      // If that fails, try to extract JSON from content that might have explanatory text
+      // Look for the first occurrence of { and last occurrence of }
+      const firstBrace = content.indexOf('{');
+      const lastBrace = content.lastIndexOf('}');
+
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        const jsonString = content.slice(firstBrace, lastBrace + 1);
+        try {
+          return JSON.parse(jsonString);
+        } catch {
+          // If extraction still fails, throw original error
+          throw new Error(`Failed to parse JSON from AI response: ${content.substring(0, 200)}...`);
+        }
+      }
+
+      throw new Error(`No valid JSON found in AI response: ${content.substring(0, 200)}...`);
+    }
+  }
+
   private formatFileTreeForPrompt(fileTree: Record<string, string>): string {
     return Object.entries(fileTree)
       .map(([path, content]) => {
@@ -86,6 +110,25 @@ export class AnthropicAIService implements IAIService {
 You receive:
 - The current app's file tree and contents
 - The user's request for changes
+- Web search capability for current information, trends, and best practices
+
+WEB SEARCH USAGE:
+Use web search ONLY when the user's prompt explicitly indicates a need for current information or external resources:
+- When the prompt contains URLs or links that need to be researched
+- When the user asks for "current trends", "latest", "modern", or "up-to-date" information
+- When the user references specific companies, competitors, or real-world examples to research
+- When the user asks to "look up", "research", or "find examples of" something
+- When the user mentions integrating with external APIs or services that need documentation
+- When the user asks for industry-specific standards that may have recent updates
+
+DO NOT use web search for:
+- Simple UI updates, styling changes, or component modifications
+- General React, TypeScript, Tailwind, or DaisyUI implementation (use your existing knowledge)
+- Basic feature additions that don't require external research
+- Bug fixes or code refactoring
+- Standard design patterns you already know
+
+Only use web search when it will provide essential, current information that significantly improves your response quality.
 
 DEVELOPMENT & DESIGN RULES:
 The current app is built with React, TypeScript, Tailwind CSS, and DaisyUI - you should continue using these technologies.
@@ -144,7 +187,7 @@ IMPORTANT FORMAT RULES:
 - Do NOT nest objects inside file values
 - All quotes inside JSX className attributes must be escaped with backslashes
 
-Do NOT include any explanation. Only output the JSON.
+CRITICAL: Your response must contain ONLY the JSON object, nothing else. No explanations, no commentary, no search descriptions, no reasoning - just the raw JSON object.
 
 Always create beautiful, industry-appropriate designs that users will be impressed by.`;
 
@@ -168,6 +211,13 @@ ${userRequest}`;
             content: prompt,
           },
         ],
+        tools: [
+          {
+            type: "web_search_20250305",
+            name: "web_search",
+            max_uses: 10
+          }
+        ]
       });
 
       console.log("Anthropic API response received");
@@ -182,7 +232,7 @@ ${userRequest}`;
       }
 
       // Extract and validate JSON response
-      const rawChanges = JSON.parse(content);
+      const rawChanges = this.extractJSON(content);
 
       // Parse and normalize the changes
       console.log("Parsing and normalizing changes...");

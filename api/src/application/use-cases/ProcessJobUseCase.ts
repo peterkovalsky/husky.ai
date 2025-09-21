@@ -107,7 +107,7 @@ export class ProcessJobUseCase {
         .join("\n\n");
 
       // AI stage: Generate response
-      console.log(`Running AI stage for prompt ${safePromptId}...`);
+      console.log(`Running AI stage for prompt ${safePromptId} with web search enabled...`);
       const aiStartTime = Date.now();
       const aiResponse = await this.aiService.generateResponse(prompt, safePromptId);
       metrics.aiGenerationTimeMs = Date.now() - aiStartTime;
