@@ -4,6 +4,9 @@ FROM node:22-alpine
 # Set working directory
 WORKDIR /app
 
+# Set NODE_ENV to production for proper environment detection
+ENV NODE_ENV=production
+
 # Install system dependencies for native modules
 RUN apk add --no-cache \
     python3 \
@@ -45,6 +48,9 @@ RUN npm prune --production && \
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nextjs -u 1001
+
+# Create /tmp/apps directory with proper permissions for generated apps
+RUN mkdir -p /tmp/apps && chown -R nextjs:nodejs /tmp/apps
 
 # Change ownership of the app directory
 RUN chown -R nextjs:nodejs /app

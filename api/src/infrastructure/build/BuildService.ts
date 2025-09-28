@@ -1,40 +1,29 @@
 import { IBuildService, BuildResult } from '../../domain/services/IBuildService';
 import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
+import { FileSystemHelper } from '../../shared/utils/FileSystemHelper';
 import fs from "fs";
 import path from "path";
 import { exec } from "child_process";
 import { promisify } from "util";
 
 export class BuildService implements IBuildService {
-  private readonly appsDir: string;
   private readonly execAsync = promisify(exec);
+  private readonly fileSystemHelper: FileSystemHelper;
 
   constructor(private buildRepository: IBuildRepository) {
-    // Use /tmp/apps in production environments (like AWS App Runner) where /apps is not writable
-    // Use relative path in development
-    this.appsDir = process.env.NODE_ENV === 'production'
-      ? '/tmp/apps'
-      : path.join(__dirname, "../../../../apps");
+    this.fileSystemHelper = FileSystemHelper.getInstance();
   }
 
   async saveFileTreeToDisk(fileTree: Record<string, string>, projectId: string, version: number): Promise<string> {
-    const appDir = path.join(this.appsDir, projectId, `v${version}`);
+    const appDir = this.fileSystemHelper.getProjectVersionDir(projectId, version);
 
     // Create project and version directories
-    fs.mkdirSync(appDir, { recursive: true });
+    this.fileSystemHelper.ensureDirectoryExists(appDir);
 
     // Write all files to disk
     for (const [filePath, content] of Object.entries(fileTree)) {
       const fullFilePath = path.join(appDir, filePath);
-      const fileDir = path.dirname(fullFilePath);
-
-      // Create directory if it doesn't exist
-      if (!fs.existsSync(fileDir)) {
-        fs.mkdirSync(fileDir, { recursive: true });
-      }
-
-      // Write file
-      fs.writeFileSync(fullFilePath, content, "utf8");
+      this.fileSystemHelper.writeFile(fullFilePath, content);
     }
 
     console.log("All files written to disk in directory:", appDir);
@@ -47,10 +36,10 @@ export class BuildService implements IBuildService {
       
       // Find source node_modules from template or previous version
       let sourceNodeModules: string | null = null;
-      
+
       // First, try to find node_modules from the latest version of this project
-      const projectDir = path.join(this.appsDir, projectId);
-      if (fs.existsSync(projectDir)) {
+      const projectDir = this.fileSystemHelper.getProjectDir(projectId);
+      if (this.fileSystemHelper.directoryExists(projectDir)) {
         const versions = fs.readdirSync(projectDir)
           .filter(name => name.startsWith('v'))
           .sort((a, b) => {
@@ -58,45 +47,44 @@ export class BuildService implements IBuildService {
             const numB = parseInt(b.substring(1));
             return numB - numA; // Sort descending to get latest first
           });
-        
+
         for (const version of versions) {
           const versionNodeModules = path.join(projectDir, version, 'node_modules');
-          if (fs.existsSync(versionNodeModules)) {
+          if (this.fileSystemHelper.directoryExists(versionNodeModules)) {
             sourceNodeModules = versionNodeModules;
             console.log(`Using node_modules from previous version: ${version}`);
             break;
           }
         }
       }
-      
+
       // Fallback to template node_modules if no previous version exists
       if (!sourceNodeModules) {
-        const templateDir = path.join(__dirname, "../../../template");
-        const templateNodeModules = path.join(templateDir, 'node_modules');
-        if (fs.existsSync(templateNodeModules)) {
+        const templateNodeModules = path.join(this.fileSystemHelper.getTemplateDir(), 'node_modules');
+        if (this.fileSystemHelper.directoryExists(templateNodeModules)) {
           sourceNodeModules = templateNodeModules;
           console.log("Using node_modules from template");
         }
       }
-      
+
       if (!sourceNodeModules) {
         console.log("No existing node_modules found to copy, will install from scratch");
         return;
       }
-      
+
       const targetNodeModules = path.join(targetDirectory, 'node_modules');
-      
+
       // Use cp command for fast copying on Unix systems
-      const copyCommand = process.platform === 'win32' 
-        ? `xcopy "${sourceNodeModules}" "${targetNodeModules}" /E /I /H /Y`
+      const copyCommand = process.platform === 'win32'
+        ? `robocopy "${sourceNodeModules}" "${targetNodeModules}" /E /NFL /NDL /NJH /NJS /NC /NS /NP`
         : `cp -R "${sourceNodeModules}" "${targetNodeModules}"`;
-      
+
       const copyStartTime = Date.now();
       await this.execAsync(copyCommand, {
         timeout: 120000, // 2 minutes timeout for copying
         killSignal: "SIGTERM",
       });
-      
+
       const copyTime = Date.now() - copyStartTime;
       console.log(`node_modules copy completed in ${copyTime}ms`);
       

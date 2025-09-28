@@ -3,20 +3,19 @@ import { IPromptRepository } from '../../domain/repositories/IPromptRepository';
 import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
 import { IStorageService } from '../../domain/services/IStorageService';
 import { DeleteProjectMessage } from '../../domain/services/IQueueService';
-import fs from 'fs';
-import path from 'path';
-import { promisify } from 'util';
-
-const rmdir = promisify(fs.rmdir);
-const rm = fs.promises.rm;
+import { FileSystemHelper } from '../../shared/utils/FileSystemHelper';
 
 export class DeleteProjectUseCase {
+  private readonly fileSystemHelper: FileSystemHelper;
+
   constructor(
     private projectRepository: IProjectRepository,
     private promptRepository: IPromptRepository,
     private buildRepository: IBuildRepository,
     private storageService: IStorageService
-  ) {}
+  ) {
+    this.fileSystemHelper = FileSystemHelper.getInstance();
+  }
 
   async execute(message: DeleteProjectMessage): Promise<void> {
     const { projectId, userId } = message;
@@ -87,18 +86,8 @@ export class DeleteProjectUseCase {
 
   private async deleteDiskResources(projectId: string): Promise<void> {
     try {
-      // Construct path to the project folder in apps directory
-      const appsDir = path.resolve(process.cwd(), '../apps');
-      const projectDir = path.join(appsDir, projectId);
-
-      // Check if project directory exists
-      if (fs.existsSync(projectDir)) {
-        // Delete the entire project directory recursively
-        await rm(projectDir, { recursive: true, force: true });
-        console.log(`Deleted local directory: ${projectDir}`);
-      } else {
-        console.log(`Local directory not found (may have been cleaned up already): ${projectDir}`);
-      }
+      const projectDir = this.fileSystemHelper.getProjectDir(projectId);
+      await this.fileSystemHelper.deleteDirectory(projectDir);
     } catch (error) {
       console.warn(`Failed to delete local directory for project ${projectId}:`, error);
       // Don't throw error - this shouldn't block the deletion process
