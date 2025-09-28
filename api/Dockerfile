@@ -4,9 +4,6 @@ FROM node:22-alpine
 # Set working directory
 WORKDIR /app
 
-# Set NODE_ENV to production for proper environment detection
-ENV NODE_ENV=production
-
 # Install system dependencies for native modules
 RUN apk add --no-cache \
     python3 \
@@ -41,7 +38,8 @@ RUN if [ -f "templates/react18-ts/package.json" ]; then \
 # Build the TypeScript code
 RUN npm run build
 
-# Remove development dependencies and source files but keep apps folder
+# Set NODE_ENV to production and remove development dependencies and source files
+ENV NODE_ENV=production
 RUN npm prune --production && \
     rm -rf src tsconfig.json jest.config.js nodemon.json
 
