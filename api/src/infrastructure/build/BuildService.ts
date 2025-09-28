@@ -10,7 +10,11 @@ export class BuildService implements IBuildService {
   private readonly execAsync = promisify(exec);
 
   constructor(private buildRepository: IBuildRepository) {
-    this.appsDir = path.join(__dirname, "../../../../apps");
+    // Use /tmp/apps in production environments (like AWS App Runner) where /apps is not writable
+    // Use relative path in development
+    this.appsDir = process.env.NODE_ENV === 'production'
+      ? '/tmp/apps'
+      : path.join(__dirname, "../../../../apps");
   }
 
   async saveFileTreeToDisk(fileTree: Record<string, string>, projectId: string, version: number): Promise<string> {
