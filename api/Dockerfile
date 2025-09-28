@@ -29,13 +29,13 @@ COPY templates ./templates
 # Install dependencies for templates folder
 RUN if [ -f "templates/package.json" ]; then \
         echo "Installing dependencies for templates"; \
-        cd templates && npm ci --only=production && cd /app; \
+        cd templates && npm ci --omit=dev && cd /app; \
     fi
 
 # Install dependencies for react18-ts template
 RUN if [ -f "templates/react18-ts/package.json" ]; then \
         echo "Installing dependencies for templates/react18-ts"; \
-        cd templates/react18-ts && npm ci --only=production && cd /app; \
+        cd templates/react18-ts && npm ci --omit=dev && cd /app; \
     fi
 
 # Build the TypeScript code

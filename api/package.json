@@ -6,7 +6,7 @@
     "start": "node dist/server.js",
     "dev": "nodemon",
     "dev:debug": "nodemon --exec 'ts-node --inspect=9229 src/server.ts'",
-    "build": "tsc && copyfiles src/**/*.json dist/ --up 1",
+    "build": "npx tsc && npx copyfiles src/**/*.json dist/ --up 1",
     "build:prod": "npm run build && npm prune --production",
     "test": "jest",
     "test:watch": "jest --watch",
