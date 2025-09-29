@@ -150,7 +150,7 @@ export class BuildService implements IBuildService {
         const installStartTime = Date.now();
         await this.execAsync(installCommand, {
           cwd: appDirectory,
-          timeout: 180000, // 3 minutes timeout
+          timeout: 600000, // 10 minutes timeout
           killSignal: "SIGTERM",
         });
         dependencyInstallTime = Date.now() - installStartTime;
