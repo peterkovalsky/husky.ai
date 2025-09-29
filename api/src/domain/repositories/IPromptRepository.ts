@@ -5,5 +5,6 @@ export interface IPromptRepository {
   findById(id: string): Promise<Prompt | null>;
   findByProjectId(projectId: string): Promise<Prompt[]>;
   updateBuildId(id: string, buildId: string): Promise<void>;
+  updateRawAiResponse(id: string, rawAiResponse: string): Promise<void>;
   deleteByProjectId(projectId: string): Promise<void>;
 }

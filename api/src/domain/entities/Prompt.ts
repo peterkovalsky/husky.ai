@@ -4,6 +4,7 @@ export interface Prompt {
   projectId: string;
   userId: string;
   buildId?: string;
+  rawAiResponse?: string;
   createdAt: Date;
   modifiedAt: Date;
 }

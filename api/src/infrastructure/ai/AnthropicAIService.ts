@@ -221,18 +221,18 @@ ${userRequest}`;
       });
 
       console.log("Anthropic API response received");
-      const content = response.content
+      const rawContent = response.content
         .filter((block) => block.type === "text")
         .map((block) => block.text)
         .join("");
 
       // Log raw AI response immediately after receiving it
       if (this.currentBuildId && this.currentProjectId) {
-        this.buildLogger.logAIResponse(this.currentProjectId, this.currentBuildId, content);
+        this.buildLogger.logAIResponse(this.currentProjectId, this.currentBuildId, rawContent);
       }
 
       // Extract and validate JSON response
-      const rawChanges = this.extractJSON(content);
+      const rawChanges = this.extractJSON(rawContent);
 
       // Parse and normalize the changes
       console.log("Parsing and normalizing changes...");
@@ -250,6 +250,7 @@ ${userRequest}`;
 
       return {
         content: JSON.stringify(responseData),
+        rawContent: rawContent,
         model: response.model,
         usage: {
           inputTokens: response.usage.input_tokens,

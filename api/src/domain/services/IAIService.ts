@@ -1,5 +1,6 @@
 export interface AIResponse {
   content: string;
+  rawContent: string;
   model: string;
   usage: {
     inputTokens: number;

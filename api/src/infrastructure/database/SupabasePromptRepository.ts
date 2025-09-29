@@ -59,6 +59,15 @@ export class SupabasePromptRepository implements IPromptRepository {
     if (error) throw error;
   }
 
+  async updateRawAiResponse(id: string, rawAiResponse: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('prompts')
+      .update({ raw_ai_response: rawAiResponse })
+      .eq('id', id);
+
+    if (error) throw error;
+  }
+
   async deleteByProjectId(projectId: string): Promise<void> {
     const { error } = await this.supabase
       .from('prompts')
@@ -75,6 +84,7 @@ export class SupabasePromptRepository implements IPromptRepository {
       projectId: data.project_id,
       userId: data.user_id,
       buildId: data.build_id,
+      rawAiResponse: data.raw_ai_response,
       createdAt: new Date(data.created_at),
       modifiedAt: new Date(data.modified_at)
     };
