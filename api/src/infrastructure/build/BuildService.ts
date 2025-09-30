@@ -107,54 +107,32 @@ export class BuildService implements IBuildService {
         };
       }
 
-      // Check if package.json exists to determine the build command
-      const packageJsonPath = path.join(appDirectory, "package.json");
+      // Always use npm run build for better dependency resolution
+      // This ensures that locally installed dependencies are used instead of npx downloading them
       let buildCommand = "npm run build";
-
-      if (fs.existsSync(packageJsonPath)) {
-        try {
-          const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
-          // Check if vite is available, prefer vite build over npm run build
-          if (packageJson.devDependencies?.vite || packageJson.dependencies?.vite) {
-            buildCommand = "npx vite build";
-          }
-        } catch (error) {
-          console.warn("Failed to parse package.json, using default build command:", error);
-        }
-      }
 
       // Check if node_modules already exists (from parallel copy)
       const nodeModulesPath = path.join(appDirectory, "node_modules");
       let dependencyInstallTime = 0;
       
-      if (fs.existsSync(nodeModulesPath)) {
-        console.log("node_modules already exists, running npm ci for any missing packages...");
-        const installStartTime = Date.now();
-        
-        // Use npm ci for faster, more reliable installs when package-lock.json exists
-        const installCommand = fs.existsSync(path.join(appDirectory, "package-lock.json"))
-          ? "npm ci --silent --no-audit --no-fund"
-          : "npm install --silent --no-audit --no-fund";
-        
-        await this.execAsync(installCommand, {
-          cwd: appDirectory,
-          timeout: 90000, // Reduced timeout since we already have most dependencies
-          killSignal: "SIGTERM",
-        });
-        dependencyInstallTime = Date.now() - installStartTime;
-      } else {
-        // Install dependencies from scratch
-        console.log("Installing dependencies from scratch...");
-        const installCommand = "npm install --silent --no-audit --no-fund";
+      // Always ensure dependencies are properly installed
+      console.log("Installing/updating dependencies...");
+      const installStartTime = Date.now();
 
-        const installStartTime = Date.now();
-        await this.execAsync(installCommand, {
-          cwd: appDirectory,
-          timeout: 600000, // 10 minutes timeout
-          killSignal: "SIGTERM",
-        });
-        dependencyInstallTime = Date.now() - installStartTime;
-      }
+      // Use npm ci for faster, more reliable installs when package-lock.json exists
+      // Otherwise use npm install
+      const installCommand = fs.existsSync(path.join(appDirectory, "package-lock.json"))
+        ? "npm ci --silent --no-audit --no-fund"
+        : "npm install --silent --no-audit --no-fund";
+
+      console.log(`Running: ${installCommand}`);
+      await this.execAsync(installCommand, {
+        cwd: appDirectory,
+        timeout: 600000, // 10 minutes timeout
+        killSignal: "SIGTERM",
+      });
+      dependencyInstallTime = Date.now() - installStartTime;
+      console.log(`Dependencies installed in ${dependencyInstallTime}ms`);
 
       // Run build command
       console.log("Running build...");
