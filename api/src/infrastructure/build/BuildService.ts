@@ -139,8 +139,11 @@ export class BuildService implements IBuildService {
       const buildStartTime = Date.now();
 
       // Set up environment variables for the build
+      // Add node_modules/.bin to PATH to ensure npm scripts can find binaries
+      const nodeBinPath = path.join(appDirectory, 'node_modules', '.bin');
       const buildEnv = {
         ...process.env,
+        PATH: `${nodeBinPath}:${process.env.PATH}`,
         ...(projectId ? { VITE_BASE_PATH: `/projects/${projectId}/` } : {}),
       };
       console.log(`Running: ${buildCommand}` + (projectId ? ` with VITE_BASE_PATH=/projects/${projectId}/` : ''));
@@ -148,6 +151,7 @@ export class BuildService implements IBuildService {
       const { stdout, stderr } = await this.execAsync(buildCommand, {
         cwd: appDirectory,
         env: buildEnv,
+        shell: '/bin/bash', // Use bash to ensure proper PATH handling
         timeout: 120000, // 2 minutes timeout
         killSignal: "SIGTERM",
       });
