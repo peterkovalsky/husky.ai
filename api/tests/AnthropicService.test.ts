@@ -1,9 +1,20 @@
 import { AnthropicAIService } from '../src/infrastructure/ai/AnthropicAIService';
+import { IPromptRepository } from '../src/domain/repositories/IPromptRepository';
+
+// Create a mock prompt repository
+const mockPromptRepository: IPromptRepository = {
+  create: jest.fn(),
+  findById: jest.fn(),
+  findByProjectId: jest.fn(),
+  updateBuildId: jest.fn(),
+  updateRawAiResponse: jest.fn(),
+  deleteByProjectId: jest.fn()
+};
 
 // Create a test class to access the private normalizeChanges method
 class TestableAnthropicService extends AnthropicAIService {
   constructor() {
-    super();
+    super(mockPromptRepository);
   }
 
   // Expose the private method for testing

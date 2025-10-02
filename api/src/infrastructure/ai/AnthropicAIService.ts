@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { IAIService, AIResponse } from '../../domain/services/IAIService';
 import { BuildLogger } from '../../shared/logger/BuildLogger';
+import { IPromptRepository } from '../../domain/repositories/IPromptRepository';
 
 export class AnthropicAIService implements IAIService {
   private client: Anthropic;
@@ -8,8 +9,10 @@ export class AnthropicAIService implements IAIService {
   private buildLogger: BuildLogger;
   private currentProjectId: string = '';
   private currentBuildId: string = '';
+  private promptRepository: IPromptRepository;
 
-  constructor(apiKey?: string) {
+  constructor(promptRepository: IPromptRepository, apiKey?: string) {
+    this.promptRepository = promptRepository;
     this.client = new Anthropic({
       apiKey: apiKey || process.env.ANTHROPIC_API_KEY,
     });
@@ -102,10 +105,10 @@ export class AnthropicAIService implements IAIService {
   }
 
 
-  async generateResponse(userRequest: string, _promptId?: string): Promise<AIResponse> {
+  async generateResponse(userRequest: string, promptId: string): Promise<AIResponse> {
     try {
       console.log("Starting generateResponse...");
-      
+
       const systemPrompt = `You are a senior UI/UX developer assistant that creates beautiful, industry-appropriate React applications based on user requests.
 You receive:
 - The current app's file tree and contents
@@ -225,6 +228,15 @@ ${userRequest}`;
         .filter((block) => block.type === "text")
         .map((block) => block.text)
         .join("");
+
+      // Save raw AI response to database immediately after receiving it
+      try {
+        await this.promptRepository.updateRawAiResponse(promptId, rawContent);
+        console.log(`Stored raw AI response for prompt ${promptId}`);
+      } catch (error) {
+        console.warn(`Failed to store raw AI response for prompt ${promptId}:`, error);
+        // Don't throw - this is not critical to the main flow
+      }
 
       // Log raw AI response immediately after receiving it
       if (this.currentBuildId && this.currentProjectId) {

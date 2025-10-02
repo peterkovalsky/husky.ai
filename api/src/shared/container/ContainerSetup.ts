@@ -51,7 +51,8 @@ export function setupContainer(): DIContainer {
 
   // Register Infrastructure Services
   container.registerFactory<IAIService>('aiService', () => {
-    return new AnthropicAIService();
+    const promptRepository = container.get<IPromptRepository>('promptRepository');
+    return new AnthropicAIService(promptRepository);
   });
   
   container.registerFactory<IStorageService>('storageService', () => new S3StorageService());

@@ -106,22 +106,11 @@ export class ProcessJobUseCase {
         .map((p) => `User: ${p.prompt}`)
         .join("\n\n");
 
-      // AI stage: Generate response
+      // AI stage: Generate response (raw response is saved in AI service)
       console.log(`Running AI stage for prompt ${safePromptId} with web search enabled...`);
       const aiStartTime = Date.now();
       const aiResponse = await this.aiService.generateResponse(prompt, safePromptId);
       metrics.aiGenerationTimeMs = Date.now() - aiStartTime;
-
-      // Store raw AI response in the prompts table
-      try {
-        if (aiResponse.rawContent) {
-          await this.promptRepository.updateRawAiResponse(safePromptId, aiResponse.rawContent);
-          console.log(`Stored raw AI response for prompt ${safePromptId}`);
-        }
-      } catch (error) {
-        console.warn(`Failed to store raw AI response for prompt ${safePromptId}:`, error);
-        // Don't throw here - this is not critical to the main flow
-      }
 
       // Parse the AI response to get the updated file tree
       const responseData = JSON.parse(aiResponse.content);
