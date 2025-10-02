@@ -10,6 +10,9 @@ RUN apk add --no-cache \
     make \
     g++
 
+# Install TypeScript and Vite globally for building generated apps
+RUN npm install -g typescript vite
+
 # Copy package files
 COPY package*.json ./
 

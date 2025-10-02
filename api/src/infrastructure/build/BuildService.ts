@@ -151,7 +151,6 @@ export class BuildService implements IBuildService {
       const { stdout, stderr } = await this.execAsync(buildCommand, {
         cwd: appDirectory,
         env: buildEnv,
-        shell: '/bin/bash', // Use bash to ensure proper PATH handling
         timeout: 120000, // 2 minutes timeout
         killSignal: "SIGTERM",
       });
