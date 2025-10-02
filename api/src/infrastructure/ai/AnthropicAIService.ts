@@ -106,6 +106,8 @@ export class AnthropicAIService implements IAIService {
 
 
   async generateResponse(userRequest: string, promptId: string): Promise<AIResponse> {
+    const startTime = Date.now();
+
     try {
       console.log("Starting generateResponse...");
 
@@ -229,12 +231,29 @@ ${userRequest}`;
         .map((block) => block.text)
         .join("");
 
+      // Calculate duration
+      const durationMs = Date.now() - startTime;
+
       // Save raw AI response to database immediately after receiving it
       try {
         await this.promptRepository.updateRawAiResponse(promptId, rawContent);
         console.log(`Stored raw AI response for prompt ${promptId}`);
       } catch (error) {
         console.warn(`Failed to store raw AI response for prompt ${promptId}:`, error);
+        // Don't throw - this is not critical to the main flow
+      }
+
+      // Save metrics (tokens and duration) to database
+      try {
+        await this.promptRepository.updateMetrics(
+          promptId,
+          response.usage.input_tokens,
+          response.usage.output_tokens,
+          durationMs
+        );
+        console.log(`Stored metrics for prompt ${promptId}: ${response.usage.input_tokens} input tokens, ${response.usage.output_tokens} output tokens, ${durationMs}ms`);
+      } catch (error) {
+        console.warn(`Failed to store metrics for prompt ${promptId}:`, error);
         // Don't throw - this is not critical to the main flow
       }
 

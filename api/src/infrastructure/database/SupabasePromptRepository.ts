@@ -68,6 +68,19 @@ export class SupabasePromptRepository implements IPromptRepository {
     if (error) throw error;
   }
 
+  async updateMetrics(id: string, inputTokens: number, outputTokens: number, durationMs: number): Promise<void> {
+    const { error } = await this.supabase
+      .from('prompts')
+      .update({
+        input_tokens: inputTokens,
+        output_tokens: outputTokens,
+        duration_ms: durationMs
+      })
+      .eq('id', id);
+
+    if (error) throw error;
+  }
+
   async deleteByProjectId(projectId: string): Promise<void> {
     const { error } = await this.supabase
       .from('prompts')
@@ -85,6 +98,9 @@ export class SupabasePromptRepository implements IPromptRepository {
       userId: data.user_id,
       buildId: data.build_id,
       rawAiResponse: data.raw_ai_response,
+      inputTokens: data.input_tokens,
+      outputTokens: data.output_tokens,
+      durationMs: data.duration_ms,
       createdAt: new Date(data.created_at),
       modifiedAt: new Date(data.modified_at)
     };
