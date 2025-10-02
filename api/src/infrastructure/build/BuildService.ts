@@ -138,15 +138,16 @@ export class BuildService implements IBuildService {
       console.log("Running build...");
       const buildStartTime = Date.now();
 
-      // Set up build command with inline environment variables if projectId exists
-      let finalBuildCommand = buildCommand;
-      if (projectId) {
-        finalBuildCommand = `VITE_BASE_PATH=/projects/${projectId}/ ${buildCommand}`;
-      }
-      console.log(`Running: ${finalBuildCommand}`);
+      // Set up environment variables for the build
+      const buildEnv = {
+        ...process.env,
+        ...(projectId ? { VITE_BASE_PATH: `/projects/${projectId}/` } : {}),
+      };
+      console.log(`Running: ${buildCommand}` + (projectId ? ` with VITE_BASE_PATH=/projects/${projectId}/` : ''));
 
-      const { stdout, stderr } = await this.execAsync(finalBuildCommand, {
+      const { stdout, stderr } = await this.execAsync(buildCommand, {
         cwd: appDirectory,
+        env: buildEnv,
         timeout: 120000, // 2 minutes timeout
         killSignal: "SIGTERM",
       });
