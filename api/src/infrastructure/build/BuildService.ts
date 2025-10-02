@@ -121,13 +121,24 @@ export class BuildService implements IBuildService {
 
       // Use npm ci for faster, more reliable installs when package-lock.json exists
       // Otherwise use npm install
+      // IMPORTANT: Don't use --omit=dev or --production - we need devDependencies for TypeScript build
       const installCommand = fs.existsSync(path.join(appDirectory, "package-lock.json"))
         ? "npm ci --silent --no-audit --no-fund"
         : "npm install --silent --no-audit --no-fund";
 
       console.log(`Running: ${installCommand}`);
+
+      // Set up environment with proper PATH for npm
+      // Add node_modules/.bin to PATH to ensure npm scripts can find binaries
+      const nodeBinPath = path.join(appDirectory, 'node_modules', '.bin');
+      const installEnv = {
+        ...process.env,
+        PATH: `${nodeBinPath}:${process.env.PATH}`,
+      };
+
       await this.execAsync(installCommand, {
         cwd: appDirectory,
+        env: installEnv,
         timeout: 600000, // 10 minutes timeout
         killSignal: "SIGTERM",
       });
@@ -138,9 +149,7 @@ export class BuildService implements IBuildService {
       console.log("Running build...");
       const buildStartTime = Date.now();
 
-      // Set up environment variables for the build
-      // Add node_modules/.bin to PATH to ensure npm scripts can find binaries
-      const nodeBinPath = path.join(appDirectory, 'node_modules', '.bin');
+      // Set up environment variables for the build      
       const buildEnv = {
         ...process.env,
         PATH: `${nodeBinPath}:${process.env.PATH}`,

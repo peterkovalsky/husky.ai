@@ -26,16 +26,10 @@ COPY jest.config.js ./
 COPY nodemon.json ./
 COPY templates ./templates
 
-# Install dependencies for templates folder
-RUN if [ -f "templates/package.json" ]; then \
-        echo "Installing dependencies for templates"; \
-        cd templates && npm ci --omit=dev && cd /app; \
-    fi
-
-# Install dependencies for react18-ts template
+# Install dependencies for react18-ts template (including dev dependencies for build tools)
 RUN if [ -f "templates/react18-ts/package.json" ]; then \
         echo "Installing dependencies for templates/react18-ts"; \
-        cd templates/react18-ts && npm ci --omit=dev && cd /app; \
+        cd templates/react18-ts && npm ci && cd /app; \
     fi
 
 # Build the TypeScript code
