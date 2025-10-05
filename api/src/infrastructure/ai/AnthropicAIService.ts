@@ -15,6 +15,7 @@ export class AnthropicAIService implements IAIService {
     this.promptRepository = promptRepository;
     this.client = new Anthropic({
       apiKey: apiKey || process.env.ANTHROPIC_API_KEY,
+      timeout: 20 * 60 * 1000, // 20 minutes timeout for long-running requests
     });
     this.buildLogger = new BuildLogger();
   }
