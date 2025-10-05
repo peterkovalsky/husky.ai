@@ -205,8 +205,8 @@ ${fileTreeContent}
 Request:
 ${userRequest}`;
 
-      console.log("Calling Anthropic API...");
-      const response = await this.client.messages.create({
+      console.log("Calling Anthropic API with streaming...");
+      const stream = await this.client.messages.stream({
         model: "claude-sonnet-4-5-20250929",
         max_tokens: 32768,
         system: systemPrompt,
@@ -225,11 +225,25 @@ ${userRequest}`;
         ]
       });
 
-      console.log("Anthropic API response received");
-      const rawContent = response.content
-        .filter((block) => block.type === "text")
-        .map((block) => block.text)
-        .join("");
+      // Collect all streamed content
+      let rawContent = "";
+      let inputTokens = 0;
+      let outputTokens = 0;
+      let model = "";
+
+      console.log("Streaming API response...");
+      for await (const chunk of stream) {
+        if (chunk.type === 'message_start') {
+          model = chunk.message.model;
+          inputTokens = chunk.message.usage.input_tokens;
+        } else if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+          rawContent += chunk.delta.text;
+        } else if (chunk.type === 'message_delta') {
+          outputTokens = chunk.usage.output_tokens;
+        }
+      }
+
+      console.log("Anthropic API streaming completed");
 
       // Calculate duration
       const durationMs = Date.now() - startTime;
@@ -247,11 +261,11 @@ ${userRequest}`;
       try {
         await this.promptRepository.updateMetrics(
           promptId,
-          response.usage.input_tokens,
-          response.usage.output_tokens,
+          inputTokens,
+          outputTokens,
           durationMs
         );
-        console.log(`Stored metrics for prompt ${promptId}: ${response.usage.input_tokens} input tokens, ${response.usage.output_tokens} output tokens, ${durationMs}ms`);
+        console.log(`Stored metrics for prompt ${promptId}: ${inputTokens} input tokens, ${outputTokens} output tokens, ${durationMs}ms`);
       } catch (error) {
         console.warn(`Failed to store metrics for prompt ${promptId}:`, error);
         // Don't throw - this is not critical to the main flow
@@ -282,10 +296,10 @@ ${userRequest}`;
       return {
         content: JSON.stringify(responseData),
         rawContent: rawContent,
-        model: response.model,
+        model: model,
         usage: {
-          inputTokens: response.usage.input_tokens,
-          outputTokens: response.usage.output_tokens,
+          inputTokens: inputTokens,
+          outputTokens: outputTokens,
         },
       };
     } catch (error) {
