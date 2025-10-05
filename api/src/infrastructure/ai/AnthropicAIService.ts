@@ -207,8 +207,8 @@ ${userRequest}`;
 
       console.log("Calling Anthropic API...");
       const response = await this.client.messages.create({
-        model: "claude-3-5-sonnet-20241022",
-        max_tokens: 8192,
+        model: "claude-sonnet-4-5-20250929",
+        max_tokens: 32768,
         system: systemPrompt,
         messages: [
           {
