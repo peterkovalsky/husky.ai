@@ -147,6 +147,10 @@ export class ProcessJobUseCase {
       console.log(`Saving merged files to disk for prompt ${safePromptId}...`);
       const appDirectory = await this.buildService.saveFileTreeToDisk(mergeResult.mergedFileTree, safeProjectId, buildVersion);
 
+      // Copy package-lock.json from previous build or template
+      console.log(`Copying package-lock.json for prompt ${safePromptId}...`);
+      await this.buildService.copyPackageLockJson(appDirectory, safeProjectId);
+
       // Start node_modules copying in parallel (don't await)
       console.log(`Starting parallel node_modules copy for prompt ${safePromptId}...`);
       const nodeModulesCopyPromise = this.buildService.copyNodeModulesAsync(appDirectory, safeProjectId);

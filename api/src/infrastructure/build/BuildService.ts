@@ -30,45 +30,66 @@ export class BuildService implements IBuildService {
     return appDir;
   }
 
+  private async findSourceDirectory(projectId: string): Promise<string | null> {
+    // First, try to find from the latest successful build
+    const successfulBuild = await this.buildRepository.findLatestSuccessfulByProjectId(projectId);
+    if (successfulBuild) {
+      const buildVersionDir = this.fileSystemHelper.getProjectVersionDir(projectId, successfulBuild.version);
+      if (this.fileSystemHelper.directoryExists(buildVersionDir)) {
+        console.log(`Using source from successful build version ${successfulBuild.version}`);
+        return buildVersionDir;
+      }
+    }
+
+    // Fallback to template directory
+    const templateDir = this.fileSystemHelper.getTemplateDir();
+    if (this.fileSystemHelper.directoryExists(templateDir)) {
+      console.log("Using source from template directory");
+      return templateDir;
+    }
+
+    return null;
+  }
+
+  async copyPackageLockJson(targetDirectory: string, projectId: string): Promise<void> {
+    try {
+      console.log(`Copying package-lock.json for project ${projectId}...`);
+
+      const sourceDir = await this.findSourceDirectory(projectId);
+      if (!sourceDir) {
+        console.log("No source directory found for package-lock.json");
+        return;
+      }
+
+      const sourcePackageLock = path.join(sourceDir, 'package-lock.json');
+      if (!fs.existsSync(sourcePackageLock)) {
+        console.log(`No package-lock.json found in ${sourceDir}`);
+        return;
+      }
+
+      const targetPackageLock = path.join(targetDirectory, 'package-lock.json');
+      fs.copyFileSync(sourcePackageLock, targetPackageLock);
+      console.log(`package-lock.json copied from ${sourceDir}`);
+
+    } catch (error) {
+      console.warn("Failed to copy package-lock.json:", error instanceof Error ? error.message : 'Unknown error');
+      // Don't throw error - just log warning and continue
+    }
+  }
+
   async copyNodeModulesAsync(targetDirectory: string, projectId: string): Promise<void> {
     try {
       console.log(`Starting parallel node_modules copy for project ${projectId}...`);
-      
-      // Find source node_modules from template or previous version
-      let sourceNodeModules: string | null = null;
 
-      // First, try to find node_modules from the latest version of this project
-      const projectDir = this.fileSystemHelper.getProjectDir(projectId);
-      if (this.fileSystemHelper.directoryExists(projectDir)) {
-        const versions = fs.readdirSync(projectDir)
-          .filter(name => name.startsWith('v'))
-          .sort((a, b) => {
-            const numA = parseInt(a.substring(1));
-            const numB = parseInt(b.substring(1));
-            return numB - numA; // Sort descending to get latest first
-          });
-
-        for (const version of versions) {
-          const versionNodeModules = path.join(projectDir, version, 'node_modules');
-          if (this.fileSystemHelper.directoryExists(versionNodeModules)) {
-            sourceNodeModules = versionNodeModules;
-            console.log(`Using node_modules from previous version: ${version}`);
-            break;
-          }
-        }
+      const sourceDir = await this.findSourceDirectory(projectId);
+      if (!sourceDir) {
+        console.log("No source directory found for node_modules");
+        return;
       }
 
-      // Fallback to template node_modules if no previous version exists
-      if (!sourceNodeModules) {
-        const templateNodeModules = path.join(this.fileSystemHelper.getTemplateDir(), 'node_modules');
-        if (this.fileSystemHelper.directoryExists(templateNodeModules)) {
-          sourceNodeModules = templateNodeModules;
-          console.log("Using node_modules from template");
-        }
-      }
-
-      if (!sourceNodeModules) {
-        console.log("No existing node_modules found to copy, will install from scratch");
+      const sourceNodeModules = path.join(sourceDir, 'node_modules');
+      if (!this.fileSystemHelper.directoryExists(sourceNodeModules)) {
+        console.log(`No node_modules found in ${sourceDir}, will install from scratch`);
         return;
       }
 
@@ -86,8 +107,8 @@ export class BuildService implements IBuildService {
       });
 
       const copyTime = Date.now() - copyStartTime;
-      console.log(`node_modules copy completed in ${copyTime}ms`);
-      
+      console.log(`node_modules copy completed in ${copyTime}ms from ${sourceDir}`);
+
     } catch (error) {
       console.warn("Failed to copy node_modules, will install from scratch:", error instanceof Error ? error.message : 'Unknown error');
       // Don't throw error - just log warning and continue
