@@ -4,6 +4,7 @@ import path from 'path';
 export class FileSystemHelper {
   private static instance: FileSystemHelper;
   private readonly appsDir: string;
+  private readonly templatesDir: string;
 
   private constructor() {
     // Use /tmp/apps in production environments (like AWS App Runner) where /apps is not writable
@@ -11,6 +12,12 @@ export class FileSystemHelper {
     this.appsDir = process.env.NODE_ENV === 'production'
       ? '/tmp/apps'
       : path.join(__dirname, '../../../apps');
+
+    // Templates directory is at the project root level
+    // In production: /app/templates, in development: api/../templates
+    this.templatesDir = process.env.NODE_ENV === 'production'
+      ? '/app/templates/react18-ts'
+      : path.join(__dirname, '../../../../templates/react18-ts');
   }
 
   public static getInstance(): FileSystemHelper {
@@ -45,7 +52,7 @@ export class FileSystemHelper {
    * Get the template directory path
    */
   public getTemplateDir(): string {
-    return path.join(__dirname, '../../../template');
+    return this.templatesDir;
   }
 
   /**
