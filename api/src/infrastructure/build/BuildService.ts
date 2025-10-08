@@ -132,20 +132,13 @@ export class BuildService implements IBuildService {
       // This ensures that locally installed dependencies are used instead of npx downloading them
       let buildCommand = "npm run build";
 
-      // Check if node_modules already exists (from parallel copy)
-      const nodeModulesPath = path.join(appDirectory, "node_modules");
-      let dependencyInstallTime = 0;
-      
       // Always ensure dependencies are properly installed
       console.log("Installing/updating dependencies...");
       const installStartTime = Date.now();
 
-      // Use npm ci for faster, more reliable installs when package-lock.json exists
-      // Otherwise use npm install
-      // IMPORTANT: Don't use --omit=dev or --production - we need devDependencies for TypeScript build
-      const installCommand = fs.existsSync(path.join(appDirectory, "package-lock.json"))
-        ? "npm ci --silent --no-audit --no-fund"
-        : "npm install --silent --no-audit --no-fund";
+      const installCommand = "npm install --silent --no-audit --no-fund";
+
+      let dependencyInstallTime = 0;
 
       console.log(`Running: ${installCommand}`);
 
@@ -154,6 +147,7 @@ export class BuildService implements IBuildService {
       const nodeBinPath = path.join(appDirectory, 'node_modules', '.bin');
       const installEnv = {
         ...process.env,
+        NODE_ENV: 'development', // Ensure devDependencies are installed
         PATH: `${nodeBinPath}:${process.env.PATH}`,
       };
 
@@ -170,9 +164,10 @@ export class BuildService implements IBuildService {
       console.log("Running build...");
       const buildStartTime = Date.now();
 
-      // Set up environment variables for the build      
+      // Set up environment variables for the build
       const buildEnv = {
         ...process.env,
+        NODE_ENV: 'development', // Ensure TypeScript can find all type definitions
         PATH: `${nodeBinPath}:${process.env.PATH}`,
         ...(projectId ? { VITE_BASE_PATH: `/projects/${projectId}/` } : {}),
       };
