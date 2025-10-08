@@ -176,7 +176,7 @@ export class BuildService implements IBuildService {
       const { stdout, stderr } = await this.execAsync(buildCommand, {
         cwd: appDirectory,
         env: buildEnv,
-        timeout: 120000, // 2 minutes timeout
+        timeout: 300000, // 5 minutes timeout
         killSignal: "SIGTERM",
       });
       const buildTime = Date.now() - buildStartTime;
