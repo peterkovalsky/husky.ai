@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectCommand, DeleteObjectsCommand, GetBucketWebsiteCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectCommand, DeleteObjectsCommand } from "@aws-sdk/client-s3";
 import { IStorageService, UploadResult } from '../../domain/services/IStorageService';
 import fs from "fs";
 import path from "path";
@@ -185,25 +185,13 @@ export class S3StorageService implements IStorageService {
   }
 
   private async getBucketWebsiteUrl(projectId: string): Promise<string> {
-    try {
-      const command = new GetBucketWebsiteCommand({
-        Bucket: this.bucketName,
-      });
 
-      const response = await this.s3Client.send(command);
-      
-      // Get the region from the S3 client configuration
-      const region = process.env.AWS_REGION || 'us-east-1';
-      
-      // Construct the static website URL
-      const websiteUrl = `http://${this.bucketName}.s3-website-${region}.amazonaws.com/projects/${projectId}/`;
-      
-      return websiteUrl;
-    } catch (error) {
-      console.warn('Failed to get bucket website configuration, falling back to object URL:', error);
-      // Fallback to the standard S3 object URL if website hosting is not configured
-      return `https://${this.bucketName}.s3.amazonaws.com/projects/${projectId}/`;
+    const previewBaseUrl = process.env.APP_PREVIEW_BASE_URL;
+    if (!previewBaseUrl) {
+      throw new Error('Missing APP_PREVIEW_BASE_URL setting');
     }
+
+    return `${previewBaseUrl}/projects/${projectId}/`;
   }
 
   private getContentType(filePath: string): string {
