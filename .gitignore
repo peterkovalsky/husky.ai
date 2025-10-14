@@ -194,7 +194,7 @@ out/
 tmp/
 temp/
 
-# Generated apps
-apps/
+# Generated projects
+projects/
 
 .DS_Store

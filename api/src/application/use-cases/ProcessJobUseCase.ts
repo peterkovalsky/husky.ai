@@ -143,11 +143,20 @@ export class ProcessJobUseCase {
         aiGenerationTimeMs: metrics.aiGenerationTimeMs
       });
 
-      // Save files to disk using BuildService (this creates the versioned directory)
+      // Check if this is an iterative build (project has successful builds)
+      const hasSuccessfulBuilds = await this.buildRepository.findLatestSuccessfulByProjectId(safeProjectId);
+
+      if (hasSuccessfulBuilds) {
+        // Clean working directory before writing new files (preserve node_modules and package-lock.json)
+        console.log(`Cleaning working directory for iterative build on prompt ${safePromptId}...`);
+        await this.buildService.cleanWorkingDirectory(safeProjectId);
+      }
+
+      // Save files to disk using BuildService (this creates the web directory)
       console.log(`Saving merged files to disk for prompt ${safePromptId}...`);
       const appDirectory = await this.buildService.saveFileTreeToDisk(mergeResult.mergedFileTree, safeProjectId, buildVersion);
 
-      // Copy package-lock.json from previous build or template
+      // Copy package-lock.json from previous build or template (only if not already present)
       console.log(`Copying package-lock.json for prompt ${safePromptId}...`);
       await this.buildService.copyPackageLockJson(appDirectory, safeProjectId);
 
@@ -254,6 +263,14 @@ export class ProcessJobUseCase {
         } catch (metricsError) {
           console.warn("Failed to update version upload metrics:", metricsError);
         }
+      }
+
+      // Update project's current_version to this successful build
+      try {
+        await this.projectRepository.updateCurrentVersion(safeProjectId, buildVersion);
+        console.log(`Updated project ${safeProjectId} current_version to ${buildVersion}`);
+      } catch (versionError) {
+        console.warn("Failed to update current_version:", versionError);
       }
 
       console.log(`Prompt ${safePromptId} completed successfully. Preview URL: ${uploadResult.previewUrl}`);

@@ -15,13 +15,18 @@ export class BuildService implements IBuildService {
   }
 
   async saveFileTreeToDisk(fileTree: Record<string, string>, projectId: string, version: number): Promise<string> {
-    const appDir = this.fileSystemHelper.getProjectVersionDir(projectId, version);
+    // Use new single working directory structure
+    const appDir = this.fileSystemHelper.getProjectWebDir(projectId);
 
-    // Create project and version directories
+    // Create project web directory if it doesn't exist
     this.fileSystemHelper.ensureDirectoryExists(appDir);
 
-    // Write all files to disk
+    // Write all files to disk (excluding node_modules and package-lock.json which are handled separately)
     for (const [filePath, content] of Object.entries(fileTree)) {
+      if (filePath === 'node_modules' || filePath === 'package-lock.json') {
+        continue; // Skip, these are handled separately
+      }
+
       const fullFilePath = path.join(appDir, filePath);
       this.fileSystemHelper.writeFile(fullFilePath, content);
     }
@@ -31,14 +36,11 @@ export class BuildService implements IBuildService {
   }
 
   private async findSourceDirectory(projectId: string): Promise<string | null> {
-    // First, try to find from the latest successful build
-    const successfulBuild = await this.buildRepository.findLatestSuccessfulByProjectId(projectId);
-    if (successfulBuild) {
-      const buildVersionDir = this.fileSystemHelper.getProjectVersionDir(projectId, successfulBuild.version);
-      if (this.fileSystemHelper.directoryExists(buildVersionDir)) {
-        console.log(`Using source from successful build version ${successfulBuild.version}`);
-        return buildVersionDir;
-      }
+    // First, try the web working directory
+    const webDir = this.fileSystemHelper.getProjectWebDir(projectId);
+    if (this.fileSystemHelper.directoryExists(webDir)) {
+      console.log(`Using source from web working directory`);
+      return webDir;
     }
 
     // Fallback to template directory
@@ -49,6 +51,25 @@ export class BuildService implements IBuildService {
     }
 
     return null;
+  }
+
+  async cleanWorkingDirectory(projectId: string): Promise<void> {
+    try {
+      const webDir = this.fileSystemHelper.getProjectWebDir(projectId);
+
+      // Check if working directory exists and has been used before
+      if (!this.fileSystemHelper.directoryExists(webDir)) {
+        console.log(`Working directory doesn't exist yet for project ${projectId}, skipping cleanup`);
+        return;
+      }
+
+      console.log(`Cleaning working directory for project ${projectId}...`);
+      await this.fileSystemHelper.cleanWorkingDirectory(webDir, ['node_modules', 'package-lock.json']);
+
+    } catch (error) {
+      console.warn("Failed to clean working directory:", error instanceof Error ? error.message : 'Unknown error');
+      // Don't throw error - just log warning and continue
+    }
   }
 
   async copyPackageLockJson(targetDirectory: string, projectId: string): Promise<void> {

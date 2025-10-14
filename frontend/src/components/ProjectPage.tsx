@@ -73,23 +73,39 @@ export const ProjectPage = () => {
   useEffect(() => {
     const handleReloadPreview = (event: CustomEvent) => {
       const { previewUrl } = event.detail
-      
+
       // Update the job status with new preview URL if provided
       if (previewUrl && latestJobStatus) {
         setLatestJobStatus(prev => prev ? { ...prev, previewUrl } : null)
       }
-      
+
       // Force iframe reload by changing key and reset loading state
       setIframeLoading(true)
       setIframeKey(prev => prev + 1)
     }
 
     window.addEventListener('reloadPreview', handleReloadPreview as EventListener)
-    
+
     return () => {
       window.removeEventListener('reloadPreview', handleReloadPreview as EventListener)
     }
   }, [latestJobStatus])
+
+  // Update iframe key whenever the base preview URL changes (without timestamp)
+  useEffect(() => {
+    if (latestJobStatus?.previewUrl) {
+      // Extract base URL without timestamp parameter
+      const baseUrl = latestJobStatus.previewUrl.split('?')[0]
+      setIframeKey(prev => prev + 1)
+      setIframeLoading(true)
+    }
+  }, [latestJobStatus?.previewUrl])
+
+  // Helper function to add cache-busting parameter to preview URL
+  const getCacheBustedUrl = (url: string) => {
+    const timestamp = Date.now()
+    return url.includes('?') ? `${url}&t=${timestamp}` : `${url}?t=${timestamp}`
+  }
 
   if (loading) {
     return (
@@ -154,7 +170,7 @@ export const ProjectPage = () => {
         <iframe
           ref={iframeRef}
           key={iframeKey}
-          src={latestJobStatus.previewUrl}
+          src={getCacheBustedUrl(latestJobStatus.previewUrl)}
           className="w-full h-full border-0"
           title="Project Preview"
           sandbox="allow-scripts allow-same-origin allow-forms allow-popups"

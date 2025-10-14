@@ -3,15 +3,15 @@ import path from 'path';
 
 export class FileSystemHelper {
   private static instance: FileSystemHelper;
-  private readonly appsDir: string;
+  private readonly projectsDir: string;
   private readonly templatesDir: string;
 
   private constructor() {
-    // Use /tmp/apps in production environments (like AWS App Runner) where /apps is not writable
+    // Use /tmp/projects in production environments (like AWS App Runner) where /projects is not writable
     // Use relative path in development
-    this.appsDir = process.env.NODE_ENV === 'production'
-      ? '/tmp/apps'
-      : path.join(__dirname, '../../../apps');
+    this.projectsDir = process.env.NODE_ENV === 'production'
+      ? '/tmp/projects'
+      : path.join(__dirname, '../../../projects');
 
     // Templates directory is at the project root level
     // In production: /app/templates, in development: api/../templates
@@ -28,24 +28,25 @@ export class FileSystemHelper {
   }
 
   /**
-   * Get the base apps directory path
+   * Get the base projects directory path
    */
-  public getAppsDir(): string {
-    return this.appsDir;
+  public getProjectsDir(): string {
+    return this.projectsDir;
   }
 
   /**
    * Get the path to a specific project directory
    */
   public getProjectDir(projectId: string): string {
-    return path.join(this.appsDir, projectId);
+    return path.join(this.projectsDir, projectId);
   }
 
   /**
-   * Get the path to a specific project version directory
+   * Get the path to the project's web working directory
+   * Structure: /projects/{projectId}/web/
    */
-  public getProjectVersionDir(projectId: string, version: number): string {
-    return path.join(this.appsDir, projectId, `v${version}`);
+  public getProjectWebDir(projectId: string): string {
+    return path.join(this.projectsDir, projectId, 'web');
   }
 
   /**
@@ -90,5 +91,28 @@ export class FileSystemHelper {
     const fileDir = path.dirname(filePath);
     this.ensureDirectoryExists(fileDir);
     fs.writeFileSync(filePath, content, 'utf8');
+  }
+
+  /**
+   * Clean working directory by deleting all files except preserved paths
+   * Used when iterating on existing projects to ensure old files are removed
+   */
+  public async cleanWorkingDirectory(dirPath: string, preservePaths: string[] = ['node_modules', 'package-lock.json']): Promise<void> {
+    if (!this.directoryExists(dirPath)) {
+      console.log(`Directory ${dirPath} does not exist, skipping cleanup`);
+      return;
+    }
+
+    const items = await fs.promises.readdir(dirPath);
+
+    for (const item of items) {
+      if (!preservePaths.includes(item)) {
+        const fullPath = path.join(dirPath, item);
+        await fs.promises.rm(fullPath, { recursive: true, force: true });
+        console.log(`Deleted: ${fullPath}`);
+      }
+    }
+
+    console.log(`Cleaned working directory: ${dirPath}, preserved: ${preservePaths.join(', ')}`);
   }
 }

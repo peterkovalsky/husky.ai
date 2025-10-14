@@ -36,19 +36,19 @@ jobs:
       run: |
         # Create build context with api and templates
         mkdir -p build-context
-        
+
         # Copy everything from api directory (including hidden files)
         cp -r api/. build-context/
-        
+
         # Copy templates directory
         cp -r templates build-context/templates
-        
+
         # Remove unwanted directories from build context
-        rm -rf build-context/apps build-context/logs build-context/node_modules build-context/dist       
-        
+        rm -rf build-context/projects build-context/logs build-context/node_modules build-context/dist
+
         # Build the Docker image from the build context
         docker build -t $ECR_REPOSITORY:latest -t $ECR_REPOSITORY:$GITHUB_SHA build-context
-        
+
         # Push both tags to ECR
         docker push $ECR_REPOSITORY:latest
         docker push $ECR_REPOSITORY:$GITHUB_SHA

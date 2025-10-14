@@ -82,6 +82,15 @@ export class SupabaseProjectRepository implements IProjectRepository {
     if (error) throw error;
   }
 
+  async updateCurrentVersion(projectId: string, version: number): Promise<void> {
+    const { error } = await this.supabase
+      .from('projects')
+      .update({ current_version: version })
+      .eq('id', projectId);
+
+    if (error) throw error;
+  }
+
   async findByIdForOperations(id: string): Promise<Project | null> {
     const { data, error } = await this.supabase
       .from('projects')
@@ -120,6 +129,7 @@ export class SupabaseProjectRepository implements IProjectRepository {
       previewUrl: data.preview_url,
       workspaceId: data.workspace_id,
       status: data.status || 'ACTIVE',
+      currentVersion: data.current_version || 0,
       createdAt: new Date(data.created_at),
       modifiedAt: new Date(data.modified_at)
     };

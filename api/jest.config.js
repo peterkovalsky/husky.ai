@@ -9,9 +9,9 @@ module.exports = {
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/**/*.d.ts',
-    '!src/apps/**',
+    '!src/projects/**',
   ],
   modulePathIgnorePatterns: [
-    '<rootDir>/src/apps/',
+    '<rootDir>/src/projects/',
   ],
 };

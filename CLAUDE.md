@@ -75,9 +75,9 @@ The API follows Clean Architecture with four distinct layers:
 - **Routing**: React Router for navigation
 - **Styling**: Tailwind CSS with Radix UI components
 
-### Multi-Version App System
-Generated apps are stored in versioned directories:
-- `/apps/{project-id}/v{version}/` - Each iteration creates a new version
+### Project Structure
+Generated apps are stored in project directories:
+- `/projects/{project-id}/web/` - Working directory for each project
 - Templates in `/templates/` provide base structure for generated apps
 
 ### Job Processing Flow

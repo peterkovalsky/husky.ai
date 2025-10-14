@@ -7,6 +7,7 @@ export interface Project {
   previewUrl?: string;
   workspaceId: string;
   status: ProjectStatus;
+  currentVersion: number;
   createdAt: Date;
   modifiedAt: Date;
 }

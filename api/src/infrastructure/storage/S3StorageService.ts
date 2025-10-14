@@ -43,7 +43,7 @@ export class S3StorageService implements IStorageService {
   async uploadReactApp(appDirectory: string, promptId: string, projectId: string): Promise<UploadResult> {
     try {
       const distPath = path.join(appDirectory, "dist");
-      
+
       if (!fs.existsSync(distPath)) {
         return {
           success: false,
