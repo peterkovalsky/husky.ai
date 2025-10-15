@@ -100,35 +100,43 @@ export class BuildService implements IBuildService {
 
   async copyNodeModulesAsync(targetDirectory: string, projectId: string): Promise<void> {
     try {
-      console.log(`Starting parallel node_modules copy for project ${projectId}...`);
-
-      const sourceDir = await this.findSourceDirectory(projectId);
-      if (!sourceDir) {
-        console.log("No source directory found for node_modules");
-        return;
-      }
-
-      const sourceNodeModules = path.join(sourceDir, 'node_modules');
-      if (!this.fileSystemHelper.directoryExists(sourceNodeModules)) {
-        console.log(`No node_modules found in ${sourceDir}, will install from scratch`);
-        return;
-      }
+      console.log(`Checking node_modules for project ${projectId}...`);
 
       const targetNodeModules = path.join(targetDirectory, 'node_modules');
 
-      // Use cp command for fast copying on Unix systems
-      const copyCommand = process.platform === 'win32'
-        ? `robocopy "${sourceNodeModules}" "${targetNodeModules}" /E /NFL /NDL /NJH /NJS /NC /NS /NP`
-        : `cp -R "${sourceNodeModules}" "${targetNodeModules}"`;
+      // First, check if node_modules already exists in the web working directory
+      if (this.fileSystemHelper.directoryExists(targetNodeModules)) {
+        console.log(`node_modules already exists in web directory: ${targetDirectory}`);
+        console.log(`Skipping copy - will use existing node_modules`);
+        return;
+      }
 
-      const copyStartTime = Date.now();
-      await this.execAsync(copyCommand, {
-        timeout: 120000, // 2 minutes timeout for copying
-        killSignal: "SIGTERM",
-      });
+      console.log(`No node_modules found in web directory: ${targetDirectory}`);
 
-      const copyTime = Date.now() - copyStartTime;
-      console.log(`node_modules copy completed in ${copyTime}ms from ${sourceDir}`);
+      // Try to copy from template directory
+      const templateDir = this.fileSystemHelper.getTemplateDir();
+      const templateNodeModules = path.join(templateDir, 'node_modules');
+
+      if (this.fileSystemHelper.directoryExists(templateNodeModules)) {
+        console.log(`node_modules found in template directory: ${templateDir}`);
+        console.log(`Copying node_modules from template...`);
+
+        const copyCommand = process.platform === 'win32'
+          ? `robocopy "${templateNodeModules}" "${targetNodeModules}" /E /NFL /NDL /NJH /NJS /NC /NS /NP`
+          : `cp -R "${templateNodeModules}" "${targetNodeModules}"`;
+
+        const copyStartTime = Date.now();
+        await this.execAsync(copyCommand, {
+          timeout: 120000, // 2 minutes timeout for copying
+          killSignal: "SIGTERM",
+        });
+
+        const copyTime = Date.now() - copyStartTime;
+        console.log(`node_modules copy completed in ${copyTime}ms from template directory`);
+        return;
+      }
+
+      console.log(`No node_modules found in template directory: ${templateDir}, will install from scratch`);
 
     } catch (error) {
       console.warn("Failed to copy node_modules, will install from scratch:", error instanceof Error ? error.message : 'Unknown error');
