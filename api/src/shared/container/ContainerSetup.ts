@@ -11,6 +11,7 @@ import { IAIService } from '../../domain/services/IAIService';
 import { IStorageService } from '../../domain/services/IStorageService';
 import { IQueueService } from '../../domain/services/IQueueService';
 import { IBuildService } from '../../domain/services/IBuildService';
+import { IProjectEnvironmentService } from '../../domain/services/IProjectEnvironmentService';
 
 // Infrastructure Implementations
 import { SupabaseWorkspaceRepository } from '../../infrastructure/database/SupabaseWorkspaceRepository';
@@ -21,6 +22,7 @@ import { AnthropicAIService } from '../../infrastructure/ai/AnthropicAIService';
 import { S3StorageService } from '../../infrastructure/storage/S3StorageService';
 import { SQSQueueService } from '../../infrastructure/queue/SQSQueueService';
 import { BuildService } from '../../infrastructure/build/BuildService';
+import { ProjectEnvironmentService } from '../../infrastructure/build/ProjectEnvironmentService';
 import { SupabaseAuthService } from '../../infrastructure/auth/SupabaseAuthService';
 
 // Application Use Cases
@@ -29,6 +31,7 @@ import { GetPromptStatusUseCase } from '../../application/use-cases/GetPromptSta
 import { CreateProjectUseCase } from '../../application/use-cases/CreateProjectUseCase';
 import { GetProjectDetailsUseCase } from '../../application/use-cases/GetProjectDetailsUseCase';
 import { ProcessJobUseCase } from '../../application/use-cases/ProcessJobUseCase';
+import { PrepareProjectEnvironmentUseCase } from '../../application/use-cases/PrepareProjectEnvironmentUseCase';
 import { DeleteProjectUseCase } from '../../application/use-cases/DeleteProjectUseCase';
 import { SetupUserUseCase } from '../../application/use-cases/SetupUserUseCase';
 
@@ -62,6 +65,9 @@ export function setupContainer(): DIContainer {
     const buildRepository = container.get<IBuildRepository>('buildRepository');
     return new BuildService(buildRepository);
   });
+
+  container.registerFactory<IProjectEnvironmentService>('projectEnvironmentService', () => new ProjectEnvironmentService());
+
   container.registerFactory<SupabaseAuthService>('authService', () => new SupabaseAuthService());
 
   // Register Use Cases
@@ -90,13 +96,18 @@ export function setupContainer(): DIContainer {
     container.get<IBuildRepository>('buildRepository')
   ));
 
+  container.registerFactory<PrepareProjectEnvironmentUseCase>('prepareProjectEnvironmentUseCase', () => new PrepareProjectEnvironmentUseCase(
+    container.get<IProjectEnvironmentService>('projectEnvironmentService')
+  ));
+
   container.registerFactory<ProcessJobUseCase>('processJobUseCase', () => new ProcessJobUseCase(
     container.get<IPromptRepository>('promptRepository'),
     container.get<IBuildRepository>('buildRepository'),
     container.get<IProjectRepository>('projectRepository'),
     container.get<IAIService>('aiService'),
     container.get<IBuildService>('buildService'),
-    container.get<IStorageService>('storageService')
+    container.get<IStorageService>('storageService'),
+    container.get<PrepareProjectEnvironmentUseCase>('prepareProjectEnvironmentUseCase')
   ));
 
   container.registerFactory<DeleteProjectUseCase>('deleteProjectUseCase', () => new DeleteProjectUseCase(

@@ -8,6 +8,7 @@ import { JobMessage } from '../../domain/services/IQueueService';
 import { BuildMetrics } from '../../domain/entities/Build';
 import { BuildLogger } from '../../shared/logger/BuildLogger';
 import { FileTreeMerger } from '../../shared/utils/FileTreeMerger';
+import { PrepareProjectEnvironmentUseCase } from './PrepareProjectEnvironmentUseCase';
 import fs from 'fs';
 import path from 'path';
 
@@ -21,7 +22,8 @@ export class ProcessJobUseCase {
     private projectRepository: IProjectRepository,
     private aiService: IAIService,
     private buildService: IBuildService,
-    private storageService: IStorageService
+    private storageService: IStorageService,
+    private prepareProjectEnvironmentUseCase: PrepareProjectEnvironmentUseCase
   ) {
     this.templateFilePath = path.join(__dirname, "../../template-react18-ts.json");
     this.buildLogger = new BuildLogger();
@@ -95,7 +97,12 @@ export class ProcessJobUseCase {
       // Link prompt to build
       await this.promptRepository.updateBuildId(safePromptId, buildId);
 
-      // Load file tree for the project and set AI service context
+      // START PARALLEL OPERATIONS
+      // 1. Start environment preparation (runs in background)
+      console.log(`[PARALLEL] Starting environment preparation for project ${safeProjectId}...`);
+      const envPrepPromise = this.prepareProjectEnvironmentUseCase.execute(safeProjectId);
+
+      // 2. Load file tree and prepare AI context
       const fileTree = await this.loadFileTreeForProject(safeProjectId);
       await this.aiService.setProjectContext(safeProjectId, fileTree, buildId);
 
@@ -106,11 +113,12 @@ export class ProcessJobUseCase {
         .map((p) => `User: ${p.prompt}`)
         .join("\n\n");
 
-      // AI stage: Generate response (raw response is saved in AI service)
-      console.log(`Running AI stage for prompt ${safePromptId} with web search enabled...`);
+      // 3. AI generation (runs while environment prep happens in parallel)
+      console.log(`[PARALLEL] Running AI stage for prompt ${safePromptId} with web search enabled...`);
       const aiStartTime = Date.now();
       const aiResponse = await this.aiService.generateResponse(prompt, safePromptId);
       metrics.aiGenerationTimeMs = Date.now() - aiStartTime;
+      console.log(`[PARALLEL] AI generation completed in ${metrics.aiGenerationTimeMs}ms`);
 
       // Parse the AI response to get the updated file tree
       const responseData = JSON.parse(aiResponse.content);
@@ -143,6 +151,14 @@ export class ProcessJobUseCase {
         aiGenerationTimeMs: metrics.aiGenerationTimeMs
       });
 
+      // WAIT FOR ENVIRONMENT PREPARATION TO COMPLETE
+      // This ensures node_modules and package-lock.json are ready before we write files
+      console.log(`[PARALLEL] Waiting for environment preparation to complete...`);
+      const envPrepResult = await envPrepPromise;
+      metrics.environmentPrepTimeMs = envPrepResult.totalPrepTime;
+      metrics.nodeModulesCopyTimeMs = envPrepResult.nodeModulesCopyTime;
+      console.log(`[PARALLEL] Environment preparation completed in ${envPrepResult.totalPrepTime}ms`);
+
       // Check if this is an iterative build (project has successful builds)
       const hasSuccessfulBuilds = await this.buildRepository.findLatestSuccessfulByProjectId(safeProjectId);
 
@@ -156,25 +172,13 @@ export class ProcessJobUseCase {
       console.log(`Saving merged files to disk for prompt ${safePromptId}...`);
       const appDirectory = await this.buildService.saveFileTreeToDisk(mergeResult.mergedFileTree, safeProjectId, buildVersion);
 
-      // Copy package-lock.json from previous build or template (only if not already present)
-      console.log(`Copying package-lock.json for prompt ${safePromptId}...`);
-      await this.buildService.copyPackageLockJson(appDirectory, safeProjectId);
-
-      // Start node_modules copying in parallel (don't await)
-      console.log(`Starting parallel node_modules copy for prompt ${safePromptId}...`);
-      const nodeModulesCopyPromise = this.buildService.copyNodeModulesAsync(appDirectory, safeProjectId);
-
       // Update build status to BUILDING
       await this.buildRepository.updateStatus(buildId!, "BUILDING");
-
-      // Wait for node_modules copying to complete before building
-      console.log(`Waiting for node_modules copy to complete for prompt ${safePromptId}...`);
-      await nodeModulesCopyPromise;
 
       // Build stage
       console.log(`Running build stage for prompt ${safePromptId}...`);
       const buildResult = await this.buildService.buildApp(appDirectory, safeProjectId);
-      
+
       if (!buildResult.success) {
         throw new Error(`Build failed: ${buildResult.error || "Unknown build error"}`);
       }
@@ -274,7 +278,23 @@ export class ProcessJobUseCase {
       }
 
       console.log(`Prompt ${safePromptId} completed successfully. Preview URL: ${uploadResult.previewUrl}`);
-      console.log(`Build metrics:`, metrics);
+
+      // Log detailed metrics breakdown
+      console.log(`\n=== Build Metrics Breakdown ===`);
+      console.log(`PARALLEL PHASE:`);
+      console.log(`  AI Generation:        ${metrics.aiGenerationTimeMs || 0}ms`);
+      console.log(`  Environment Prep:     ${metrics.environmentPrepTimeMs || 0}ms (ran in parallel with AI)`);
+      console.log(`    - node_modules:     ${metrics.nodeModulesCopyTimeMs || 0}ms ${metrics.nodeModulesCopyTimeMs ? '(copied from template)' : '(already exists)'}`);
+      console.log(`SEQUENTIAL PHASE:`);
+      console.log(`  npm install:          ${metrics.dependencyInstallTimeMs || 0}ms ${metrics.dependencyInstallTimeMs === 0 ? '(skipped - package.json unchanged)' : ''}`);
+      console.log(`  Vite Build:           ${metrics.buildTimeMs || 0}ms`);
+      console.log(`  S3 Upload:            ${metrics.s3UploadTimeMs || 0}ms`);
+      console.log(`  Version Source:       ${metrics.versionSourceUploadTimeMs || 0}ms`);
+      console.log(`  Version Production:   ${metrics.versionProductionUploadTimeMs || 0}ms`);
+      console.log(`---`);
+      console.log(`Total Wall-Clock:       ${metrics.totalTimeMs || 0}ms`);
+      console.log(`Parallelization Savings: ~${Math.max(0, Math.min(metrics.aiGenerationTimeMs || 0, metrics.environmentPrepTimeMs || 0))}ms`);
+      console.log(`================================\n`);
 
     } catch (error) {
       console.error(`Error processing prompt ${safePromptId}:`, error);

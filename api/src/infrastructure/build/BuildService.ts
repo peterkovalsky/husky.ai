@@ -1,10 +1,11 @@
-import { IBuildService, BuildResult } from '../../domain/services/IBuildService';
+import { IBuildService, BuildResult, NodeModulesCopyResult } from '../../domain/services/IBuildService';
 import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
 import { FileSystemHelper } from '../../shared/utils/FileSystemHelper';
 import fs from "fs";
 import path from "path";
 import { exec } from "child_process";
 import { promisify } from "util";
+import crypto from "crypto";
 
 export class BuildService implements IBuildService {
   private readonly execAsync = promisify(exec);
@@ -64,7 +65,7 @@ export class BuildService implements IBuildService {
       }
 
       console.log(`Cleaning working directory for project ${projectId}...`);
-      await this.fileSystemHelper.cleanWorkingDirectory(webDir, ['node_modules', 'package-lock.json']);
+      await this.fileSystemHelper.cleanWorkingDirectory(webDir, ['node_modules', 'package-lock.json', '.package-hash']);
 
     } catch (error) {
       console.warn("Failed to clean working directory:", error instanceof Error ? error.message : 'Unknown error');
@@ -98,7 +99,7 @@ export class BuildService implements IBuildService {
     }
   }
 
-  async copyNodeModulesAsync(targetDirectory: string, projectId: string): Promise<void> {
+  async copyNodeModulesAsync(targetDirectory: string, projectId: string): Promise<NodeModulesCopyResult> {
     try {
       console.log(`Checking node_modules for project ${projectId}...`);
 
@@ -108,7 +109,7 @@ export class BuildService implements IBuildService {
       if (this.fileSystemHelper.directoryExists(targetNodeModules)) {
         console.log(`node_modules already exists in web directory: ${targetDirectory}`);
         console.log(`Skipping copy - will use existing node_modules`);
-        return;
+        return { copied: false, copyTime: 0 };
       }
 
       console.log(`No node_modules found in web directory: ${targetDirectory}`);
@@ -133,14 +134,81 @@ export class BuildService implements IBuildService {
 
         const copyTime = Date.now() - copyStartTime;
         console.log(`node_modules copy completed in ${copyTime}ms from template directory`);
-        return;
+        return { copied: true, copyTime };
       }
 
       console.log(`No node_modules found in template directory: ${templateDir}, will install from scratch`);
+      return { copied: false, copyTime: 0 };
 
     } catch (error) {
       console.warn("Failed to copy node_modules, will install from scratch:", error instanceof Error ? error.message : 'Unknown error');
       // Don't throw error - just log warning and continue
+      return { copied: false, copyTime: 0 };
+    }
+  }
+
+  /**
+   * Calculate SHA-256 hash of package.json content
+   */
+  private calculatePackageJsonHash(packageJsonPath: string): string | null {
+    try {
+      if (!fs.existsSync(packageJsonPath)) {
+        return null;
+      }
+      const content = fs.readFileSync(packageJsonPath, 'utf8');
+      // Parse and stringify to normalize formatting (removes whitespace differences)
+      const normalized = JSON.stringify(JSON.parse(content));
+      return crypto.createHash('sha256').update(normalized).digest('hex');
+    } catch (error) {
+      console.warn("Failed to calculate package.json hash:", error instanceof Error ? error.message : 'Unknown error');
+      return null;
+    }
+  }
+
+  /**
+   * Save package.json hash to a marker file
+   */
+  private savePackageJsonHash(appDirectory: string, hash: string): void {
+    try {
+      const hashFilePath = path.join(appDirectory, '.package-hash');
+      fs.writeFileSync(hashFilePath, hash, 'utf8');
+    } catch (error) {
+      console.warn("Failed to save package.json hash:", error instanceof Error ? error.message : 'Unknown error');
+    }
+  }
+
+  /**
+   * Check if package.json has changed since last install
+   */
+  private hasPackageJsonChanged(appDirectory: string): boolean {
+    try {
+      const packageJsonPath = path.join(appDirectory, 'package.json');
+      const hashFilePath = path.join(appDirectory, '.package-hash');
+
+      // If hash file doesn't exist, package.json has "changed" (first install)
+      if (!fs.existsSync(hashFilePath)) {
+        console.log("No previous package.json hash found");
+        return true;
+      }
+
+      const currentHash = this.calculatePackageJsonHash(packageJsonPath);
+      const previousHash = fs.readFileSync(hashFilePath, 'utf8').trim();
+
+      if (!currentHash) {
+        console.log("Could not calculate current package.json hash");
+        return true;
+      }
+
+      const hasChanged = currentHash !== previousHash;
+      console.log(`package.json hash comparison: ${hasChanged ? 'CHANGED' : 'UNCHANGED'}`);
+      console.log(`Previous: ${previousHash.substring(0, 12)}...`);
+      console.log(`Current:  ${currentHash.substring(0, 12)}...`);
+
+      return hasChanged;
+    } catch (error) {
+      console.warn("Failed to check package.json changes:", error instanceof Error ? error.message : 'Unknown error');
+      // If check fails, assume it changed to be safe
+      return true;
     }
   }
 
@@ -161,33 +229,52 @@ export class BuildService implements IBuildService {
       // This ensures that locally installed dependencies are used instead of npx downloading them
       let buildCommand = "npm run build";
 
-      // Always ensure dependencies are properly installed
-      console.log("Installing/updating dependencies...");
-      const installStartTime = Date.now();
-
-      const installCommand = "npm install --silent --no-audit --no-fund";
+      // Check if we need to install dependencies
+      const nodeModulesPath = path.join(appDirectory, 'node_modules');
+      const nodeModulesExists = fs.existsSync(nodeModulesPath);
+      const packageJsonChanged = this.hasPackageJsonChanged(appDirectory);
 
       let dependencyInstallTime = 0;
-
-      console.log(`Running: ${installCommand}`);
-
-      // Set up environment with proper PATH for npm
-      // Add node_modules/.bin to PATH to ensure npm scripts can find binaries
       const nodeBinPath = path.join(appDirectory, 'node_modules', '.bin');
-      const installEnv = {
-        ...process.env,
-        NODE_ENV: 'development', // Ensure devDependencies are installed
-        PATH: `${nodeBinPath}:${process.env.PATH}`,
-      };
 
-      await this.execAsync(installCommand, {
-        cwd: appDirectory,
-        env: installEnv,
-        timeout: 600000, // 10 minutes timeout
-        killSignal: "SIGTERM",
-      });
-      dependencyInstallTime = Date.now() - installStartTime;
-      console.log(`Dependencies installed in ${dependencyInstallTime}ms`);
+      // Only install if package.json changed or node_modules doesn't exist
+      if (!nodeModulesExists || packageJsonChanged) {
+        const reason = !nodeModulesExists
+          ? "node_modules doesn't exist"
+          : "package.json has changed";
+        console.log(`Installing dependencies (${reason})...`);
+
+        const installStartTime = Date.now();
+        const installCommand = "npm install --silent --no-audit --no-fund";
+
+        console.log(`Running: ${installCommand}`);
+
+        // Set up environment with proper PATH for npm
+        const installEnv = {
+          ...process.env,
+          NODE_ENV: 'development', // Ensure devDependencies are installed
+          PATH: `${nodeBinPath}:${process.env.PATH}`,
+        };
+
+        await this.execAsync(installCommand, {
+          cwd: appDirectory,
+          env: installEnv,
+          timeout: 600000, // 10 minutes timeout
+          killSignal: "SIGTERM",
+        });
+        dependencyInstallTime = Date.now() - installStartTime;
+        console.log(`Dependencies installed in ${dependencyInstallTime}ms`);
+
+        // Save the new package.json hash after successful install
+        const packageJsonPath = path.join(appDirectory, 'package.json');
+        const newHash = this.calculatePackageJsonHash(packageJsonPath);
+        if (newHash) {
+          this.savePackageJsonHash(appDirectory, newHash);
+        }
+      } else {
+        console.log("Skipping npm install - package.json unchanged and node_modules exists");
+        dependencyInstallTime = 0;
+      }
 
       // Run build command
       console.log("Running build...");

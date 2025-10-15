@@ -2,12 +2,14 @@ export type BuildStatus = 'QUEUED' | 'PROCESSING' | 'BUILDING' | 'READY' | 'FAIL
 
 export interface BuildMetrics {
   aiGenerationTimeMs?: number;
-  dependencyInstallTimeMs?: number;
+  environmentPrepTimeMs?: number; // Time to prepare environment (node_modules + package-lock) - runs in parallel with AI
+  nodeModulesCopyTimeMs?: number; // Time to copy node_modules from template (part of environmentPrepTimeMs)
+  dependencyInstallTimeMs?: number; // Time for npm install (only when package.json changed)
   buildTimeMs?: number;
   s3UploadTimeMs?: number;
   versionSourceUploadTimeMs?: number;
   versionProductionUploadTimeMs?: number;
-  totalTimeMs?: number;
+  totalTimeMs?: number; // Total wall-clock time (not sum of components due to parallelization)
 }
 
 export interface Build {

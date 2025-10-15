@@ -183,6 +183,13 @@ DESIGN PRINCIPLES:
    - Implement clean, readable JSX with proper indentation
    - Include proper TypeScript typing
 
+7. ANCHOR/HASH LINKS:
+   - NEVER include leading slashes in anchor links (hash links)
+   - Correct format: href="#section" or href="#about"
+   - Incorrect format: href="/#section" or href="/#about"
+   - The leading slash breaks hash navigation in single-page applications
+   - This applies to all navigation links that scroll to sections on the same page
+
 You reply with a single JSON object, where:
 - Each key is the relative path of a file that has been ADDED or MODIFIED
 - The value is the COMPLETE new contents of the file as a STRING
