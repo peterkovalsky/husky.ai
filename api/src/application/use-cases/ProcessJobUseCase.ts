@@ -85,14 +85,13 @@ export class ProcessJobUseCase {
         return;
       }
 
-      // Create build with PROCESSING status
+      // Create build with PROCESSING status and version 0
       const createdBuild = await this.buildRepository.create({
         fileTree: {},
         projectId: safeProjectId,
         status: 'PROCESSING'
       });
       buildId = createdBuild.id;
-      const buildVersion = createdBuild.version;
 
       // Link prompt to build
       await this.promptRepository.updateBuildId(safePromptId, buildId);
@@ -113,12 +112,18 @@ export class ProcessJobUseCase {
         .map((p) => `User: ${p.prompt}`)
         .join("\n\n");
 
-      // 3. AI generation (runs while environment prep happens in parallel)
-      console.log(`[PARALLEL] Running AI stage for prompt ${safePromptId} with web search enabled...`);
+      // 3. Determine which AI model to use based on project version
+      // For first version (no successful builds), use Sonnet 4.5
+      // For subsequent versions (has successful builds), use Haiku 4.5
+      const hasSuccessfulBuilds = await this.buildRepository.findLatestSuccessfulByProjectId(safeProjectId);
+      const useHaiku = hasSuccessfulBuilds !== null;
+
+      // 4. AI generation (runs while environment prep happens in parallel)
+      console.log(`[PARALLEL] Running AI stage for prompt ${safePromptId}...`);
       const aiStartTime = Date.now();
-      const aiResponse = await this.aiService.generateResponse(prompt, safePromptId);
+      const aiResponse = await this.aiService.generateResponse(prompt, safePromptId, useHaiku);
       metrics.aiGenerationTimeMs = Date.now() - aiStartTime;
-      console.log(`[PARALLEL] AI generation completed in ${metrics.aiGenerationTimeMs}ms`);
+      console.log(`[PARALLEL] AI generation completed in ${metrics.aiGenerationTimeMs}ms (Model: ${aiResponse.model})`);
 
       // Parse the AI response to get the updated file tree
       const responseData = JSON.parse(aiResponse.content);
@@ -148,7 +153,8 @@ export class ProcessJobUseCase {
         contextPrompt: prompt,
         hasConversationHistory: !!conversation,
         fileTreeSize: Object.keys(mergeResult.mergedFileTree).length,
-        aiGenerationTimeMs: metrics.aiGenerationTimeMs
+        aiGenerationTimeMs: metrics.aiGenerationTimeMs,
+        modelUsed: aiResponse.model
       });
 
       // WAIT FOR ENVIRONMENT PREPARATION TO COMPLETE
@@ -159,9 +165,7 @@ export class ProcessJobUseCase {
       metrics.nodeModulesCopyTimeMs = envPrepResult.nodeModulesCopyTime;
       console.log(`[PARALLEL] Environment preparation completed in ${envPrepResult.totalPrepTime}ms`);
 
-      // Check if this is an iterative build (project has successful builds)
-      const hasSuccessfulBuilds = await this.buildRepository.findLatestSuccessfulByProjectId(safeProjectId);
-
+      // Clean working directory if this is an iterative build (reuse hasSuccessfulBuilds from earlier)
       if (hasSuccessfulBuilds) {
         // Clean working directory before writing new files (preserve node_modules and package-lock.json)
         console.log(`Cleaning working directory for iterative build on prompt ${safePromptId}...`);
@@ -169,8 +173,9 @@ export class ProcessJobUseCase {
       }
 
       // Save files to disk using BuildService (this creates the web directory)
+      // Note: version is still 0 at this point, will be assigned when build reaches READY status
       console.log(`Saving merged files to disk for prompt ${safePromptId}...`);
-      const appDirectory = await this.buildService.saveFileTreeToDisk(mergeResult.mergedFileTree, safeProjectId, buildVersion);
+      const appDirectory = await this.buildService.saveFileTreeToDisk(mergeResult.mergedFileTree, safeProjectId, 0);
 
       // Update build status to BUILDING
       await this.buildRepository.updateStatus(buildId!, "BUILDING");
@@ -212,6 +217,11 @@ export class ProcessJobUseCase {
         }
       }
 
+      // Assign version number now that build is successful
+      const buildVersion = await this.buildRepository.getNextVersionForProject(safeProjectId);
+      await this.buildRepository.updateVersion(buildId!, buildVersion);
+      console.log(`Assigned version ${buildVersion} to build ${buildId}`);
+
       // Update build status to READY
       await this.buildRepository.updateStatus(buildId!, "READY");
 
@@ -220,7 +230,7 @@ export class ProcessJobUseCase {
         await this.buildRepository.updateTokens(buildId!, aiResponse.usage.inputTokens, aiResponse.usage.outputTokens);
       }
 
-      // Upload version history to S3 versions bucket (after build is READY)
+      // Upload version history to S3 versions bucket (after build is READY and version assigned)
       try {
         console.log(`Uploading source code to versions bucket for project ${safeProjectId} version ${buildVersion}...`);
         console.log(`Source upload directory: ${appDirectory}`);
@@ -281,6 +291,7 @@ export class ProcessJobUseCase {
 
       // Log detailed metrics breakdown
       console.log(`\n=== Build Metrics Breakdown ===`);
+      console.log(`Model Used:             ${aiResponse.model}`);
       console.log(`PARALLEL PHASE:`);
       console.log(`  AI Generation:        ${metrics.aiGenerationTimeMs || 0}ms`);
       console.log(`  Environment Prep:     ${metrics.environmentPrepTimeMs || 0}ms (ran in parallel with AI)`);

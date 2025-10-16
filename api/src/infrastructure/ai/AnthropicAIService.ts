@@ -106,35 +106,45 @@ export class AnthropicAIService implements IAIService {
   }
 
 
-  async generateResponse(userRequest: string, promptId: string): Promise<AIResponse> {
+  async generateResponse(userRequest: string, promptId: string, useHaiku: boolean = false): Promise<AIResponse> {
     const startTime = Date.now();
 
     try {
-      console.log("Starting generateResponse...");
+      // Select model based on whether this is a first version or subsequent version
+      const selectedModel = useHaiku ? "claude-haiku-4-5-20251001" : "claude-sonnet-4-5-20250929";
+      console.log(`Starting generateResponse with model: ${selectedModel}...`);
 
       const systemPrompt = `You are a senior UI/UX developer assistant that creates beautiful, industry-appropriate React applications based on user requests.
 You receive:
 - The current app's file tree and contents
 - The user's request for changes
 - Web search capability for current information, trends, and best practices
+- Web fetch capability to retrieve full content from URLs and PDFs
 
 WEB SEARCH USAGE:
 Use web search ONLY when the user's prompt explicitly indicates a need for current information or external resources:
-- When the prompt contains URLs or links that need to be researched
 - When the user asks for "current trends", "latest", "modern", or "up-to-date" information
 - When the user references specific companies, competitors, or real-world examples to research
 - When the user asks to "look up", "research", or "find examples of" something
 - When the user mentions integrating with external APIs or services that need documentation
 - When the user asks for industry-specific standards that may have recent updates
 
-DO NOT use web search for:
+WEB FETCH USAGE:
+Use web fetch when you need to retrieve full content from specific URLs or PDFs:
+- When the user provides a URL they want content from
+- When you find relevant URLs in web search results that need full content analysis
+- When you need complete API documentation from a specific URL
+- When you need to analyze PDF documents
+- When you need detailed content that web search summaries don't provide
+
+DO NOT use web search or web fetch for:
 - Simple UI updates, styling changes, or component modifications
 - General React, TypeScript, Tailwind, or DaisyUI implementation (use your existing knowledge)
 - Basic feature additions that don't require external research
 - Bug fixes or code refactoring
 - Standard design patterns you already know
 
-Only use web search when it will provide essential, current information that significantly improves your response quality.
+Only use web tools when they will provide essential, current information that significantly improves your response quality.
 
 DEVELOPMENT & DESIGN RULES:
 The current app is built with React, TypeScript, Tailwind CSS, and DaisyUI - you should continue using these technologies.
@@ -218,7 +228,7 @@ ${userRequest}`;
 
       console.log("Calling Anthropic API with streaming...");
       const stream = await this.client.messages.stream({
-        model: "claude-sonnet-4-5-20250929",
+        model: selectedModel,
         max_tokens: 32768,
         system: systemPrompt,
         messages: [
@@ -232,8 +242,19 @@ ${userRequest}`;
             type: "web_search_20250305",
             name: "web_search",
             max_uses: 10
+          },
+          {
+            type: "web_fetch_20250910",
+            name: "web_fetch",
+            max_uses: 5,
+            citations: { enabled: true },
+            max_content_tokens: 100000
           }
         ]
+      } as any, {
+        headers: {
+          "anthropic-beta": "web-fetch-2025-09-10"
+        }
       });
 
       // Collect all streamed content

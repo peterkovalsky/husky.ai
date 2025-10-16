@@ -10,6 +10,7 @@ export interface IBuildRepository {
   getNextVersionForProject(projectId: string): Promise<number>;
   updateMetrics(id: string, metrics: BuildMetrics): Promise<void>;
   updateStatus(id: string, status: BuildStatus): Promise<void>;
+  updateVersion(id: string, version: number): Promise<void>;
   updateFileTree(id: string, fileTree: Record<string, string>): Promise<void>;
   updateTokens(id: string, inputTokens: number, outputTokens: number): Promise<void>;
   deleteByProjectId(projectId: string): Promise<void>;

@@ -11,15 +11,13 @@ export class SupabaseBuildRepository implements IBuildRepository {
   }
 
   async create(request: CreateBuildRequest): Promise<Build> {
-    // Get the next version number for this project
-    const nextVersion = await this.getNextVersionForProject(request.projectId);
-    
+    // Initially set version to 0, will be updated when build reaches READY status
     const { data, error } = await this.supabase
       .from('builds')
       .insert({
         file_tree: request.fileTree,
         project_id: request.projectId,
-        version: nextVersion,
+        version: 0,
         status: request.status || 'QUEUED',
         metrics: request.metrics || {},
         input_tokens: request.inputTokens,
@@ -29,7 +27,7 @@ export class SupabaseBuildRepository implements IBuildRepository {
       .single();
 
     if (error) throw error;
-    
+
     return this.mapToEntity(data);
   }
 
@@ -100,10 +98,13 @@ export class SupabaseBuildRepository implements IBuildRepository {
   }
 
   async getNextVersionForProject(projectId: string): Promise<number> {
+    // Only consider READY builds when determining next version
+    // Failed/in-progress builds have version 0 and should be ignored
     const { data, error } = await this.supabase
       .from('builds')
       .select('version')
       .eq('project_id', projectId)
+      .eq('status', 'READY')
       .order('version', { ascending: false })
       .limit(1)
       .single();
@@ -125,6 +126,15 @@ export class SupabaseBuildRepository implements IBuildRepository {
     const { error } = await this.supabase
       .from('builds')
       .update({ status })
+      .eq('id', id);
+
+    if (error) throw error;
+  }
+
+  async updateVersion(id: string, version: number): Promise<void> {
+    const { error } = await this.supabase
+      .from('builds')
+      .update({ version })
       .eq('id', id);
 
     if (error) throw error;

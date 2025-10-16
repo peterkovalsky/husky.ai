@@ -8,6 +8,7 @@ const mockPromptRepository: IPromptRepository = {
   findByProjectId: jest.fn(),
   updateBuildId: jest.fn(),
   updateRawAiResponse: jest.fn(),
+  updateMetrics: jest.fn(),
   deleteByProjectId: jest.fn()
 };
 
