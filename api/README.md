@@ -92,8 +92,8 @@ AWS_ACCESS_KEY_ID=your-aws-access-key-id
 AWS_SECRET_ACCESS_KEY=your-aws-secret-access-key
 
 # S3 Configuration (Required)
-S3_BUCKET_NAME=your-main-bucket-name
-S3_VERSIONS_BUCKET_NAME=your-versions-bucket-name
+S3_BUCKET_NAME=dev-husky-app-previews
+S3_PROJECTS_BUCKET_NAME=dev-husky-projects
 
 # SQS Configuration (Required)
 SQS_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/123456789012/your-queue-name
@@ -112,17 +112,57 @@ NODE_ENV=development
 aws sqs create-queue --queue-name husky-jobs --region us-east-1
 ```
 
-### 2. Create S3 Bucket
+### 2. Create S3 Buckets
+
+**Preview Bucket** (for live app previews):
 ```bash
-aws s3 mb s3://husky-apps-preview --region us-east-1
+aws s3 mb s3://dev-husky-app-previews --region us-east-1
 ```
 
-### 3. Configure S3 Bucket for Web Hosting
+**Projects Bucket** (for versioned source code and builds):
 ```bash
-aws s3 website s3://husky-apps-preview --index-document index.html --error-document error.html
+aws s3 mb s3://dev-husky-projects --region us-east-1
 ```
 
-### 4. Set S3 Bucket Policy for Public Read
+The projects bucket structure follows this pattern:
+```
+<bucket>/<project_id>/web/v<version_number>/<"source" | "build">
+```
+
+Example:
+```
+dev-husky-app-previews/
+  projects/
+    abc123/              # Live preview builds
+      index.html
+      assets/
+
+dev-husky-projects/
+  abc123/
+    web/
+      v1/
+        source/         # Full source code
+        build/          # Production build
+      v2/
+        source/
+        build/
+```
+
+### 3. Configure S3 Buckets for Web Hosting
+
+**Preview Bucket:**
+```bash
+aws s3 website s3://dev-husky-app-previews --index-document index.html --error-document error.html
+```
+
+**Projects Bucket:**
+```bash
+aws s3 website s3://dev-husky-projects --index-document index.html --error-document error.html
+```
+
+### 4. Set S3 Bucket Policies for Public Read
+
+**Preview Bucket:**
 ```json
 {
   "Version": "2012-10-17",
@@ -132,7 +172,23 @@ aws s3 website s3://husky-apps-preview --index-document index.html --error-docum
       "Effect": "Allow",
       "Principal": "*",
       "Action": "s3:GetObject",
-      "Resource": "arn:aws:s3:::husky-apps-preview/*"
+      "Resource": "arn:aws:s3:::dev-husky-app-previews/*"
+    }
+  ]
+}
+```
+
+**Projects Bucket:**
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "PublicReadGetObject",
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::dev-husky-projects/*"
     }
   ]
 }

@@ -11,18 +11,18 @@ const readFile = promisify(fs.readFile);
 export class S3StorageService implements IStorageService {
   private s3Client: S3Client;
   private bucketName: string;
-  private versionsBucketName: string;
+  private projectsBucketName: string;
 
   constructor() {
     const region = process.env.AWS_REGION;
     const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
     const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
-    
-    this.bucketName = process.env.S3_BUCKET_NAME!;
-    this.versionsBucketName = process.env.S3_VERSIONS_BUCKET_NAME!;
 
-    if (!this.bucketName || !this.versionsBucketName) {
-      throw new Error(`Missing S3 configuration: S3_BUCKET_NAME=${!!this.bucketName}, S3_VERSIONS_BUCKET_NAME=${!!this.versionsBucketName}`);
+    this.bucketName = process.env.S3_BUCKET_NAME!;
+    this.projectsBucketName = process.env.S3_PROJECTS_BUCKET_NAME!;
+
+    if (!this.bucketName || !this.projectsBucketName) {
+      throw new Error(`Missing S3 configuration: S3_BUCKET_NAME=${!!this.bucketName}, S3_PROJECTS_BUCKET_NAME=${!!this.projectsBucketName}`);
     }
 
     if (!accessKeyId || !secretAccessKey) {
@@ -37,7 +37,7 @@ export class S3StorageService implements IStorageService {
       },
     });
 
-    console.log(`S3StorageService initialized with region: ${region}, buckets: ${this.bucketName}, ${this.versionsBucketName}`);
+    console.log(`S3StorageService initialized with region: ${region}, preview bucket: ${this.bucketName}, projects bucket: ${this.projectsBucketName}`);
   }
 
   async uploadReactApp(appDirectory: string, promptId: string, projectId: string): Promise<UploadResult> {
@@ -70,9 +70,9 @@ export class S3StorageService implements IStorageService {
   async uploadSourceCode(appDirectory: string, projectId: string, version: number): Promise<UploadResult> {
     try {
       const uploadedFiles = await this.uploadDirectory(
-        appDirectory, 
-        `projects/${projectId}/v${version}/source/`,
-        this.versionsBucketName,
+        appDirectory,
+        `${projectId}/web/v${version}/source/`,
+        this.projectsBucketName,
         ['dist', 'node_modules']
       );
 
@@ -91,7 +91,7 @@ export class S3StorageService implements IStorageService {
   async uploadProductionVersion(appDirectory: string, projectId: string, version: number): Promise<UploadResult> {
     try {
       const distPath = path.join(appDirectory, "dist");
-      
+
       if (!fs.existsSync(distPath)) {
         return {
           success: false,
@@ -102,7 +102,7 @@ export class S3StorageService implements IStorageService {
       // Check if dist folder has contents
       const distContents = fs.readdirSync(distPath);
       console.log(`[S3StorageService] Dist folder contents: ${distContents.join(', ')}`);
-      
+
       if (distContents.length === 0) {
         return {
           success: false,
@@ -110,13 +110,13 @@ export class S3StorageService implements IStorageService {
         };
       }
 
-      const s3Prefix = `projects/${projectId}/v${version}/build/`;
-      console.log(`[S3StorageService] Uploading from ${distPath} to ${s3Prefix} in bucket ${this.versionsBucketName}`);
+      const s3Prefix = `${projectId}/web/v${version}/build/`;
+      console.log(`[S3StorageService] Uploading from ${distPath} to ${s3Prefix} in bucket ${this.projectsBucketName}`);
 
       const uploadedFiles = await this.uploadDirectory(
-        distPath, 
+        distPath,
         s3Prefix,
-        this.versionsBucketName
+        this.projectsBucketName
       );
 
       return {
@@ -226,56 +226,56 @@ export class S3StorageService implements IStorageService {
   }
 
   async deleteFolder(prefix: string): Promise<void> {
-    // List all objects with the given prefix
+    // Delete from preview bucket
     const listCommand = new ListObjectsV2Command({
       Bucket: this.bucketName,
       Prefix: prefix,
     });
 
     const listResult = await this.s3Client.send(listCommand);
-    
-    if (!listResult.Contents || listResult.Contents.length === 0) {
-      return; // No objects to delete
-    }
 
-    // Delete objects in batches (S3 allows up to 1000 objects per delete request)
-    const objectsToDelete = listResult.Contents.map(obj => ({ Key: obj.Key! }));
-    
-    while (objectsToDelete.length > 0) {
-      const batch = objectsToDelete.splice(0, 1000);
-      
-      const deleteCommand = new DeleteObjectsCommand({
-        Bucket: this.bucketName,
-        Delete: {
-          Objects: batch,
-        },
-      });
+    if (listResult.Contents && listResult.Contents.length > 0) {
+      const objectsToDelete = listResult.Contents.map(obj => ({ Key: obj.Key! }));
 
-      await this.s3Client.send(deleteCommand);
-    }
+      while (objectsToDelete.length > 0) {
+        const batch = objectsToDelete.splice(0, 1000);
 
-    // Also check versions bucket if we have objects there
-    const versionsListCommand = new ListObjectsV2Command({
-      Bucket: this.versionsBucketName,
-      Prefix: `projects/${prefix}`,
-    });
-
-    const versionsListResult = await this.s3Client.send(versionsListCommand);
-    
-    if (versionsListResult.Contents && versionsListResult.Contents.length > 0) {
-      const versionsToDelete = versionsListResult.Contents.map(obj => ({ Key: obj.Key! }));
-      
-      while (versionsToDelete.length > 0) {
-        const batch = versionsToDelete.splice(0, 1000);
-        
-        const deleteVersionsCommand = new DeleteObjectsCommand({
-          Bucket: this.versionsBucketName,
+        const deleteCommand = new DeleteObjectsCommand({
+          Bucket: this.bucketName,
           Delete: {
             Objects: batch,
           },
         });
 
-        await this.s3Client.send(deleteVersionsCommand);
+        await this.s3Client.send(deleteCommand);
+      }
+    }
+
+    // Delete from projects bucket (extract project ID from prefix and use new structure)
+    const projectId = prefix.replace('projects/', '').replace(/\/$/, '');
+    const projectsPrefix = `${projectId}/web/`;
+
+    const projectsListCommand = new ListObjectsV2Command({
+      Bucket: this.projectsBucketName,
+      Prefix: projectsPrefix,
+    });
+
+    const projectsListResult = await this.s3Client.send(projectsListCommand);
+
+    if (projectsListResult.Contents && projectsListResult.Contents.length > 0) {
+      const projectsToDelete = projectsListResult.Contents.map(obj => ({ Key: obj.Key! }));
+
+      while (projectsToDelete.length > 0) {
+        const batch = projectsToDelete.splice(0, 1000);
+
+        const deleteProjectsCommand = new DeleteObjectsCommand({
+          Bucket: this.projectsBucketName,
+          Delete: {
+            Objects: batch,
+          },
+        });
+
+        await this.s3Client.send(deleteProjectsCommand);
       }
     }
   }

@@ -12,10 +12,10 @@ try {
     error: error instanceof Error ? error.message : 'Unknown error',
     requiredVars: [
       'AWS_ACCESS_KEY_ID',
-      'AWS_SECRET_ACCESS_KEY', 
+      'AWS_SECRET_ACCESS_KEY',
       'AWS_REGION',
       'S3_BUCKET_NAME',
-      'S3_VERSIONS_BUCKET_NAME',
+      'S3_PROJECTS_BUCKET_NAME',
       'SQS_QUEUE_URL'
     ]
   });

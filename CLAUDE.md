@@ -95,9 +95,40 @@ All variables are required for startup:
 - `SUPABASE_URL` & `SUPABASE_SERVICE_ROLE_KEY` - Database access
 - `ANTHROPIC_API_KEY` - AI service
 - `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` - AWS services
-- `S3_BUCKET_NAME`, `S3_VERSIONS_BUCKET_NAME` - File storage
+- `S3_BUCKET_NAME` - Preview bucket (dev-husky-app-previews)
+- `S3_PROJECTS_BUCKET_NAME` - Projects/versions bucket (dev-husky-projects)
 - `SQS_QUEUE_URL` - Job queue
 - `PORT` (optional, defaults to 3333), `NODE_ENV`
+
+### S3 Bucket Structure
+The system uses two S3 buckets:
+
+**Preview Bucket** (`S3_BUCKET_NAME`): For live app previews
+```
+dev-husky-app-previews/
+  projects/
+    <project_id>/
+      index.html
+      assets/
+```
+
+**Projects Bucket** (`S3_PROJECTS_BUCKET_NAME`): For versioned source code and builds
+```
+<project_id>/web/v<version_number>/<"source" | "build">
+```
+
+Example:
+```
+dev-husky-projects/
+  abc123/
+    web/
+      v1/
+        source/         # Full source code (excludes dist, node_modules)
+        build/          # Production build
+      v2/
+        source/
+        build/
+```
 
 ### Supabase Configuration
 **Email Confirmation:** Email confirmation is disabled in the Supabase project settings
