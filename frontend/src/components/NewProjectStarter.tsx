@@ -126,7 +126,7 @@ export const NewProjectStarter = ({ projectId, projectName }: NewProjectStarterP
           title="Project Preview"
           sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
         />
-        <ChatWidget />
+        <ChatWidget projectId={projectId} projectName={projectName} />
       </div>
     )
   }

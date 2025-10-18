@@ -67,6 +67,7 @@ The API follows Clean Architecture with four distinct layers:
 - **Repository Pattern**: Abstract data access through interfaces
 - **Use Case Pattern**: Each business operation is a separate use case class
 - **Clean Architecture**: Dependencies point inward, external concerns are in outer layers
+- **Fail Fast**: NEVER supply default values for missing required data. If a required value is missing, throw a clear exception immediately. Silent fallbacks mask bugs and create unpredictable behavior.
 
 ### Frontend Architecture
 - **React 19** with TypeScript and Vite
@@ -165,3 +166,39 @@ Each generated app includes:
 - ESLint configuration
 - Standard build/dev/preview scripts
 - Component-based architecture with pages and components folders
+
+## Code Quality Standards
+
+### Error Handling
+**CRITICAL: Never use default/fallback values for missing required parameters**
+
+When implementing features or fixing bugs:
+- ✅ DO: Throw clear, descriptive exceptions when required data is missing
+- ✅ DO: Validate inputs early and fail fast
+- ✅ DO: Make required parameters non-optional in function signatures
+- ❌ DON'T: Use first available item as fallback (e.g., `projects[0]` when projectId is missing)
+- ❌ DON'T: Silently substitute default values for missing required data
+- ❌ DON'T: Use fallback logic that masks bugs
+
+**Example - BAD:**
+```typescript
+// BAD: Silent fallback masks bugs
+if (!projectId) {
+  const projects = await getProjects();
+  projectId = projects[0].id; // Wrong! Uses wrong project
+}
+```
+
+**Example - GOOD:**
+```typescript
+// GOOD: Fail fast with clear error
+if (!projectId) {
+  throw new Error('projectId is required');
+}
+```
+
+This principle prevents bugs like:
+- Building/deploying to wrong projects
+- Updating wrong database records
+- Accessing wrong user data
+- Unpredictable behavior in production

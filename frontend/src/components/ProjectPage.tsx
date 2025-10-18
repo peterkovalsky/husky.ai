@@ -177,9 +177,12 @@ export const ProjectPage = () => {
           onLoad={() => setIframeLoading(false)}
           onError={() => setIframeLoading(false)}
         />
-        
+
         {/* Chat Widget */}
-        <ChatWidget />
+        <ChatWidget
+          projectId={projectDetails.project.id}
+          projectName={projectDetails.project.name}
+        />
       </div>
     )
   }

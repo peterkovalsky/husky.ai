@@ -14,7 +14,12 @@ interface ChatMessage {
   jobId?: string
 }
 
-export const ChatWidget = () => {
+interface ChatWidgetProps {
+  projectId?: string;
+  projectName?: string;
+}
+
+export const ChatWidget = ({ projectId, projectName }: ChatWidgetProps = {}) => {
   const [isOpen, setIsOpen] = useState(true)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [currentPrompt, setCurrentPrompt] = useState('')
@@ -26,6 +31,10 @@ export const ChatWidget = () => {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const pollCleanupRef = useRef<(() => void) | null>(null)
   const lastStatusRef = useRef<string | null>(null)
+
+  // Use explicit projectId prop if provided, otherwise fall back to context
+  const activeProjectId = projectId || currentProject?.id
+  const activeProjectName = projectName || currentProject?.name
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -67,8 +76,8 @@ export const ChatWidget = () => {
     
     if (!currentPrompt.trim() || isSubmitting) return
     
-    // If no current project, show a message
-    if (!currentProject) {
+    // If no active project, show a message
+    if (!activeProjectId) {
       addSystemMessage('Please select a project first to build your app.', 'error')
       return
     }
@@ -87,7 +96,7 @@ export const ChatWidget = () => {
     setIsSubmitting(true)
 
     try {
-      const response = await ApiService.submitPrompt(userMessage.content, currentProject.id)
+      const response = await ApiService.submitPrompt(userMessage.content, activeProjectId)
       updateMessageStatus(messageId, 'processing', response.promptId || response.jobId)
       
       addSystemMessage('🚀 Building your app update...')
@@ -207,7 +216,7 @@ export const ChatWidget = () => {
             <div className="flex items-center justify-between p-4 border-b border-divider">
               <div className="flex items-center gap-2">
                 <MessageCircle className="h-5 w-5" />
-                <span>{currentProject?.name || 'Quick Build'}</span>
+                <span>{activeProjectName || 'Quick Build'}</span>
               </div>
               <div className="flex items-center gap-1">
                 <Button
@@ -238,7 +247,7 @@ export const ChatWidget = () => {
                     <MessageCircle className="h-8 w-8 opacity-60" />
                   </div>
                   <p className="opacity-70 leading-relaxed">
-                    {currentProject 
+                    {activeProjectId
                       ? "Describe changes to your app and I'll build them instantly!"
                       : "Select a project to start building!"
                     }
@@ -291,12 +300,12 @@ export const ChatWidget = () => {
                     value={currentPrompt}
                     onValueChange={setCurrentPrompt}
                     onKeyDown={handleKeyDown}
-                    placeholder={currentProject ? "Describe your changes..." : "Select a project first..."}
+                    placeholder={activeProjectId ? "Describe your changes..." : "Select a project first..."}
                     className="pr-12"
                     classNames={{
                       input: "min-h-[60px] max-h-[120px] resize-none"
                     }}
-                    isDisabled={isSubmitting || !currentProject}
+                    isDisabled={isSubmitting || !activeProjectId}
                     minRows={2}
                     maxRows={5}
                     variant="bordered"
@@ -304,7 +313,7 @@ export const ChatWidget = () => {
                   <Button
                     type="submit"
                     size="sm"
-                    isDisabled={!currentPrompt.trim() || isSubmitting || !currentProject}
+                    isDisabled={!currentPrompt.trim() || isSubmitting || !activeProjectId}
                     className="absolute bottom-2 right-2"
                     isIconOnly
                     color="primary"

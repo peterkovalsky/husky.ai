@@ -20,25 +20,15 @@ export class CreatePromptUseCase {
 
     let projectId = dto.projectId;
 
-    // If no project_id provided, find user's default project
+    // Project ID is required
     if (!projectId) {
-      const workspaces = await this.workspaceRepository.findByUserId(user.id);
-      if (workspaces.length === 0) {
-        throw new Error('No workspace found. Please specify project_id.');
-      }
-      
-      const projects = await this.projectRepository.findByWorkspaceId(workspaces[0].id);
-      if (projects.length === 0) {
-        throw new Error('No project found. Please specify project_id.');
-      }
-      
-      projectId = projects[0].id;
-    } else {
-      // Verify user has access to the specified project
-      const hasAccess = await this.projectRepository.checkUserAccess(user.id, projectId);
-      if (!hasAccess) {
-        throw new Error('Access denied to project');
-      }
+      throw new Error('projectId is required. Please specify which project to build.');
+    }
+
+    // Verify user has access to the specified project
+    const hasAccess = await this.projectRepository.checkUserAccess(user.id, projectId);
+    if (!hasAccess) {
+      throw new Error('Access denied to project');
     }
 
     // Create prompt in database

@@ -12,7 +12,9 @@ export class PromptController {
   createPrompt = async (req: AuthRequest, res: Response) => {
     try {
       const { prompt, projectId } = req.body;
-      
+
+      console.log('[PromptController] Creating prompt - projectId:', projectId, 'prompt:', prompt?.substring(0, 50));
+
       if (!req.user) {
         return res.status(401).json({ error: 'User not authenticated' });
       }
@@ -21,6 +23,8 @@ export class PromptController {
         { prompt, projectId },
         req.user
       );
+
+      console.log('[PromptController] Prompt created successfully - promptId:', result.promptId, 'finalProjectId:', result.projectId);
 
       res.json({
         message: 'Prompt queued successfully',
