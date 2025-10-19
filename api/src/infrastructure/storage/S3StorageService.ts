@@ -1,4 +1,5 @@
-import { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectCommand, DeleteObjectsCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectCommand, DeleteObjectsCommand, HeadObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { IStorageService, UploadResult } from '../../domain/services/IStorageService';
 import fs from "fs";
 import path from "path";
@@ -277,6 +278,53 @@ export class S3StorageService implements IStorageService {
 
         await this.s3Client.send(deleteProjectsCommand);
       }
+    }
+  }
+
+  async generatePresignedUploadUrl(key: string, mimeType: string, expiresIn: number, bucket?: string): Promise<string> {
+    const targetBucket = bucket || this.bucketName;
+
+    const command = new PutObjectCommand({
+      Bucket: targetBucket,
+      Key: key,
+      ContentType: mimeType,
+    });
+
+    const signedUrl = await getSignedUrl(this.s3Client, command, { expiresIn });
+    console.log(`[S3StorageService] Generated presigned upload URL for ${key} in bucket ${targetBucket}, expires in ${expiresIn}s`);
+
+    return signedUrl;
+  }
+
+  async generatePresignedDownloadUrl(key: string, expiresIn: number, bucket?: string): Promise<string> {
+    const targetBucket = bucket || this.bucketName;
+
+    const command = new GetObjectCommand({
+      Bucket: targetBucket,
+      Key: key,
+    });
+
+    const signedUrl = await getSignedUrl(this.s3Client, command, { expiresIn });
+    console.log(`[S3StorageService] Generated presigned download URL for ${key} in bucket ${targetBucket}, expires in ${expiresIn}s`);
+
+    return signedUrl;
+  }
+
+  async verifyFileExists(key: string, bucket?: string): Promise<boolean> {
+    const targetBucket = bucket || this.bucketName;
+
+    try {
+      const command = new HeadObjectCommand({
+        Bucket: targetBucket,
+        Key: key,
+      });
+
+      await this.s3Client.send(command);
+      console.log(`[S3StorageService] File exists: ${key} in bucket ${targetBucket}`);
+      return true;
+    } catch (error) {
+      console.log(`[S3StorageService] File does not exist: ${key} in bucket ${targetBucket}`);
+      return false;
     }
   }
 }

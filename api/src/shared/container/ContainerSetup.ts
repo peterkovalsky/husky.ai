@@ -5,6 +5,7 @@ import { IWorkspaceRepository } from '../../domain/repositories/IWorkspaceReposi
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
 import { IPromptRepository } from '../../domain/repositories/IPromptRepository';
 import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
+import { IMediaRepository } from '../../domain/repositories/IMediaRepository';
 
 // Domain Services
 import { IAIService } from '../../domain/services/IAIService';
@@ -18,6 +19,7 @@ import { SupabaseWorkspaceRepository } from '../../infrastructure/database/Supab
 import { SupabaseProjectRepository } from '../../infrastructure/database/SupabaseProjectRepository';
 import { SupabasePromptRepository } from '../../infrastructure/database/SupabasePromptRepository';
 import { SupabaseBuildRepository } from '../../infrastructure/database/SupabaseBuildRepository';
+import { SupabaseMediaRepository } from '../../infrastructure/database/SupabaseMediaRepository';
 import { AnthropicAIService } from '../../infrastructure/ai/AnthropicAIService';
 import { S3StorageService } from '../../infrastructure/storage/S3StorageService';
 import { SQSQueueService } from '../../infrastructure/queue/SQSQueueService';
@@ -34,6 +36,8 @@ import { ProcessJobUseCase } from '../../application/use-cases/ProcessJobUseCase
 import { PrepareProjectEnvironmentUseCase } from '../../application/use-cases/PrepareProjectEnvironmentUseCase';
 import { DeleteProjectUseCase } from '../../application/use-cases/DeleteProjectUseCase';
 import { SetupUserUseCase } from '../../application/use-cases/SetupUserUseCase';
+import { GeneratePresignedUploadUseCase } from '../../application/use-cases/GeneratePresignedUploadUseCase';
+import { ConfirmMediaUploadUseCase } from '../../application/use-cases/ConfirmMediaUploadUseCase';
 
 // Presentation Layer
 import { AuthMiddleware } from '../../presentation/middleware/AuthMiddleware';
@@ -42,6 +46,7 @@ import { PromptController } from '../../presentation/controllers/PromptControlle
 import { ProjectController } from '../../presentation/controllers/ProjectController';
 import { WorkspaceController } from '../../presentation/controllers/WorkspaceController';
 import { UserController } from '../../presentation/controllers/UserController';
+import { MediaController } from '../../presentation/controllers/MediaController';
 
 export function setupContainer(): DIContainer {
   const container = new DIContainer();
@@ -51,6 +56,7 @@ export function setupContainer(): DIContainer {
   container.registerFactory<IProjectRepository>('projectRepository', () => new SupabaseProjectRepository());
   container.registerFactory<IPromptRepository>('promptRepository', () => new SupabasePromptRepository());
   container.registerFactory<IBuildRepository>('buildRepository', () => new SupabaseBuildRepository());
+  container.registerFactory<IMediaRepository>('mediaRepository', () => new SupabaseMediaRepository());
 
   // Register Infrastructure Services
   container.registerFactory<IAIService>('aiService', () => {
@@ -75,7 +81,8 @@ export function setupContainer(): DIContainer {
     container.get<IPromptRepository>('promptRepository'),
     container.get<IProjectRepository>('projectRepository'),
     container.get<IWorkspaceRepository>('workspaceRepository'),
-    container.get<IQueueService>('queueService')
+    container.get<IQueueService>('queueService'),
+    container.get<IMediaRepository>('mediaRepository')
   ));
 
   container.registerFactory<GetPromptStatusUseCase>('getPromptStatusUseCase', () => new GetPromptStatusUseCase(
@@ -107,7 +114,8 @@ export function setupContainer(): DIContainer {
     container.get<IAIService>('aiService'),
     container.get<IBuildService>('buildService'),
     container.get<IStorageService>('storageService'),
-    container.get<PrepareProjectEnvironmentUseCase>('prepareProjectEnvironmentUseCase')
+    container.get<PrepareProjectEnvironmentUseCase>('prepareProjectEnvironmentUseCase'),
+    container.get<IMediaRepository>('mediaRepository')
   ));
 
   container.registerFactory<DeleteProjectUseCase>('deleteProjectUseCase', () => new DeleteProjectUseCase(
@@ -154,6 +162,24 @@ export function setupContainer(): DIContainer {
 
   container.registerFactory<UserController>('userController', () => new UserController(
     container.get<SetupUserUseCase>('setupUserUseCase')
+  ));
+
+  // Register Media Use Cases
+  container.registerFactory<GeneratePresignedUploadUseCase>('generatePresignedUploadUseCase', () => new GeneratePresignedUploadUseCase(
+    container.get<IMediaRepository>('mediaRepository'),
+    container.get<IStorageService>('storageService'),
+    container.get<IProjectRepository>('projectRepository')
+  ));
+
+  container.registerFactory<ConfirmMediaUploadUseCase>('confirmMediaUploadUseCase', () => new ConfirmMediaUploadUseCase(
+    container.get<IMediaRepository>('mediaRepository'),
+    container.get<IStorageService>('storageService')
+  ));
+
+  // Register Media Controller
+  container.registerFactory<MediaController>('mediaController', () => new MediaController(
+    container.get<GeneratePresignedUploadUseCase>('generatePresignedUploadUseCase'),
+    container.get<ConfirmMediaUploadUseCase>('confirmMediaUploadUseCase')
   ));
 
   return container;

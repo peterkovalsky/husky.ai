@@ -1,0 +1,64 @@
+import { Request, Response } from 'express';
+import { GeneratePresignedUploadUseCase } from '../../application/use-cases/GeneratePresignedUploadUseCase';
+import { ConfirmMediaUploadUseCase } from '../../application/use-cases/ConfirmMediaUploadUseCase';
+
+export class MediaController {
+  constructor(
+    private generatePresignedUploadUseCase: GeneratePresignedUploadUseCase,
+    private confirmMediaUploadUseCase: ConfirmMediaUploadUseCase
+  ) {}
+
+  generatePresignedUpload = async (req: Request, res: Response) => {
+    try {
+      const { fileName, mimeType, projectId } = req.body;
+      const user = (req as any).user;
+
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      if (!fileName || !mimeType || !projectId) {
+        return res.status(400).json({ error: 'fileName, mimeType, and projectId are required' });
+      }
+
+      const result = await this.generatePresignedUploadUseCase.execute(
+        { fileName, mimeType, projectId },
+        user.id
+      );
+
+      res.status(200).json(result);
+    } catch (error) {
+      console.error('Error generating presigned upload URL:', error);
+      res.status(500).json({
+        error: error instanceof Error ? error.message : 'Failed to generate presigned upload URL'
+      });
+    }
+  };
+
+  confirmUpload = async (req: Request, res: Response) => {
+    try {
+      const { mediaId } = req.body;
+      const user = (req as any).user;
+
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      if (!mediaId) {
+        return res.status(400).json({ error: 'mediaId is required' });
+      }
+
+      const result = await this.confirmMediaUploadUseCase.execute(
+        { mediaId },
+        user.id
+      );
+
+      res.status(200).json(result);
+    } catch (error) {
+      console.error('Error confirming media upload:', error);
+      res.status(500).json({
+        error: error instanceof Error ? error.message : 'Failed to confirm media upload'
+      });
+    }
+  };
+}

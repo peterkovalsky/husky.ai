@@ -4,6 +4,7 @@ export interface JobMessage {
   prompt: string;
   projectId: string;
   userId: string;
+  mediaIds?: string[];
   timestamp: string;
 }
 

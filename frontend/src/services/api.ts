@@ -111,6 +111,21 @@ export interface CreateProjectRequest {
   workspaceId?: string;
 }
 
+export interface GeneratePresignedUploadResponse {
+  mediaId: string;
+  uploadUrl: string;
+  s3Key: string;
+}
+
+export interface ConfirmMediaUploadResponse {
+  success: boolean;
+  media: {
+    id: string;
+    s3Key: string;
+    mimeType: string;
+  };
+}
+
 
 import { supabase } from '../lib/supabase';
 
@@ -155,10 +170,10 @@ export class ApiService {
     }
   }
 
-  static async submitPrompt(prompt: string, projectId?: string): Promise<PromptResponse> {
+  static async submitPrompt(prompt: string, projectId?: string, mediaIds?: string[]): Promise<PromptResponse> {
     return this.request<PromptResponse>('/api/prompt', {
       method: 'POST',
-      body: JSON.stringify({ prompt, projectId }),
+      body: JSON.stringify({ prompt, projectId, mediaIds }),
     });
   }
 
@@ -210,7 +225,7 @@ export class ApiService {
       try {
         const status = await this.getJobStatus(jobId);
         onUpdate(status);
-        
+
         // Stop polling if job is in final state
         if (status.status === 'READY' || status.status === 'FAILED' || status.errorMessage) {
           clearInterval(intervalId);
@@ -229,5 +244,38 @@ export class ApiService {
 
     // Return cleanup function
     return () => clearInterval(intervalId);
+  }
+
+  // Media upload methods
+  static async generatePresignedUpload(
+    fileName: string,
+    mimeType: string,
+    projectId: string
+  ): Promise<GeneratePresignedUploadResponse> {
+    return this.request<GeneratePresignedUploadResponse>('/api/media/presigned-upload', {
+      method: 'POST',
+      body: JSON.stringify({ fileName, mimeType, projectId }),
+    });
+  }
+
+  static async uploadToS3(file: File, uploadUrl: string): Promise<void> {
+    const response = await fetch(uploadUrl, {
+      method: 'PUT',
+      body: file,
+      headers: {
+        'Content-Type': file.type,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to upload to S3: ${response.statusText}`);
+    }
+  }
+
+  static async confirmMediaUpload(mediaId: string): Promise<ConfirmMediaUploadResponse> {
+    return this.request<ConfirmMediaUploadResponse>('/api/media/confirm-upload', {
+      method: 'POST',
+      body: JSON.stringify({ mediaId }),
+    });
   }
 }

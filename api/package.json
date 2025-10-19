@@ -20,6 +20,7 @@
     "@anthropic-ai/sdk": "^0.56.0",
     "@aws-sdk/client-s3": "^3.848.0",
     "@aws-sdk/client-sqs": "^3.848.0",
+    "@aws-sdk/s3-request-presigner": "^3.913.0",
     "@supabase/supabase-js": "^2.52.0",
     "@types/cors": "^2.8.19",
     "cors": "^2.8.5",

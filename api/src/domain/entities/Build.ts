@@ -21,6 +21,7 @@ export interface Build {
   metrics: BuildMetrics;
   inputTokens?: number;
   outputTokens?: number;
+  mediaIds?: string[];
   createdAt: Date;
   modifiedAt: Date;
 }
@@ -32,4 +33,5 @@ export interface CreateBuildRequest {
   metrics?: BuildMetrics;
   inputTokens?: number;
   outputTokens?: number;
+  mediaIds?: string[];
 }

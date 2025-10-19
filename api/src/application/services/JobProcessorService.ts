@@ -84,6 +84,8 @@ export class JobProcessorService {
       } else {
         // Handle regular job processing
         const jobMessage = message as JobMessage;
+        console.log(`[JobProcessorService] Received job message:`, JSON.stringify(jobMessage, null, 2));
+        console.log(`[JobProcessorService] mediaIds in message:`, jobMessage.mediaIds);
         this.logger.info(`Processing job message`, { promptId: jobMessage.promptId });
         await this.processJobUseCase.execute(jobMessage);
       }

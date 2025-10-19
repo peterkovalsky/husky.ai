@@ -5,6 +5,7 @@ import { PromptController } from '../controllers/PromptController';
 import { ProjectController } from '../controllers/ProjectController';
 import { WorkspaceController } from '../controllers/WorkspaceController';
 import { UserController } from '../controllers/UserController';
+import { MediaController } from '../controllers/MediaController';
 interface ApiRoutesDependencies {
   authMiddleware: AuthMiddleware;
   workspaceAccessMiddleware: WorkspaceAccessMiddleware;
@@ -12,6 +13,7 @@ interface ApiRoutesDependencies {
   projectController: ProjectController;
   workspaceController: WorkspaceController;
   userController: UserController;
+  mediaController: MediaController;
 }
 
 export function createApiRoutes(deps: ApiRoutesDependencies): Router {
@@ -67,9 +69,20 @@ export function createApiRoutes(deps: ApiRoutesDependencies): Router {
     deps.projectController.getPromptsByProject
   );
 
-  router.delete('/projects/:projectId', 
-    deps.authMiddleware.authenticate, 
+  router.delete('/projects/:projectId',
+    deps.authMiddleware.authenticate,
     deps.projectController.deleteProject
+  );
+
+  // Media routes
+  router.post('/media/presigned-upload',
+    deps.authMiddleware.authenticate,
+    deps.mediaController.generatePresignedUpload
+  );
+
+  router.post('/media/confirm-upload',
+    deps.authMiddleware.authenticate,
+    deps.mediaController.confirmUpload
   );
 
   return router;

@@ -91,16 +91,6 @@ export const ProjectPage = () => {
     }
   }, [latestJobStatus])
 
-  // Update iframe key whenever the base preview URL changes (without timestamp)
-  useEffect(() => {
-    if (latestJobStatus?.previewUrl) {
-      // Extract base URL without timestamp parameter
-      const baseUrl = latestJobStatus.previewUrl.split('?')[0]
-      setIframeKey(prev => prev + 1)
-      setIframeLoading(true)
-    }
-  }, [latestJobStatus?.previewUrl])
-
   // Helper function to add cache-busting parameter to preview URL
   const getCacheBustedUrl = (url: string) => {
     const timestamp = Date.now()

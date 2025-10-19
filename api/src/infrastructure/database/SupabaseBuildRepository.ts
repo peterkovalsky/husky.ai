@@ -12,6 +12,7 @@ export class SupabaseBuildRepository implements IBuildRepository {
 
   async create(request: CreateBuildRequest): Promise<Build> {
     // Initially set version to 0, will be updated when build reaches READY status
+    console.log(`[SupabaseBuildRepository] Creating build with mediaIds:`, request.mediaIds);
     const { data, error } = await this.supabase
       .from('builds')
       .insert({
@@ -21,13 +22,18 @@ export class SupabaseBuildRepository implements IBuildRepository {
         status: request.status || 'QUEUED',
         metrics: request.metrics || {},
         input_tokens: request.inputTokens,
-        output_tokens: request.outputTokens
+        output_tokens: request.outputTokens,
+        media_ids: request.mediaIds || []
       })
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error(`[SupabaseBuildRepository] Error creating build:`, error);
+      throw error;
+    }
 
+    console.log(`[SupabaseBuildRepository] Build created successfully, returned data.media_ids:`, data.media_ids);
     return this.mapToEntity(data);
   }
 
@@ -152,10 +158,19 @@ export class SupabaseBuildRepository implements IBuildRepository {
   async updateTokens(id: string, inputTokens: number, outputTokens: number): Promise<void> {
     const { error } = await this.supabase
       .from('builds')
-      .update({ 
-        input_tokens: inputTokens, 
-        output_tokens: outputTokens 
+      .update({
+        input_tokens: inputTokens,
+        output_tokens: outputTokens
       })
+      .eq('id', id);
+
+    if (error) throw error;
+  }
+
+  async updateMediaIds(id: string, mediaIds: string[]): Promise<void> {
+    const { error } = await this.supabase
+      .from('builds')
+      .update({ media_ids: mediaIds })
       .eq('id', id);
 
     if (error) throw error;
@@ -180,6 +195,7 @@ export class SupabaseBuildRepository implements IBuildRepository {
       metrics: data.metrics || {},
       inputTokens: data.input_tokens,
       outputTokens: data.output_tokens,
+      mediaIds: data.media_ids || [],
       createdAt: new Date(data.created_at),
       modifiedAt: new Date(data.modified_at)
     };

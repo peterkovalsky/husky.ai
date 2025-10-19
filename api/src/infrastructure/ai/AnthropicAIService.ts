@@ -106,13 +106,16 @@ export class AnthropicAIService implements IAIService {
   }
 
 
-  async generateResponse(userRequest: string, promptId: string, useHaiku: boolean = false): Promise<AIResponse> {
+  async generateResponse(userRequest: string, promptId: string, useHaiku: boolean = false, mediaUrls?: string[]): Promise<AIResponse> {
     const startTime = Date.now();
 
     try {
       // Select model based on whether this is a first version or subsequent version
       const selectedModel = useHaiku ? "claude-haiku-4-5-20251001" : "claude-sonnet-4-5-20250929";
       console.log(`Starting generateResponse with model: ${selectedModel}...`);
+      if (mediaUrls && mediaUrls.length > 0) {
+        console.log(`Including ${mediaUrls.length} images in AI request`);
+      }
 
       const systemPrompt = `You are a senior UI/UX developer assistant that creates beautiful, industry-appropriate React applications based on user requests.
 You receive:
@@ -226,6 +229,23 @@ ${fileTreeContent}
 Request:
 ${userRequest}`;
 
+      // Build user message content with images if provided
+      const userContent = mediaUrls && mediaUrls.length > 0
+        ? [
+            ...mediaUrls.map(url => ({
+              type: "image" as const,
+              source: {
+                type: "url" as const,
+                url
+              }
+            })),
+            {
+              type: "text" as const,
+              text: prompt
+            }
+          ]
+        : prompt;
+
       console.log("Calling Anthropic API with streaming...");
       const stream = await this.client.messages.stream({
         model: selectedModel,
@@ -234,7 +254,7 @@ ${userRequest}`;
         messages: [
           {
             role: "user",
-            content: prompt,
+            content: userContent,
           },
         ],
         tools: [

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ApiService, type JobStatus } from '../services/api'
 import { useProject } from '../contexts/ProjectContext'
 import { Button, Textarea, Card, Spinner } from '@heroui/react'
-import { MessageCircle, X, Send, Loader2, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react'
+import { MessageCircle, X, Send, Loader2, CheckCircle, AlertCircle, ArrowLeft, ImageIcon } from 'lucide-react'
 
 interface ChatMessage {
   id: string
@@ -12,6 +12,15 @@ interface ChatMessage {
   timestamp: Date
   status?: 'sending' | 'processing' | 'completed' | 'failed'
   jobId?: string
+}
+
+interface AttachedImage {
+  id: string
+  file: File
+  preview: string
+  uploadStatus: 'pending' | 'uploading' | 'ready' | 'failed'
+  mediaId?: string
+  error?: string
 }
 
 interface ChatWidgetProps {
@@ -25,12 +34,15 @@ export const ChatWidget = ({ projectId, projectName }: ChatWidgetProps = {}) => 
   const [currentPrompt, setCurrentPrompt] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [attachedImages, setAttachedImages] = useState<AttachedImage[]>([])
+  const [isDragging, setIsDragging] = useState(false)
   const { currentProject } = useProject()
   const navigate = useNavigate()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const pollCleanupRef = useRef<(() => void) | null>(null)
   const lastStatusRef = useRef<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Use explicit projectId prop if provided, otherwise fall back to context
   const activeProjectId = projectId || currentProject?.id
@@ -71,14 +83,144 @@ export const ChatWidget = ({ projectId, projectName }: ChatWidgetProps = {}) => 
     setMessages(prev => [...prev, systemMessage])
   }
 
+  const validateImage = (file: File): string | null => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+    if (!allowedTypes.includes(file.type)) {
+      return 'Only JPEG, PNG, GIF, and WebP images are allowed'
+    }
+    const maxSize = 5 * 1024 * 1024 // 5MB
+    if (file.size > maxSize) {
+      return 'Image must be smaller than 5MB'
+    }
+    return null
+  }
+
+  const uploadImage = async (file: File) => {
+    if (!activeProjectId) {
+      console.error('No active project for image upload')
+      return
+    }
+
+    const imageId = Date.now().toString()
+    const preview = URL.createObjectURL(file)
+
+    // Add to attached images with pending status
+    const newImage: AttachedImage = {
+      id: imageId,
+      file,
+      preview,
+      uploadStatus: 'uploading'
+    }
+    setAttachedImages(prev => [...prev, newImage])
+
+    try {
+      // Step 1: Get presigned upload URL
+      const { mediaId, uploadUrl } = await ApiService.generatePresignedUpload(
+        file.name,
+        file.type,
+        activeProjectId
+      )
+
+      // Step 2: Upload to S3
+      await ApiService.uploadToS3(file, uploadUrl)
+
+      // Step 3: Confirm upload
+      await ApiService.confirmMediaUpload(mediaId)
+
+      // Update image status to ready
+      setAttachedImages(prev =>
+        prev.map(img =>
+          img.id === imageId
+            ? { ...img, uploadStatus: 'ready', mediaId }
+            : img
+        )
+      )
+    } catch (error) {
+      console.error('Image upload failed:', error)
+      setAttachedImages(prev =>
+        prev.map(img =>
+          img.id === imageId
+            ? { ...img, uploadStatus: 'failed', error: error instanceof Error ? error.message : 'Upload failed' }
+            : img
+        )
+      )
+    }
+  }
+
+  const handleFileSelect = async (files: FileList | null) => {
+    if (!files || files.length === 0) return
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      const error = validateImage(file)
+      if (error) {
+        addSystemMessage(error, 'error')
+        continue
+      }
+      await uploadImage(file)
+    }
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+  }
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+
+    const files = e.dataTransfer.files
+    await handleFileSelect(files)
+  }
+
+  const removeImage = (imageId: string) => {
+    setAttachedImages(prev => {
+      const image = prev.find(img => img.id === imageId)
+      if (image) {
+        URL.revokeObjectURL(image.preview)
+      }
+      return prev.filter(img => img.id !== imageId)
+    })
+  }
+
+  // Cleanup blob URLs on unmount
+  useEffect(() => {
+    return () => {
+      attachedImages.forEach(img => URL.revokeObjectURL(img.preview))
+    }
+  }, [])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!currentPrompt.trim() || isSubmitting) return
-    
+
     // If no active project, show a message
     if (!activeProjectId) {
       addSystemMessage('Please select a project first to build your app.', 'error')
+      return
+    }
+
+    // Check if any images are still uploading
+    const uploadingImages = attachedImages.filter(img => img.uploadStatus === 'uploading')
+    if (uploadingImages.length > 0) {
+      addSystemMessage('Please wait for images to finish uploading', 'error')
+      return
+    }
+
+    // Check if any images failed
+    const failedImages = attachedImages.filter(img => img.uploadStatus === 'failed')
+    if (failedImages.length > 0) {
+      addSystemMessage('Please remove failed images before submitting', 'error')
       return
     }
 
@@ -91,12 +233,26 @@ export const ChatWidget = ({ projectId, projectName }: ChatWidgetProps = {}) => 
       status: 'sending'
     }
 
+    // Get mediaIds from ready images
+    const mediaIds = attachedImages
+      .filter(img => img.uploadStatus === 'ready' && img.mediaId)
+      .map(img => img.mediaId!)
+
+    console.log('[ChatWidget] Attached images:', attachedImages)
+    console.log('[ChatWidget] Media IDs to submit:', mediaIds)
+
     setMessages(prev => [...prev, userMessage])
     setCurrentPrompt('')
     setIsSubmitting(true)
 
     try {
-      const response = await ApiService.submitPrompt(userMessage.content, activeProjectId)
+      console.log('[ChatWidget] Submitting prompt with mediaIds:', mediaIds)
+      const response = await ApiService.submitPrompt(
+        userMessage.content,
+        activeProjectId,
+        mediaIds.length > 0 ? mediaIds : undefined
+      )
+      console.log('[ChatWidget] Submit response:', response)
       updateMessageStatus(messageId, 'processing', response.promptId || response.jobId)
       
       addSystemMessage('🚀 Building your app update...')
@@ -149,8 +305,13 @@ export const ChatWidget = ({ projectId, projectName }: ChatWidgetProps = {}) => 
           setIsProcessing(false)
         }
       )
-      
+
+
       pollCleanupRef.current = cleanup
+
+      // Clear attached images after successful submission
+      attachedImages.forEach(img => URL.revokeObjectURL(img.preview))
+      setAttachedImages([])
     } catch (error) {
       updateMessageStatus(messageId, 'failed')
       addSystemMessage(`❌ Failed to submit: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error')
@@ -292,16 +453,78 @@ export const ChatWidget = ({ projectId, projectName }: ChatWidgetProps = {}) => 
             </div>
 
             {/* Input */}
-            <div className="p-4 border-t border-divider">
+            <div
+              className="p-4 border-t border-divider"
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              {/* Image Previews */}
+              {attachedImages.length > 0 && (
+                <div className="mb-3 flex gap-2 overflow-x-auto pb-2">
+                  {attachedImages.map((image) => (
+                    <div key={image.id} className="relative flex-shrink-0">
+                      <div className="relative w-20 h-20 rounded-lg overflow-hidden border-2 border-divider">
+                        <img
+                          src={image.preview}
+                          alt="Preview"
+                          className="w-full h-full object-cover"
+                        />
+                        {image.uploadStatus === 'uploading' && (
+                          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                            <Loader2 className="h-5 w-5 text-white animate-spin" />
+                          </div>
+                        )}
+                        {image.uploadStatus === 'failed' && (
+                          <div className="absolute inset-0 bg-danger/50 flex items-center justify-center">
+                            <AlertCircle className="h-5 w-5 text-white" />
+                          </div>
+                        )}
+                        {image.uploadStatus === 'ready' && (
+                          <div className="absolute top-0 right-0 bg-success rounded-bl-lg p-0.5">
+                            <CheckCircle className="h-3 w-3 text-white" />
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => removeImage(image.id)}
+                        className="absolute -top-2 -right-2 bg-danger rounded-full p-1 hover:bg-danger/80"
+                        type="button"
+                      >
+                        <X className="h-3 w-3 text-white" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Drag & Drop Overlay */}
+              {isDragging && (
+                <div className="absolute inset-0 bg-primary/10 border-2 border-dashed border-primary rounded-lg flex items-center justify-center z-10 pointer-events-none">
+                  <div className="text-center">
+                    <ImageIcon className="h-12 w-12 mx-auto mb-2 text-primary" />
+                    <p className="text-sm font-medium text-primary">Drop images here</p>
+                  </div>
+                </div>
+              )}
+
               <form onSubmit={handleSubmit}>
                 <div className="relative">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/gif,image/webp"
+                    multiple
+                    onChange={(e) => handleFileSelect(e.target.files)}
+                    className="hidden"
+                  />
                   <Textarea
                     ref={textareaRef}
                     value={currentPrompt}
                     onValueChange={setCurrentPrompt}
                     onKeyDown={handleKeyDown}
                     placeholder={activeProjectId ? "Describe your changes..." : "Select a project first..."}
-                    className="pr-12"
+                    className="pr-20"
                     classNames={{
                       input: "min-h-[60px] max-h-[120px] resize-none"
                     }}
@@ -310,20 +533,31 @@ export const ChatWidget = ({ projectId, projectName }: ChatWidgetProps = {}) => 
                     maxRows={5}
                     variant="bordered"
                   />
-                  <Button
-                    type="submit"
-                    size="sm"
-                    isDisabled={!currentPrompt.trim() || isSubmitting || !activeProjectId}
-                    className="absolute bottom-2 right-2"
-                    isIconOnly
-                    color="primary"
-                  >
-                    {isSubmitting ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Send className="h-4 w-4" />
-                    )}
-                  </Button>
+                  <div className="absolute bottom-2 right-2 flex gap-1">
+                    <Button
+                      size="sm"
+                      variant="light"
+                      isIconOnly
+                      onPress={() => fileInputRef.current?.click()}
+                      isDisabled={!activeProjectId}
+                      title="Attach image"
+                    >
+                      <ImageIcon className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      isDisabled={!currentPrompt.trim() || isSubmitting || !activeProjectId}
+                      isIconOnly
+                      color="primary"
+                    >
+                      {isSubmitting ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Send className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </form>
             </div>

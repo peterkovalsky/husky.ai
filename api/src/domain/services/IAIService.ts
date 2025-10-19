@@ -9,7 +9,7 @@ export interface AIResponse {
 }
 
 export interface IAIService {
-  generateResponse(prompt: string, promptId: string, useHaiku?: boolean): Promise<AIResponse>;
+  generateResponse(prompt: string, promptId: string, useHaiku?: boolean, mediaUrls?: string[]): Promise<AIResponse>;
   setProjectContext(projectId: string, fileTree: Record<string, string>, buildId?: string): Promise<void>;
   getCurrentFileTree(): Record<string, string>;
 }

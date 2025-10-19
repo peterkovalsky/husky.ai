@@ -1,6 +1,7 @@
 import { IPromptRepository } from '../../domain/repositories/IPromptRepository';
 import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
+import { IMediaRepository } from '../../domain/repositories/IMediaRepository';
 import { IAIService } from '../../domain/services/IAIService';
 import { IBuildService } from '../../domain/services/IBuildService';
 import { IStorageService } from '../../domain/services/IStorageService';
@@ -23,7 +24,8 @@ export class ProcessJobUseCase {
     private aiService: IAIService,
     private buildService: IBuildService,
     private storageService: IStorageService,
-    private prepareProjectEnvironmentUseCase: PrepareProjectEnvironmentUseCase
+    private prepareProjectEnvironmentUseCase: PrepareProjectEnvironmentUseCase,
+    private mediaRepository: IMediaRepository
   ) {
     this.templateFilePath = path.join(__dirname, "../../template-react18-ts.json");
     this.buildLogger = new BuildLogger();
@@ -51,7 +53,7 @@ export class ProcessJobUseCase {
 
 
   async execute(jobMessage: JobMessage): Promise<void> {
-    const { promptId, jobId, prompt, projectId, userId } = jobMessage;
+    const { promptId, jobId, prompt, projectId, userId, mediaIds } = jobMessage;
     const actualPromptId = promptId || jobId; // Support both old and new message format
 
     if (!actualPromptId) {
@@ -73,25 +75,29 @@ export class ProcessJobUseCase {
 
     try {
       console.log(`Processing prompt ${safePromptId}...`);
+      console.log(`Job message mediaIds:`, mediaIds);
 
       // Check if prompt already has a build (prevent duplicate processing)
       const existingPrompt = await this.promptRepository.findById(safePromptId);
       if (!existingPrompt) {
         throw new Error(`Prompt ${safePromptId} not found`);
       }
-      
+
       if (existingPrompt.buildId) {
         console.log(`Prompt ${safePromptId} already has build ${existingPrompt.buildId}, skipping duplicate processing`);
         return;
       }
 
       // Create build with PROCESSING status and version 0
+      console.log(`Creating build with mediaIds:`, mediaIds);
       const createdBuild = await this.buildRepository.create({
         fileTree: {},
         projectId: safeProjectId,
-        status: 'PROCESSING'
+        status: 'PROCESSING',
+        mediaIds: mediaIds || []
       });
       buildId = createdBuild.id;
+      console.log(`Build created with ID: ${buildId}, mediaIds in build:`, createdBuild.mediaIds);
 
       // Link prompt to build
       await this.promptRepository.updateBuildId(safePromptId, buildId);
@@ -112,16 +118,31 @@ export class ProcessJobUseCase {
         .map((p) => `User: ${p.prompt}`)
         .join("\n\n");
 
-      // 3. Determine which AI model to use based on project version
+      // 3. Fetch media and generate presigned download URLs if mediaIds exist
+      let mediaUrls: string[] = [];
+      if (mediaIds && mediaIds.length > 0) {
+        console.log(`Fetching ${mediaIds.length} media files for prompt ${safePromptId}...`);
+        const medias = await this.mediaRepository.findByIds(mediaIds);
+
+        // Generate presigned download URLs (1 hour expiration)
+        mediaUrls = await Promise.all(
+          medias.map(media =>
+            this.storageService.generatePresignedDownloadUrl(media.s3Key, 3600, media.s3Bucket)
+          )
+        );
+        console.log(`Generated ${mediaUrls.length} presigned download URLs for media files`);
+      }
+
+      // 4. Determine which AI model to use based on project version
       // For first version (no successful builds), use Sonnet 4.5
       // For subsequent versions (has successful builds), use Haiku 4.5
       const hasSuccessfulBuilds = await this.buildRepository.findLatestSuccessfulByProjectId(safeProjectId);
       const useHaiku = hasSuccessfulBuilds !== null;
 
-      // 4. AI generation (runs while environment prep happens in parallel)
+      // 5. AI generation (runs while environment prep happens in parallel)
       console.log(`[PARALLEL] Running AI stage for prompt ${safePromptId}...`);
       const aiStartTime = Date.now();
-      const aiResponse = await this.aiService.generateResponse(prompt, safePromptId, useHaiku);
+      const aiResponse = await this.aiService.generateResponse(prompt, safePromptId, useHaiku, mediaUrls);
       metrics.aiGenerationTimeMs = Date.now() - aiStartTime;
       console.log(`[PARALLEL] AI generation completed in ${metrics.aiGenerationTimeMs}ms (Model: ${aiResponse.model})`);
 

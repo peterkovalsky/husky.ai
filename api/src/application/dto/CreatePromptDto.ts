@@ -1,6 +1,7 @@
 export interface CreatePromptDto {
   prompt: string;
   projectId?: string;
+  mediaIds?: string[];
 }
 
 export interface CreatePromptResponseDto {
