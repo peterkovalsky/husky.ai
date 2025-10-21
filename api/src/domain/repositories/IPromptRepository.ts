@@ -7,5 +7,6 @@ export interface IPromptRepository {
   updateBuildId(id: string, buildId: string): Promise<void>;
   updateRawAiResponse(id: string, rawAiResponse: string): Promise<void>;
   updateMetrics(id: string, inputTokens: number, outputTokens: number, durationMs: number): Promise<void>;
+  updateModelAndCost(id: string, model: string, costUsd: number): Promise<void>;
   deleteByProjectId(projectId: string): Promise<void>;
 }

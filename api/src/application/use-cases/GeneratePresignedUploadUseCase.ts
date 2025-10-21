@@ -13,8 +13,20 @@ export class GeneratePresignedUploadUseCase {
   ) {}
 
   async execute(dto: GeneratePresignedUploadDto, userId: string): Promise<GeneratePresignedUploadResponseDto> {
-    // Validate mime type (only images for now)
-    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    // Validate mime type - allow images, videos, and PDFs
+    const allowedMimeTypes = [
+      // Images
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'image/webp',
+      // Videos
+      'video/mp4',
+      'video/webm',
+      'video/quicktime', // .mov
+      // PDFs
+      'application/pdf',
+    ];
     if (!allowedMimeTypes.includes(dto.mimeType)) {
       throw new Error(`Unsupported mime type: ${dto.mimeType}. Allowed types: ${allowedMimeTypes.join(', ')}`);
     }
@@ -35,10 +47,13 @@ export class GeneratePresignedUploadUseCase {
     // Get projects bucket name
     const s3Bucket = process.env.S3_PROJECTS_BUCKET_NAME!;
 
+    // Determine media type based on MIME type
+    const mediaType = this.getMediaTypeFromMimeType(dto.mimeType);
+
     // Create media record in database
     const media = await this.mediaRepository.create({
       userId,
-      type: 'image',
+      type: mediaType,
       mimeType: dto.mimeType,
       s3Key,
       s3Bucket,
@@ -60,12 +75,32 @@ export class GeneratePresignedUploadUseCase {
     };
   }
 
+  private getMediaTypeFromMimeType(mimeType: string): 'image' | 'video' | 'doc' {
+    if (mimeType.startsWith('image/')) {
+      return 'image';
+    }
+    if (mimeType.startsWith('video/')) {
+      return 'video';
+    }
+    if (mimeType === 'application/pdf') {
+      return 'doc';
+    }
+    return 'doc'; // Default fallback
+  }
+
   private getExtensionFromMimeType(mimeType: string): string {
     const mimeToExt: Record<string, string> = {
+      // Images
       'image/jpeg': '.jpg',
       'image/png': '.png',
       'image/gif': '.gif',
       'image/webp': '.webp',
+      // Videos
+      'video/mp4': '.mp4',
+      'video/webm': '.webm',
+      'video/quicktime': '.mov',
+      // Documents
+      'application/pdf': '.pdf',
     };
     return mimeToExt[mimeType] || '';
   }

@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { IAIService, AIResponse } from '../../domain/services/IAIService';
 import { BuildLogger } from '../../shared/logger/BuildLogger';
 import { IPromptRepository } from '../../domain/repositories/IPromptRepository';
+import { CostCalculator } from '../../shared/utils/CostCalculator';
 
 export class AnthropicAIService implements IAIService {
   private client: Anthropic;
@@ -162,16 +163,34 @@ When the user includes images in their prompt, analyze them thoroughly:
 - Note spacing/alignment: padding, margins, gaps, text alignment
 - Identify icons, illustrations, images, or other visual assets
 
-When implementing/replicating a design from an image:
-- REPLICATE AS EXACTLY AS POSSIBLE: Match fonts, colors, spacing, layout, and all visual elements
-- Use closest available fonts (or web-safe alternatives)
-- Match color schemes precisely - extract exact colors
-- Recreate exact layout structure and component arrangement
-- Implement same visual hierarchy and spacing patterns
-- Include ALL UI elements visible in the image
-- Replicate animations, transitions, or interactive states shown/implied
-- Make educated approximations when exact values can't be determined
-- Goal: pixel-perfect or near-pixel-perfect implementation
+When implementing/replicating a design from an image or URL reference:
+CRITICAL - Two distinct modes based on user intent:
+
+MODE 1: DESIGN INSPIRATION (Default unless user says "exact copy" or "exactly"):
+- Extract and replicate DESIGN ELEMENTS ONLY:
+  * Color palette (exact hex codes)
+  * Font families, sizes, weights
+  * Visual hierarchy and spacing patterns
+  * Layout structure and component arrangement
+  * Corner radius, shadows, borders, effects
+  * Icons style and placement
+  * Overall UI patterns and aesthetic
+- DO NOT copy text content verbatim
+- Replace text with appropriate, contextually relevant content for the user's actual use case
+- Keep the same style, feel, and visual language but with original text
+- Goal: Capture the design essence and apply it with fresh content
+
+MODE 2: EXACT REPLICATION (Only when explicitly requested):
+- User says "copy exactly", "exact copy", "replicate exactly", or similar explicit instruction
+- In this mode: Match fonts, colors, spacing, layout, AND text content exactly
+- Goal: Pixel-perfect implementation including all text
+
+Examples:
+- "Make it look like this website" → MODE 1 (design only, new text)
+- "Redesign similar to this" → MODE 1 (design only, new text)
+- "Create a page like this image" → MODE 1 (design only, new text)
+- "Copy this exactly" → MODE 2 (design + text)
+- "Replicate this website exactly" → MODE 2 (design + text)
 
 IMAGE USAGE IN GENERATED WEBSITES:
 When images appear in this message, determine the user's intent:
@@ -423,6 +442,16 @@ IMPORTANT: When the request mentions "this image" or "these images", use the EXA
         console.log(`Stored metrics for prompt ${promptId}: ${inputTokens} input tokens, ${outputTokens} output tokens, ${durationMs}ms`);
       } catch (error) {
         console.warn(`Failed to store metrics for prompt ${promptId}:`, error);
+        // Don't throw - this is not critical to the main flow
+      }
+
+      // Calculate and save model and cost to database
+      try {
+        const cost = CostCalculator.calculateCost(model, inputTokens, outputTokens);
+        await this.promptRepository.updateModelAndCost(promptId, model, cost);
+        console.log(`Stored model and cost for prompt ${promptId}: ${model}, $${cost.toFixed(6)}`);
+      } catch (error) {
+        console.warn(`Failed to store model and cost for prompt ${promptId}:`, error);
         // Don't throw - this is not critical to the main flow
       }
 

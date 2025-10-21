@@ -1,0 +1,87 @@
+/**
+ * Cost Calculator for Claude API usage
+ * Based on pricing from: https://docs.claude.com/en/docs/about-claude/models/overview
+ * Prices are per million tokens
+ */
+
+interface ModelPricing {
+  inputPricePerMillion: number;
+  outputPricePerMillion: number;
+}
+
+const MODEL_PRICING: Record<string, ModelPricing> = {
+  // Claude Sonnet 4.5
+  'claude-sonnet-4-5-20250929': {
+    inputPricePerMillion: 3.00,
+    outputPricePerMillion: 15.00,
+  },
+  // Claude Haiku 4.5
+  'claude-haiku-4-5-20251001': {
+    inputPricePerMillion: 1.00,
+    outputPricePerMillion: 5.00,
+  },
+  // Claude Opus 4.1
+  'claude-opus-4-1-20250805': {
+    inputPricePerMillion: 15.00,
+    outputPricePerMillion: 75.00,
+  },
+  // Legacy Models
+  'claude-sonnet-4-20250514': {
+    inputPricePerMillion: 3.00,
+    outputPricePerMillion: 15.00,
+  },
+  'claude-3-7-sonnet-20250219': {
+    inputPricePerMillion: 3.00,
+    outputPricePerMillion: 15.00,
+  },
+  'claude-opus-4-20250514': {
+    inputPricePerMillion: 15.00,
+    outputPricePerMillion: 75.00,
+  },
+  'claude-3-5-haiku-20241022': {
+    inputPricePerMillion: 0.80,
+    outputPricePerMillion: 4.00,
+  },
+};
+
+export class CostCalculator {
+  /**
+   * Calculate the cost in USD for an API request
+   * @param model - The model ID used (e.g., 'claude-sonnet-4-5-20250929')
+   * @param inputTokens - Number of input tokens
+   * @param outputTokens - Number of output tokens
+   * @returns Cost in USD, or 0 if model pricing is unknown
+   */
+  static calculateCost(model: string, inputTokens: number, outputTokens: number): number {
+    const pricing = MODEL_PRICING[model];
+
+    if (!pricing) {
+      console.warn(`Unknown model pricing for: ${model}. Cost calculation will return 0.`);
+      return 0;
+    }
+
+    // Calculate cost: (tokens / 1,000,000) * price per million
+    const inputCost = (inputTokens / 1_000_000) * pricing.inputPricePerMillion;
+    const outputCost = (outputTokens / 1_000_000) * pricing.outputPricePerMillion;
+    const totalCost = inputCost + outputCost;
+
+    return parseFloat(totalCost.toFixed(6)); // Round to 6 decimal places
+  }
+
+  /**
+   * Get the pricing information for a specific model
+   * @param model - The model ID
+   * @returns Pricing information or null if not found
+   */
+  static getModelPricing(model: string): ModelPricing | null {
+    return MODEL_PRICING[model] || null;
+  }
+
+  /**
+   * Get all supported models
+   * @returns Array of supported model IDs
+   */
+  static getSupportedModels(): string[] {
+    return Object.keys(MODEL_PRICING);
+  }
+}

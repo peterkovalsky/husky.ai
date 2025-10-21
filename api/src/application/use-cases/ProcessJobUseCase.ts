@@ -9,6 +9,7 @@ import { JobMessage } from '../../domain/services/IQueueService';
 import { BuildMetrics } from '../../domain/entities/Build';
 import { BuildLogger } from '../../shared/logger/BuildLogger';
 import { FileTreeMerger } from '../../shared/utils/FileTreeMerger';
+import { CostCalculator } from '../../shared/utils/CostCalculator';
 import { PrepareProjectEnvironmentUseCase } from './PrepareProjectEnvironmentUseCase';
 import fs from 'fs';
 import path from 'path';
@@ -170,17 +171,16 @@ export class ProcessJobUseCase {
       // Use public URLs for AI (not presigned URLs)
       const mediaUrls = publicMediaUrls;
 
-      // 4. Determine which AI model to use based on project version
-      // For first version (no successful builds), use Sonnet 4.5
-      // For subsequent versions (has successful builds), use Haiku 4.5
-      // IMPORTANT: Always use Sonnet when images are present (Haiku has limited vision support)
+      // 4. Determine which AI model to use based on media presence
+      // - Use Sonnet 4.5 when images/media are present (better at analyzing and using images)
+      // - Use Haiku 4.5 when no images (faster, cheaper for text-only iterations)
       const hasSuccessfulBuilds = await this.buildRepository.findLatestSuccessfulByProjectId(safeProjectId);
       const hasImages = mediaIds && mediaIds.length > 0;
-      const useHaiku = hasSuccessfulBuilds !== null && !hasImages;
+      const useHaiku = !hasImages; // Use Haiku only when no media is present
 
       // 5. AI generation (runs while environment prep happens in parallel)
       console.log(`[PARALLEL] Running AI stage for prompt ${safePromptId}...`);
-      console.log(`[AI Model Selection] Using ${useHaiku ? 'Haiku' : 'Sonnet'} - Reasons: ${hasSuccessfulBuilds ? 'has previous builds' : 'first build'}, ${hasImages ? 'has images (forcing Sonnet)' : 'no images'}`);
+      console.log(`[AI Model Selection] Using ${useHaiku ? 'Haiku' : 'Sonnet'} - Reason: ${hasImages ? 'has media (use Sonnet for better image analysis)' : 'no media (use Haiku for faster text-only iterations)'}`);
       const aiStartTime = Date.now();
       const aiResponse = await this.aiService.generateResponse(prompt, safePromptId, useHaiku, mediaUrls);
       metrics.aiGenerationTimeMs = Date.now() - aiStartTime;

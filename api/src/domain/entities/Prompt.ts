@@ -8,6 +8,8 @@ export interface Prompt {
   inputTokens?: number;
   outputTokens?: number;
   durationMs?: number;
+  model?: string;
+  costUsd?: number;
   createdAt: Date;
   modifiedAt: Date;
 }

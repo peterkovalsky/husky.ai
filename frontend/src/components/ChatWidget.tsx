@@ -83,14 +83,26 @@ export const ChatWidget = ({ projectId, projectName }: ChatWidgetProps = {}) => 
     setMessages(prev => [...prev, systemMessage])
   }
 
-  const validateImage = (file: File): string | null => {
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+  const validateFile = (file: File): string | null => {
+    const allowedTypes = [
+      // Images
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'image/webp',
+      // Videos
+      'video/mp4',
+      'video/webm',
+      'video/quicktime', // .mov
+      // PDFs
+      'application/pdf',
+    ]
     if (!allowedTypes.includes(file.type)) {
-      return 'Only JPEG, PNG, GIF, and WebP images are allowed'
+      return 'Only images (JPEG, PNG, GIF, WebP), videos (MP4, WebM, MOV), and PDFs are allowed'
     }
-    const maxSize = 5 * 1024 * 1024 // 5MB
+    const maxSize = 50 * 1024 * 1024 // 50MB (increased for videos)
     if (file.size > maxSize) {
-      return 'Image must be smaller than 5MB'
+      return 'File must be smaller than 50MB'
     }
     return null
   }
@@ -150,14 +162,29 @@ export const ChatWidget = ({ projectId, projectName }: ChatWidgetProps = {}) => 
   const handleFileSelect = async (files: FileList | null) => {
     if (!files || files.length === 0) return
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i]
-      const error = validateImage(file)
-      if (error) {
-        addSystemMessage(error, 'error')
-        continue
-      }
-      await uploadImage(file)
+    // Limit to 1 file per request
+    if (files.length > 1) {
+      addSystemMessage('Only 1 file can be uploaded per request', 'error')
+      return
+    }
+
+    // Check if there's already an attached file
+    if (attachedImages.length > 0) {
+      addSystemMessage('Please remove the existing file before uploading a new one', 'error')
+      return
+    }
+
+    const file = files[0]
+    const error = validateFile(file)
+    if (error) {
+      addSystemMessage(error, 'error')
+      return
+    }
+    await uploadImage(file)
+
+    // Reset file input so the same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
     }
   }
 
@@ -190,6 +217,11 @@ export const ChatWidget = ({ projectId, projectName }: ChatWidgetProps = {}) => 
       }
       return prev.filter(img => img.id !== imageId)
     })
+
+    // Reset file input when removing an image
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
   }
 
   // Cleanup blob URLs on unmount
@@ -312,6 +344,11 @@ export const ChatWidget = ({ projectId, projectName }: ChatWidgetProps = {}) => 
       // Clear attached images after successful submission
       attachedImages.forEach(img => URL.revokeObjectURL(img.preview))
       setAttachedImages([])
+
+      // Reset file input for next upload
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
     } catch (error) {
       updateMessageStatus(messageId, 'failed')
       addSystemMessage(`❌ Failed to submit: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error')
@@ -503,7 +540,7 @@ export const ChatWidget = ({ projectId, projectName }: ChatWidgetProps = {}) => 
                 <div className="absolute inset-0 bg-primary/10 border-2 border-dashed border-primary rounded-lg flex items-center justify-center z-10 pointer-events-none">
                   <div className="text-center">
                     <ImageIcon className="h-12 w-12 mx-auto mb-2 text-primary" />
-                    <p className="text-sm font-medium text-primary">Drop images here</p>
+                    <p className="text-sm font-medium text-primary">Drop file here</p>
                   </div>
                 </div>
               )}
@@ -513,8 +550,7 @@ export const ChatWidget = ({ projectId, projectName }: ChatWidgetProps = {}) => 
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/jpeg,image/png,image/gif,image/webp"
-                    multiple
+                    accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime,application/pdf"
                     onChange={(e) => handleFileSelect(e.target.files)}
                     className="hidden"
                   />
@@ -539,8 +575,8 @@ export const ChatWidget = ({ projectId, projectName }: ChatWidgetProps = {}) => 
                       variant="light"
                       isIconOnly
                       onPress={() => fileInputRef.current?.click()}
-                      isDisabled={!activeProjectId}
-                      title="Attach image"
+                      isDisabled={!activeProjectId || attachedImages.length > 0}
+                      title="Attach file (image, video, or PDF)"
                     >
                       <ImageIcon className="h-4 w-4" />
                     </Button>
