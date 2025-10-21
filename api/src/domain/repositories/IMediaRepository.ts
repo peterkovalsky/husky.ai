@@ -6,5 +6,6 @@ export interface IMediaRepository {
   findByIds(ids: string[]): Promise<Media[]>;
   findByUserId(userId: string): Promise<Media[]>;
   updateDimensions(id: string, width: number, height: number): Promise<void>;
+  updatePublicS3Info(id: string, s3PublicKey: string, s3PublicBucket: string): Promise<void>;
   delete(id: string): Promise<void>;
 }

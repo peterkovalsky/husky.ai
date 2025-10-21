@@ -5,6 +5,8 @@ export interface Media {
   mimeType: string;
   s3Key: string;
   s3Bucket: string;
+  s3PublicKey?: string;
+  s3PublicBucket?: string;
   fileSize: number;
   width?: number;
   height?: number;

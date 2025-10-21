@@ -114,13 +114,17 @@ export class AnthropicAIService implements IAIService {
       const selectedModel = useHaiku ? "claude-haiku-4-5-20251001" : "claude-sonnet-4-5-20250929";
       console.log(`Starting generateResponse with model: ${selectedModel}...`);
       if (mediaUrls && mediaUrls.length > 0) {
-        console.log(`Including ${mediaUrls.length} images in AI request`);
+        console.log(`Including ${mediaUrls.length} images in AI request:`);
+        mediaUrls.forEach((url, index) => {
+          console.log(`  [Image ${index + 1}] ${url}`);
+        });
       }
 
       const systemPrompt = `You are a senior UI/UX developer assistant that creates beautiful, industry-appropriate React applications based on user requests.
 You receive:
 - The current app's file tree and contents
 - The user's request for changes
+- Images (when provided, they are included directly in this message - you can see them)
 - Web search capability for current information, trends, and best practices
 - Web fetch capability to retrieve full content from URLs and PDFs
 
@@ -148,6 +152,54 @@ DO NOT use web search or web fetch for:
 - Standard design patterns you already know
 
 Only use web tools when they will provide essential, current information that significantly improves your response quality.
+
+IMAGE ANALYSIS (Analyze silently - respond only with JSON):
+When the user includes images in their prompt, analyze them thoroughly:
+- Examine ALL visual elements: layout, spacing, typography, colors, components, UI patterns
+- Identify design choices: font families, sizes, weights, colors (hex codes if visible)
+- Note structural elements: header/navigation style, grids, cards, buttons, forms
+- Observe visual effects: shadows, borders, rounded corners, gradients, opacity, hover states
+- Note spacing/alignment: padding, margins, gaps, text alignment
+- Identify icons, illustrations, images, or other visual assets
+
+When implementing/replicating a design from an image:
+- REPLICATE AS EXACTLY AS POSSIBLE: Match fonts, colors, spacing, layout, and all visual elements
+- Use closest available fonts (or web-safe alternatives)
+- Match color schemes precisely - extract exact colors
+- Recreate exact layout structure and component arrangement
+- Implement same visual hierarchy and spacing patterns
+- Include ALL UI elements visible in the image
+- Replicate animations, transitions, or interactive states shown/implied
+- Make educated approximations when exact values can't be determined
+- Goal: pixel-perfect or near-pixel-perfect implementation
+
+IMAGE USAGE IN GENERATED WEBSITES:
+When images appear in this message, determine the user's intent:
+
+WHEN TO USE UPLOADED IMAGES (S3 URLs):
+Only use the uploaded S3 images when the user EXPLICITLY asks to use them:
+- "add this image" / "use this image" / "add these images"
+- "replace the [X] with this image"
+- "set this as the background"
+- "put this image in the [section]"
+When using uploaded images:
+- Use the EXACT S3 URL provided in the text (format: https://dev-husky-public-media.s3.ap-southeast-2.amazonaws.com/...)
+- For <img> tags: <img src="EXACT_S3_URL" alt="..." />
+- For CSS backgrounds: style={{ backgroundImage: 'url(EXACT_S3_URL)' }}
+
+WHEN TO USE STOCK IMAGES:
+Use stock images (unsplash.com, zastatic.com, etc.) when:
+- The user uploads images for REFERENCE/INSPIRATION only
+- The user says "create a page like this" (they want the style, not the exact image)
+- The user says "make it look similar" (inspiration, not exact copy)
+- The user needs images but hasn't uploaded any
+- The design needs images beyond what the user uploaded
+
+How to determine intent:
+- Look at the user's request carefully
+- If they say "use this image" → use the S3 URL
+- If they say "make it look like this" → use stock images with similar style
+- If they just upload without explicit instruction → treat as reference, use stock images
 
 DEVELOPMENT & DESIGN RULES:
 The current app is built with React, TypeScript, Tailwind CSS, and DaisyUI - you should continue using these technologies.
@@ -203,12 +255,29 @@ DESIGN PRINCIPLES:
    - The leading slash breaks hash navigation in single-page applications
    - This applies to all navigation links that scroll to sections on the same page
 
-You reply with a single JSON object, where:
+========================================
+CRITICAL RESPONSE FORMAT (MUST FOLLOW):
+========================================
+
+Your response must contain ONLY a JSON object. Nothing else.
+- NO explanations before the JSON
+- NO commentary after the JSON
+- NO reasoning or analysis text
+- NO descriptions of what you're doing
+- NO "I'll update..." or "Let me..." statements
+- JUST THE RAW JSON OBJECT
+
+Even when working with images:
+- Do NOT explain what you see in the image
+- Do NOT describe your implementation approach
+- JUST return the JSON with the updated code
+
+JSON Structure:
 - Each key is the relative path of a file that has been ADDED or MODIFIED
 - The value is the COMPLETE new contents of the file as a STRING
 - If a file should be DELETED, include it with value "__DELETE__"
 
-IMPORTANT FORMAT RULES:
+Format Rules:
 - File contents must be strings, not objects
 - For package.json, stringify the entire JSON content
 - ESCAPE ALL QUOTES: Use \\" for quotes inside strings
@@ -216,18 +285,29 @@ IMPORTANT FORMAT RULES:
 - Do NOT nest objects inside file values
 - All quotes inside JSX className attributes must be escaped with backslashes
 
-CRITICAL: Your response must contain ONLY the JSON object, nothing else. No explanations, no commentary, no search descriptions, no reasoning - just the raw JSON object.
-
 Always create beautiful, industry-appropriate designs that users will be impressed by.`;
 
       console.log("Formatting file tree...");
       const fileTreeContent = this.formatFileTreeForPrompt(this.currentFileTree);
 
-      const prompt = `Current app:
+      // Build the prompt with explicit image URLs if provided
+      let prompt = `Current app:
 ${fileTreeContent}
 
 Request:
 ${userRequest}`;
+
+      // Add image URLs explicitly to the text prompt
+      if (mediaUrls && mediaUrls.length > 0) {
+        const imageUrlsSection = `
+
+UPLOADED IMAGES TO USE (You can see these images above):
+${mediaUrls.map((url, i) => `${i + 1}. ${url}`).join('\n')}
+
+IMPORTANT: When the request mentions "this image" or "these images", use the EXACT URLs listed above. DO NOT use stock photos or other URLs.`;
+
+        prompt += imageUrlsSection;
+      }
 
       // Build user message content with images if provided
       const userContent = mediaUrls && mediaUrls.length > 0
@@ -245,6 +325,18 @@ ${userRequest}`;
             }
           ]
         : prompt;
+
+      // Log the full user message to file
+      if (this.currentBuildId && this.currentProjectId) {
+        this.buildLogger.logUserPrompt(this.currentProjectId, this.currentBuildId, {
+          userRequest,
+          fileTreeSize: Object.keys(this.currentFileTree).length,
+          mediaUrls,
+          fullPromptLength: prompt.length,
+          promptPreview: prompt.substring(0, 500)
+        });
+        this.buildLogger.logFullPrompt(this.currentProjectId, this.currentBuildId, prompt);
+      }
 
       console.log("Calling Anthropic API with streaming...");
       const stream = await this.client.messages.stream({
@@ -297,6 +389,17 @@ ${userRequest}`;
 
       console.log("Anthropic API streaming completed");
 
+      // Log AI metadata to file
+      if (this.currentBuildId && this.currentProjectId) {
+        this.buildLogger.logAIMetadata(this.currentProjectId, this.currentBuildId, {
+          model,
+          inputTokens,
+          outputTokens,
+          responseLength: rawContent.length,
+          mediaUrls
+        });
+      }
+
       // Calculate duration
       const durationMs = Date.now() - startTime;
 
@@ -334,6 +437,34 @@ ${userRequest}`;
       // Parse and normalize the changes
       console.log("Parsing and normalizing changes...");
       const changes = this.normalizeChanges(rawChanges);
+
+      // Log the changes to file
+      const filesChanged = Object.keys(changes).map(filePath => {
+        const change = changes[filePath];
+        if (change === "__DELETE__") {
+          return { path: filePath, type: 'DELETE' as const };
+        } else {
+          return { path: filePath, type: 'MODIFY' as const, size: change.length };
+        }
+      });
+
+      // Check if any media URLs are referenced in the changes
+      let imageReferences: { url: string; found: boolean }[] | undefined;
+      if (mediaUrls && mediaUrls.length > 0) {
+        const changesString = JSON.stringify(changes);
+        imageReferences = mediaUrls.map(url => ({
+          url,
+          found: changesString.includes(url)
+        }));
+      }
+
+      if (this.currentBuildId && this.currentProjectId) {
+        this.buildLogger.logAIChanges(this.currentProjectId, this.currentBuildId, {
+          numberOfFiles: Object.keys(changes).length,
+          filesChanged,
+          imageReferences
+        });
+      }
 
       // Update file tree in memory
       console.log("Updating file tree in memory...");

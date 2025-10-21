@@ -9,6 +9,8 @@ interface MediaRow {
   mime_type: string;
   s3_key: string;
   s3_bucket: string;
+  s3_public_key?: string;
+  s3_public_bucket?: string;
   file_size: number;
   width?: number;
   height?: number;
@@ -34,6 +36,8 @@ export class SupabaseMediaRepository implements IMediaRepository {
       mimeType: row.mime_type,
       s3Key: row.s3_key,
       s3Bucket: row.s3_bucket,
+      s3PublicKey: row.s3_public_key,
+      s3PublicBucket: row.s3_public_bucket,
       fileSize: row.file_size,
       width: row.width,
       height: row.height,
@@ -125,6 +129,21 @@ export class SupabaseMediaRepository implements IMediaRepository {
 
     if (error) {
       throw new Error(`Failed to update media dimensions: ${error.message}`);
+    }
+  }
+
+  async updatePublicS3Info(id: string, s3PublicKey: string, s3PublicBucket: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('medias')
+      .update({
+        s3_public_key: s3PublicKey || null,
+        s3_public_bucket: s3PublicBucket || null,
+        modified_at: new Date().toISOString(),
+      })
+      .eq('id', id);
+
+    if (error) {
+      throw new Error(`Failed to update media public S3 info: ${error.message}`);
     }
   }
 

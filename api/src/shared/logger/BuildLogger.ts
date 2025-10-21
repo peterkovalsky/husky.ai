@@ -82,4 +82,80 @@ export class BuildLogger {
       console.error('Failed to log build info:', error);
     }
   }
+
+  logUserPrompt(projectId: string, buildId: string, data: {
+    userRequest: string;
+    fileTreeSize: number;
+    mediaUrls?: string[];
+    fullPromptLength: number;
+    promptPreview: string;
+  }): void {
+    if (!this.isDevMode) return;
+
+    try {
+      const buildLogPath = this.getBuildLogPath(projectId, buildId);
+      this.ensureDirectoryExists(buildLogPath);
+
+      const logFile = path.join(buildLogPath, 'user_prompt.json');
+      fs.writeFileSync(logFile, JSON.stringify(data, null, 2), 'utf8');
+      console.log(`User prompt logged to: ${logFile}`);
+    } catch (error) {
+      console.error('Failed to log user prompt:', error);
+    }
+  }
+
+  logFullPrompt(projectId: string, buildId: string, fullPrompt: string): void {
+    if (!this.isDevMode) return;
+
+    try {
+      const buildLogPath = this.getBuildLogPath(projectId, buildId);
+      this.ensureDirectoryExists(buildLogPath);
+
+      const logFile = path.join(buildLogPath, 'full_prompt.txt');
+      fs.writeFileSync(logFile, fullPrompt, 'utf8');
+      console.log(`Full prompt logged to: ${logFile}`);
+    } catch (error) {
+      console.error('Failed to log full prompt:', error);
+    }
+  }
+
+  logAIMetadata(projectId: string, buildId: string, metadata: {
+    model: string;
+    inputTokens: number;
+    outputTokens: number;
+    responseLength: number;
+    mediaUrls?: string[];
+  }): void {
+    if (!this.isDevMode) return;
+
+    try {
+      const buildLogPath = this.getBuildLogPath(projectId, buildId);
+      this.ensureDirectoryExists(buildLogPath);
+
+      const logFile = path.join(buildLogPath, 'ai_metadata.json');
+      fs.writeFileSync(logFile, JSON.stringify(metadata, null, 2), 'utf8');
+      console.log(`AI metadata logged to: ${logFile}`);
+    } catch (error) {
+      console.error('Failed to log AI metadata:', error);
+    }
+  }
+
+  logAIChanges(projectId: string, buildId: string, data: {
+    numberOfFiles: number;
+    filesChanged: { path: string; type: 'DELETE' | 'MODIFY'; size?: number }[];
+    imageReferences?: { url: string; found: boolean }[];
+  }): void {
+    if (!this.isDevMode) return;
+
+    try {
+      const buildLogPath = this.getBuildLogPath(projectId, buildId);
+      this.ensureDirectoryExists(buildLogPath);
+
+      const logFile = path.join(buildLogPath, 'ai_changes.json');
+      fs.writeFileSync(logFile, JSON.stringify(data, null, 2), 'utf8');
+      console.log(`AI changes logged to: ${logFile}`);
+    } catch (error) {
+      console.error('Failed to log AI changes:', error);
+    }
+  }
 }

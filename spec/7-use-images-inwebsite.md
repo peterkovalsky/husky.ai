@@ -1,0 +1,5 @@
+When user adds images to the user prompt, create an extra step before calling AI service, which will upload those images to the S3_BUCKET_PUBLIC_MEDIA in the path <bucket>/<project_id>/<media file>. Use the same file name as in the S3_PROJECTS_BUCKET_NAME bucket for that media. The idea is that we wan to have a public copy of the uploaded images. Then update medias table to add new fileds "s3_public_key" and "s3_public_bucket". In the same step update these fileds in the medais table.
+Instead of including presigned url in the prompt, include public image urls. Update the system prompt to include image refernces directly in the website if users asks to add these images.
+After AI returns result and we merge into final file tree, scan the file tree to see if we actually reference these files. If not, delete the images from public s3 bucket (not from S3_PROJECTS_BUCKET_NAME) if they are not referenced directly in the app.
+Continue as normal.
+Track time how howch it takes to upload images to public S3 and update medias table.

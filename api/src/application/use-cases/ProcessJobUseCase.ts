@@ -51,6 +51,28 @@ export class ProcessJobUseCase {
     }
   }
 
+  private scanFileTreeForImageReferences(fileTree: Record<string, string>, publicUrls: string[]): Set<string> {
+    const referenced = new Set<string>();
+    const fileTreeString = JSON.stringify(fileTree);
+
+    for (const url of publicUrls) {
+      if (fileTreeString.includes(url)) {
+        // Extract the s3 key from the public URL
+        // URL format: https://<bucket>.s3.<region>.amazonaws.com/<key>
+        // We need to extract the key part after the domain
+        const urlParts = url.split('.amazonaws.com/');
+        if (urlParts.length > 1) {
+          const key = urlParts[1];
+          referenced.add(key);
+          console.log(`[Image Reference] Found reference to: ${url}`);
+        }
+      }
+    }
+
+    console.log(`[Image Scan] Found ${referenced.size} referenced images out of ${publicUrls.length} total`);
+    return referenced;
+  }
+
 
   async execute(jobMessage: JobMessage): Promise<void> {
     const { promptId, jobId, prompt, projectId, userId, mediaIds } = jobMessage;
@@ -118,29 +140,47 @@ export class ProcessJobUseCase {
         .map((p) => `User: ${p.prompt}`)
         .join("\n\n");
 
-      // 3. Fetch media and generate presigned download URLs if mediaIds exist
-      let mediaUrls: string[] = [];
+      // 3. Upload media to public S3 bucket and update database
+      let publicMediaUrls: string[] = [];
+      const publicUploadStartTime = Date.now();
+
       if (mediaIds && mediaIds.length > 0) {
-        console.log(`Fetching ${mediaIds.length} media files for prompt ${safePromptId}...`);
+        console.log(`Uploading ${mediaIds.length} media files to public S3 for prompt ${safePromptId}...`);
         const medias = await this.mediaRepository.findByIds(mediaIds);
 
-        // Generate presigned download URLs (1 hour expiration)
-        mediaUrls = await Promise.all(
-          medias.map(media =>
-            this.storageService.generatePresignedDownloadUrl(media.s3Key, 3600, media.s3Bucket)
-          )
-        );
-        console.log(`Generated ${mediaUrls.length} presigned download URLs for media files`);
+        // Copy each media to public bucket and update database
+        const uploadPromises = medias.map(async (media) => {
+          const { publicKey, publicUrl } = await this.storageService.copyToPublicBucket(
+            media.s3Key,
+            media.s3Bucket,
+            safeProjectId
+          );
+
+          // Update media record with public S3 info
+          await this.mediaRepository.updatePublicS3Info(media.id, publicKey, process.env.S3_BUCKET_PUBLIC_MEDIA!);
+
+          return publicUrl;
+        });
+
+        publicMediaUrls = await Promise.all(uploadPromises);
+        metrics.publicS3UploadTimeMs = Date.now() - publicUploadStartTime;
+        console.log(`Uploaded ${publicMediaUrls.length} images to public S3 in ${metrics.publicS3UploadTimeMs}ms`);
       }
+
+      // Use public URLs for AI (not presigned URLs)
+      const mediaUrls = publicMediaUrls;
 
       // 4. Determine which AI model to use based on project version
       // For first version (no successful builds), use Sonnet 4.5
       // For subsequent versions (has successful builds), use Haiku 4.5
+      // IMPORTANT: Always use Sonnet when images are present (Haiku has limited vision support)
       const hasSuccessfulBuilds = await this.buildRepository.findLatestSuccessfulByProjectId(safeProjectId);
-      const useHaiku = hasSuccessfulBuilds !== null;
+      const hasImages = mediaIds && mediaIds.length > 0;
+      const useHaiku = hasSuccessfulBuilds !== null && !hasImages;
 
       // 5. AI generation (runs while environment prep happens in parallel)
       console.log(`[PARALLEL] Running AI stage for prompt ${safePromptId}...`);
+      console.log(`[AI Model Selection] Using ${useHaiku ? 'Haiku' : 'Sonnet'} - Reasons: ${hasSuccessfulBuilds ? 'has previous builds' : 'first build'}, ${hasImages ? 'has images (forcing Sonnet)' : 'no images'}`);
       const aiStartTime = Date.now();
       const aiResponse = await this.aiService.generateResponse(prompt, safePromptId, useHaiku, mediaUrls);
       metrics.aiGenerationTimeMs = Date.now() - aiStartTime;
@@ -157,13 +197,39 @@ export class ProcessJobUseCase {
       // Merge AI response with current file tree
       console.log(`Merging AI response with current file tree for prompt ${safePromptId}...`);
       const mergeResult = FileTreeMerger.merge(fileTree, aiResponseFileTree);
-      
+
       // Log merge statistics
       FileTreeMerger.logMergeStats(mergeResult);
 
       // Update build with the merged file tree
       console.log(`Updating build with merged file tree for prompt ${safePromptId}...`);
       await this.buildRepository.updateFileTree(buildId!, mergeResult.mergedFileTree);
+
+      // Scan file tree for image references and cleanup unreferenced images
+      if (mediaIds && mediaIds.length > 0 && publicMediaUrls.length > 0) {
+        console.log(`[Image Cleanup] Scanning file tree for image references...`);
+        const referencedImages = this.scanFileTreeForImageReferences(mergeResult.mergedFileTree, publicMediaUrls);
+
+        // Delete unreferenced images from public S3 (not from private bucket)
+        const medias = await this.mediaRepository.findByIds(mediaIds);
+
+        for (const media of medias) {
+          if (media.s3PublicKey && !referencedImages.has(media.s3PublicKey)) {
+            console.log(`[Image Cleanup] Deleting unreferenced image from public S3: ${media.s3PublicKey}`);
+            try {
+              await this.storageService.deleteFromPublicBucket(media.s3PublicKey);
+
+              // Clear public S3 fields from database
+              await this.mediaRepository.updatePublicS3Info(media.id, '', '');
+            } catch (error) {
+              console.warn(`[Image Cleanup] Failed to delete unreferenced image ${media.s3PublicKey}:`, error);
+              // Continue with other images even if one fails
+            }
+          } else if (media.s3PublicKey) {
+            console.log(`[Image Cleanup] Keeping referenced image: ${media.s3PublicKey}`);
+          }
+        }
+      }
 
       // Log merged result and merge details in dev mode (AI response already logged in AnthropicAIService)
       this.buildLogger.logMergedResult(safeProjectId, buildId, mergeResult.mergedFileTree);
@@ -317,6 +383,8 @@ export class ProcessJobUseCase {
       console.log(`  AI Generation:        ${metrics.aiGenerationTimeMs || 0}ms`);
       console.log(`  Environment Prep:     ${metrics.environmentPrepTimeMs || 0}ms (ran in parallel with AI)`);
       console.log(`    - node_modules:     ${metrics.nodeModulesCopyTimeMs || 0}ms ${metrics.nodeModulesCopyTimeMs ? '(copied from template)' : '(already exists)'}`);
+      console.log(`SETUP PHASE:`);
+      console.log(`  Public S3 Upload:     ${metrics.publicS3UploadTimeMs || 0}ms ${metrics.publicS3UploadTimeMs ? `(${mediaIds?.length || 0} images)` : ''}`);
       console.log(`SEQUENTIAL PHASE:`);
       console.log(`  npm install:          ${metrics.dependencyInstallTimeMs || 0}ms ${metrics.dependencyInstallTimeMs === 0 ? '(skipped - package.json unchanged)' : ''}`);
       console.log(`  Vite Build:           ${metrics.buildTimeMs || 0}ms`);

@@ -15,4 +15,7 @@ export interface IStorageService {
   generatePresignedUploadUrl(key: string, mimeType: string, expiresIn: number, bucket?: string): Promise<string>;
   generatePresignedDownloadUrl(key: string, expiresIn: number, bucket?: string): Promise<string>;
   verifyFileExists(key: string, bucket?: string): Promise<boolean>;
+  copyToPublicBucket(sourceKey: string, sourceBucket: string, projectId: string): Promise<{ publicKey: string; publicUrl: string }>;
+  deleteFromPublicBucket(key: string): Promise<void>;
+  getPublicUrl(key: string): Promise<string>;
 }

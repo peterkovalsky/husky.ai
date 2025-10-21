@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectCommand, DeleteObjectsCommand, HeadObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectCommand, DeleteObjectsCommand, HeadObjectCommand, GetObjectCommand, CopyObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { IStorageService, UploadResult } from '../../domain/services/IStorageService';
 import fs from "fs";
@@ -13,6 +13,8 @@ export class S3StorageService implements IStorageService {
   private s3Client: S3Client;
   private bucketName: string;
   private projectsBucketName: string;
+  private publicMediaBucketName: string;
+  private publicMediaBaseUrl: string;
 
   constructor() {
     const region = process.env.AWS_REGION;
@@ -21,9 +23,10 @@ export class S3StorageService implements IStorageService {
 
     this.bucketName = process.env.S3_BUCKET_NAME!;
     this.projectsBucketName = process.env.S3_PROJECTS_BUCKET_NAME!;
+    this.publicMediaBucketName = process.env.S3_BUCKET_PUBLIC_MEDIA!;
 
-    if (!this.bucketName || !this.projectsBucketName) {
-      throw new Error(`Missing S3 configuration: S3_BUCKET_NAME=${!!this.bucketName}, S3_PROJECTS_BUCKET_NAME=${!!this.projectsBucketName}`);
+    if (!this.bucketName || !this.projectsBucketName || !this.publicMediaBucketName) {
+      throw new Error(`Missing S3 configuration: S3_BUCKET_NAME=${!!this.bucketName}, S3_PROJECTS_BUCKET_NAME=${!!this.projectsBucketName}, S3_BUCKET_PUBLIC_MEDIA=${!!this.publicMediaBucketName}`);
     }
 
     if (!accessKeyId || !secretAccessKey) {
@@ -38,7 +41,10 @@ export class S3StorageService implements IStorageService {
       },
     });
 
-    console.log(`S3StorageService initialized with region: ${region}, preview bucket: ${this.bucketName}, projects bucket: ${this.projectsBucketName}`);
+    // Construct public media base URL (assuming standard S3 URL format)
+    this.publicMediaBaseUrl = `https://${this.publicMediaBucketName}.s3.${region}.amazonaws.com`;
+
+    console.log(`S3StorageService initialized with region: ${region}, preview bucket: ${this.bucketName}, projects bucket: ${this.projectsBucketName}, public media bucket: ${this.publicMediaBucketName}`);
   }
 
   async uploadReactApp(appDirectory: string, promptId: string, projectId: string): Promise<UploadResult> {
@@ -326,5 +332,53 @@ export class S3StorageService implements IStorageService {
       console.log(`[S3StorageService] File does not exist: ${key} in bucket ${targetBucket}`);
       return false;
     }
+  }
+
+  async copyToPublicBucket(sourceKey: string, sourceBucket: string, projectId: string): Promise<{ publicKey: string; publicUrl: string }> {
+    try {
+      // Extract filename from source key
+      const filename = path.basename(sourceKey);
+
+      // Construct public key: <project_id>/<filename>
+      const publicKey = `${projectId}/${filename}`;
+
+      // Copy object from source bucket to public media bucket
+      // Note: ACL not used - bucket should have a public access policy instead
+      const command = new CopyObjectCommand({
+        Bucket: this.publicMediaBucketName,
+        CopySource: `${sourceBucket}/${sourceKey}`,
+        Key: publicKey,
+      });
+
+      await this.s3Client.send(command);
+
+      // Construct public URL
+      const publicUrl = `${this.publicMediaBaseUrl}/${publicKey}`;
+
+      console.log(`[S3StorageService] Copied ${sourceKey} from ${sourceBucket} to public bucket as ${publicKey}`);
+      console.log(`[S3StorageService] Public URL: ${publicUrl}`);
+
+      return { publicKey, publicUrl };
+    } catch (error) {
+      throw new Error(`Failed to copy file to public bucket: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  async deleteFromPublicBucket(key: string): Promise<void> {
+    try {
+      const command = new DeleteObjectCommand({
+        Bucket: this.publicMediaBucketName,
+        Key: key,
+      });
+
+      await this.s3Client.send(command);
+      console.log(`[S3StorageService] Deleted ${key} from public media bucket`);
+    } catch (error) {
+      throw new Error(`Failed to delete file from public bucket: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  async getPublicUrl(key: string): Promise<string> {
+    return `${this.publicMediaBaseUrl}/${key}`;
   }
 }

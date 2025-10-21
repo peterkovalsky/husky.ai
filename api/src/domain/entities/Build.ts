@@ -4,6 +4,7 @@ export interface BuildMetrics {
   aiGenerationTimeMs?: number;
   environmentPrepTimeMs?: number; // Time to prepare environment (node_modules + package-lock) - runs in parallel with AI
   nodeModulesCopyTimeMs?: number; // Time to copy node_modules from template (part of environmentPrepTimeMs)
+  publicS3UploadTimeMs?: number; // Time to upload images to public S3 bucket
   dependencyInstallTimeMs?: number; // Time for npm install (only when package.json changed)
   buildTimeMs?: number;
   s3UploadTimeMs?: number;
