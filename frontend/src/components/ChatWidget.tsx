@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { ApiService, type JobStatus } from '../services/api'
 import { useProject } from '../contexts/ProjectContext'
 import { Button, Card } from '@heroui/react'
@@ -21,7 +20,7 @@ interface ChatWidgetProps {
   projectName?: string;
 }
 
-export const ChatWidget = ({ projectId, projectName }: ChatWidgetProps = {}) => {
+export const ChatWidget = ({ projectId }: ChatWidgetProps = {}) => {
   const [isOpen, setIsOpen] = useState(true)
   const [isExpanded, setIsExpanded] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -32,14 +31,13 @@ export const ChatWidget = ({ projectId, projectName }: ChatWidgetProps = {}) => 
   const [attachedImages, setAttachedImages] = useState<AttachedImage[]>([])
   const [isDragging, setIsDragging] = useState(false)
   const { currentProject } = useProject()
-  const navigate = useNavigate()
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const pollCleanupRef = useRef<(() => void) | null>(null)
   const lastStatusRef = useRef<string | null>(null)
 
   // Use explicit projectId prop if provided, otherwise fall back to context
   const activeProjectId = projectId || currentProject?.id
-  const activeProjectName = projectName || currentProject?.name
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })

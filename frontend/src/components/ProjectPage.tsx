@@ -168,10 +168,8 @@ export const ProjectPage = () => {
           onError={() => setIframeLoading(false)}
         />
 
-        {/* Chat Widget */}
         <ChatWidget
           projectId={projectDetails.project.id}
-          projectName={projectDetails.project.name}
         />
       </div>
     )
