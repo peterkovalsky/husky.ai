@@ -38,6 +38,8 @@ import { DeleteProjectUseCase } from '../../application/use-cases/DeleteProjectU
 import { SetupUserUseCase } from '../../application/use-cases/SetupUserUseCase';
 import { GeneratePresignedUploadUseCase } from '../../application/use-cases/GeneratePresignedUploadUseCase';
 import { ConfirmMediaUploadUseCase } from '../../application/use-cases/ConfirmMediaUploadUseCase';
+import { DeleteMediaUseCase } from '../../application/use-cases/DeleteMediaUseCase';
+import { ProcessMediaDeletionUseCase } from '../../application/use-cases/ProcessMediaDeletionUseCase';
 
 // Presentation Layer
 import { AuthMiddleware } from '../../presentation/middleware/AuthMiddleware';
@@ -176,10 +178,26 @@ export function setupContainer(): DIContainer {
     container.get<IStorageService>('storageService')
   ));
 
+  container.registerFactory<DeleteMediaUseCase>('deleteMediaUseCase', () => new DeleteMediaUseCase(
+    container.get<IMediaRepository>('mediaRepository'),
+    container.get<IQueueService>('queueService')
+  ));
+
+  container.registerFactory<ProcessMediaDeletionUseCase>('processMediaDeletionUseCase', () => {
+    const { ConsoleLogger } = require('../../shared/logger/Logger');
+    return new ProcessMediaDeletionUseCase(
+      container.get<IMediaRepository>('mediaRepository'),
+      container.get<IBuildRepository>('buildRepository'),
+      container.get<IStorageService>('storageService'),
+      new ConsoleLogger()
+    );
+  });
+
   // Register Media Controller
   container.registerFactory<MediaController>('mediaController', () => new MediaController(
     container.get<GeneratePresignedUploadUseCase>('generatePresignedUploadUseCase'),
-    container.get<ConfirmMediaUploadUseCase>('confirmMediaUploadUseCase')
+    container.get<ConfirmMediaUploadUseCase>('confirmMediaUploadUseCase'),
+    container.get<DeleteMediaUseCase>('deleteMediaUseCase')
   ));
 
   return container;

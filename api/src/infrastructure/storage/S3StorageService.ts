@@ -378,6 +378,20 @@ export class S3StorageService implements IStorageService {
     }
   }
 
+  async deleteMediaFile(key: string, bucket: string): Promise<void> {
+    try {
+      const command = new DeleteObjectCommand({
+        Bucket: bucket,
+        Key: key,
+      });
+
+      await this.s3Client.send(command);
+      console.log(`[S3StorageService] Deleted media file ${key} from bucket ${bucket}`);
+    } catch (error) {
+      throw new Error(`Failed to delete media file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
   async getPublicUrl(key: string): Promise<string> {
     return `${this.publicMediaBaseUrl}/${key}`;
   }

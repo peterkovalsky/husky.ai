@@ -176,6 +176,71 @@ export class SupabaseBuildRepository implements IBuildRepository {
     if (error) throw error;
   }
 
+  async removeMediaIdFromProject(projectId: string, mediaId: string): Promise<void> {
+    // Use PostgreSQL's array_remove function to remove mediaId from all builds in the project
+    // We need to use RPC or raw SQL for this since Supabase JS client doesn't have built-in array operations
+    const { error } = await this.supabase.rpc('remove_media_from_builds', {
+      p_project_id: projectId,
+      p_media_id: mediaId
+    });
+
+    if (error) {
+      // If RPC function doesn't exist, fall back to fetching and updating each build
+      console.warn('[SupabaseBuildRepository] RPC function not found, using fallback method');
+      const { data: builds, error: fetchError } = await this.supabase
+        .from('builds')
+        .select('id, media_ids')
+        .eq('project_id', projectId);
+
+      if (fetchError) throw fetchError;
+
+      if (builds) {
+        for (const build of builds) {
+          const mediaIds = build.media_ids || [];
+          if (mediaIds.includes(mediaId)) {
+            const updatedMediaIds = mediaIds.filter((id: string) => id !== mediaId);
+            const { error: updateError } = await this.supabase
+              .from('builds')
+              .update({ media_ids: updatedMediaIds })
+              .eq('id', build.id);
+
+            if (updateError) throw updateError;
+          }
+        }
+      }
+    }
+  }
+
+  async removeMediaIdFromAllBuilds(mediaId: string): Promise<void> {
+    // Remove mediaId from all builds across all projects that contain it
+    const { data: builds, error: fetchError } = await this.supabase
+      .from('builds')
+      .select('id, media_ids')
+      .contains('media_ids', [mediaId]);
+
+    if (fetchError) throw fetchError;
+
+    if (builds && builds.length > 0) {
+      console.log(`[SupabaseBuildRepository] Found ${builds.length} builds containing media ${mediaId}`);
+      for (const build of builds) {
+        const mediaIds = build.media_ids || [];
+        const updatedMediaIds = mediaIds.filter((id: string) => id !== mediaId);
+        const { error: updateError } = await this.supabase
+          .from('builds')
+          .update({ media_ids: updatedMediaIds })
+          .eq('id', build.id);
+
+        if (updateError) {
+          console.error(`[SupabaseBuildRepository] Failed to remove media from build ${build.id}:`, updateError);
+          throw updateError;
+        }
+      }
+      console.log(`[SupabaseBuildRepository] Removed media ${mediaId} from ${builds.length} builds`);
+    } else {
+      console.log(`[SupabaseBuildRepository] No builds found containing media ${mediaId}`);
+    }
+  }
+
   async deleteByProjectId(projectId: string): Promise<void> {
     const { error } = await this.supabase
       .from('builds')

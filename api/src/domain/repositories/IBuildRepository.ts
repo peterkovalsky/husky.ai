@@ -13,5 +13,7 @@ export interface IBuildRepository {
   updateVersion(id: string, version: number): Promise<void>;
   updateFileTree(id: string, fileTree: Record<string, string>): Promise<void>;
   updateTokens(id: string, inputTokens: number, outputTokens: number): Promise<void>;
+  removeMediaIdFromProject(projectId: string, mediaId: string): Promise<void>;
+  removeMediaIdFromAllBuilds(mediaId: string): Promise<void>; // Remove media from all builds that reference it
   deleteByProjectId(projectId: string): Promise<void>;
 }

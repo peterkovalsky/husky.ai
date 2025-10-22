@@ -1,6 +1,7 @@
-import { IQueueService, QueueMessage, JobMessage, DeleteProjectMessage } from '../../domain/services/IQueueService';
+import { IQueueService, QueueMessage, JobMessage, DeleteProjectMessage, DeleteMediaMessage } from '../../domain/services/IQueueService';
 import { ProcessJobUseCase } from '../use-cases/ProcessJobUseCase';
 import { DeleteProjectUseCase } from '../use-cases/DeleteProjectUseCase';
+import { ProcessMediaDeletionUseCase } from '../use-cases/ProcessMediaDeletionUseCase';
 import { ILogger } from '../../shared/logger/Logger';
 
 export class JobProcessorService {
@@ -11,6 +12,7 @@ export class JobProcessorService {
     private queueService: IQueueService,
     private processJobUseCase: ProcessJobUseCase,
     private deleteProjectUseCase: DeleteProjectUseCase,
+    private processMediaDeletionUseCase: ProcessMediaDeletionUseCase,
     private logger: ILogger,
     private intervalMs: number = 5000
   ) {}
@@ -77,10 +79,16 @@ export class JobProcessorService {
 
   private async processMessage(message: QueueMessage, receiptHandle: string): Promise<void> {
     try {
-      if ('action' in message && message.action === 'DELETE_PROJECT') {
-        // Handle project deletion
-        this.logger.info(`Processing delete project message`, { projectId: message.projectId });
-        await this.deleteProjectUseCase.execute(message as DeleteProjectMessage);
+      if ('action' in message) {
+        if (message.action === 'DELETE_PROJECT') {
+          // Handle project deletion
+          this.logger.info(`Processing delete project message`, { projectId: message.projectId });
+          await this.deleteProjectUseCase.execute(message as DeleteProjectMessage);
+        } else if (message.action === 'DELETE_MEDIA') {
+          // Handle media deletion
+          this.logger.info(`Processing delete media message`, { mediaId: message.mediaId });
+          await this.processMediaDeletionUseCase.execute(message as DeleteMediaMessage);
+        }
       } else {
         // Handle regular job processing
         const jobMessage = message as JobMessage;
@@ -93,8 +101,10 @@ export class JobProcessorService {
       // Delete the message from queue since it was processed successfully
       await this.queueService.deleteMessage(receiptHandle);
     } catch (error) {
-      const messageId = 'action' in message ? message.projectId : (message as JobMessage).promptId;
-      this.logger.error(`Error processing message`, { 
+      const messageId = 'action' in message
+        ? (message.action === 'DELETE_MEDIA' ? message.mediaId : message.projectId)
+        : (message as JobMessage).promptId;
+      this.logger.error(`Error processing message`, {
         messageId,
         error: error instanceof Error ? error.message : 'Unknown error'
       });

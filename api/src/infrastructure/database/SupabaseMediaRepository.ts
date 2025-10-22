@@ -16,6 +16,7 @@ interface MediaRow {
   height?: number;
   created_at: string;
   modified_at: string;
+  deleted_at: string | null;
 }
 
 export class SupabaseMediaRepository implements IMediaRepository {
@@ -43,6 +44,7 @@ export class SupabaseMediaRepository implements IMediaRepository {
       height: row.height,
       createdAt: new Date(row.created_at),
       modifiedAt: new Date(row.modified_at),
+      deletedAt: row.deleted_at ? new Date(row.deleted_at) : undefined,
     };
   }
 
@@ -74,6 +76,7 @@ export class SupabaseMediaRepository implements IMediaRepository {
       .from('medias')
       .select('*')
       .eq('id', id)
+      .is('deleted_at', null)
       .single();
 
     if (error) {
@@ -81,6 +84,23 @@ export class SupabaseMediaRepository implements IMediaRepository {
         return null;
       }
       throw new Error(`Failed to find media: ${error.message}`);
+    }
+
+    return this.mapRowToEntity(data);
+  }
+
+  async findByIdIncludingDeleted(id: string): Promise<Media | null> {
+    const { data, error } = await this.supabase
+      .from('medias')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return null;
+      }
+      throw new Error(`Failed to find media (including deleted): ${error.message}`);
     }
 
     return this.mapRowToEntity(data);
@@ -94,7 +114,8 @@ export class SupabaseMediaRepository implements IMediaRepository {
     const { data, error } = await this.supabase
       .from('medias')
       .select('*')
-      .in('id', ids);
+      .in('id', ids)
+      .is('deleted_at', null);
 
     if (error) {
       throw new Error(`Failed to find medias: ${error.message}`);
@@ -108,6 +129,7 @@ export class SupabaseMediaRepository implements IMediaRepository {
       .from('medias')
       .select('*')
       .eq('user_id', userId)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -144,6 +166,20 @@ export class SupabaseMediaRepository implements IMediaRepository {
 
     if (error) {
       throw new Error(`Failed to update media public S3 info: ${error.message}`);
+    }
+  }
+
+  async softDelete(id: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('medias')
+      .update({
+        deleted_at: new Date().toISOString(),
+        modified_at: new Date().toISOString(),
+      })
+      .eq('id', id);
+
+    if (error) {
+      throw new Error(`Failed to soft delete media: ${error.message}`);
     }
   }
 

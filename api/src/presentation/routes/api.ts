@@ -85,5 +85,10 @@ export function createApiRoutes(deps: ApiRoutesDependencies): Router {
     deps.mediaController.confirmUpload
   );
 
+  router.delete('/media/:mediaId',
+    deps.authMiddleware.authenticate,
+    deps.mediaController.deleteMedia
+  );
+
   return router;
 }

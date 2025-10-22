@@ -12,6 +12,7 @@ export interface Media {
   height?: number;
   createdAt: Date;
   modifiedAt: Date;
+  deletedAt?: Date;
 }
 
 export interface CreateMediaRequest {

@@ -12,6 +12,7 @@ export interface IStorageService {
   uploadProductionVersion(appDirectory: string, projectId: string, version: number): Promise<UploadResult>;
   deleteFile(key: string): Promise<void>;
   deleteFolder(prefix: string): Promise<void>;
+  deleteMediaFile(key: string, bucket: string): Promise<void>;
   generatePresignedUploadUrl(key: string, mimeType: string, expiresIn: number, bucket?: string): Promise<string>;
   generatePresignedDownloadUrl(key: string, expiresIn: number, bucket?: string): Promise<string>;
   verifyFileExists(key: string, bucket?: string): Promise<boolean>;

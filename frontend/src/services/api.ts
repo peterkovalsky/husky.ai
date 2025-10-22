@@ -278,4 +278,13 @@ export class ApiService {
       body: JSON.stringify({ mediaId }),
     });
   }
+
+  static async deleteMedia(mediaId: string, projectId?: string): Promise<{ success: boolean }> {
+    const endpoint = projectId
+      ? `/api/media/${mediaId}?projectId=${projectId}`
+      : `/api/media/${mediaId}`;
+    return this.request<{ success: boolean }>(endpoint, {
+      method: 'DELETE',
+    });
+  }
 }

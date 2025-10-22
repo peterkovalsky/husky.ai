@@ -2,8 +2,9 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ApiService, type JobStatus } from '../services/api'
 import { useProject } from '../contexts/ProjectContext'
-import { Button, Textarea, Card, Spinner } from '@heroui/react'
-import { MessageCircle, X, Send, Loader2, CheckCircle, AlertCircle, ArrowLeft, ImageIcon } from 'lucide-react'
+import { Button, Card } from '@heroui/react'
+import { MessageCircle, Loader2, CheckCircle, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react'
+import { PromptInput, type AttachedImage } from './PromptInput'
 
 interface ChatMessage {
   id: string
@@ -14,14 +15,6 @@ interface ChatMessage {
   jobId?: string
 }
 
-interface AttachedImage {
-  id: string
-  file: File
-  preview: string
-  uploadStatus: 'pending' | 'uploading' | 'ready' | 'failed'
-  mediaId?: string
-  error?: string
-}
 
 interface ChatWidgetProps {
   projectId?: string;
@@ -30,19 +23,19 @@ interface ChatWidgetProps {
 
 export const ChatWidget = ({ projectId, projectName }: ChatWidgetProps = {}) => {
   const [isOpen, setIsOpen] = useState(true)
+  const [isExpanded, setIsExpanded] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [currentPrompt, setCurrentPrompt] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [currentLoadingStatus, setCurrentLoadingStatus] = useState<'QUEUED' | 'PROCESSING' | 'BUILDING' | null>(null)
   const [attachedImages, setAttachedImages] = useState<AttachedImage[]>([])
   const [isDragging, setIsDragging] = useState(false)
   const { currentProject } = useProject()
   const navigate = useNavigate()
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const pollCleanupRef = useRef<(() => void) | null>(null)
   const lastStatusRef = useRef<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Use explicit projectId prop if provided, otherwise fall back to context
   const activeProjectId = projectId || currentProject?.id
@@ -181,11 +174,6 @@ export const ChatWidget = ({ projectId, projectName }: ChatWidgetProps = {}) => 
       return
     }
     await uploadImage(file)
-
-    // Reset file input so the same file can be selected again
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
-    }
   }
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -210,17 +198,28 @@ export const ChatWidget = ({ projectId, projectName }: ChatWidgetProps = {}) => 
   }
 
   const removeImage = (imageId: string) => {
+    // Find the image before removing
+    const image = attachedImages.find(img => img.id === imageId)
+
+    // Optimistic delete - remove from UI immediately
     setAttachedImages(prev => {
-      const image = prev.find(img => img.id === imageId)
-      if (image) {
-        URL.revokeObjectURL(image.preview)
+      const img = prev.find(i => i.id === imageId)
+      if (img) {
+        URL.revokeObjectURL(img.preview)
       }
-      return prev.filter(img => img.id !== imageId)
+      return prev.filter(i => i.id !== imageId)
     })
 
-    // Reset file input when removing an image
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
+    // Async cleanup - delete from backend if it was uploaded
+    if (image?.mediaId && activeProjectId) {
+      ApiService.deleteMedia(image.mediaId, activeProjectId)
+        .then(() => {
+          console.log(`[ChatWidget] Successfully deleted media ${image.mediaId} from backend`)
+        })
+        .catch(error => {
+          console.error(`[ChatWidget] Failed to delete media ${image.mediaId} from backend:`, error)
+          // Don't show error to user - image already removed from UI
+        })
     }
   }
 
@@ -286,15 +285,21 @@ export const ChatWidget = ({ projectId, projectName }: ChatWidgetProps = {}) => 
       )
       console.log('[ChatWidget] Submit response:', response)
       updateMessageStatus(messageId, 'processing', response.promptId || response.jobId)
-      
+
       addSystemMessage('🚀 Building your app update...')
       lastStatusRef.current = 'QUEUED'
+      setCurrentLoadingStatus('QUEUED')
 
       setIsProcessing(true)
-      
+
       const cleanup = await ApiService.pollJobStatus(
         response.promptId || response.jobId,
         (status: JobStatus) => {
+          // Update loading status for progress indicator
+          if (status.status === 'QUEUED' || status.status === 'PROCESSING' || status.status === 'BUILDING') {
+            setCurrentLoadingStatus(status.status)
+          }
+
           // Only show new status messages to avoid duplicates
           if (status.status !== lastStatusRef.current) {
             if (status.status === 'PROCESSING') {
@@ -304,11 +309,12 @@ export const ChatWidget = ({ projectId, projectName }: ChatWidgetProps = {}) => 
             }
             lastStatusRef.current = status.status
           }
-          
+
           if (status.status === 'READY' && status.previewUrl) {
             updateMessageStatus(messageId, 'completed')
             addSystemMessage('✅ Your app has been updated! Preview refreshed.', 'success')
             setIsProcessing(false)
+            setCurrentLoadingStatus(null)
             
             // Cache-busting iframe reload
             setTimeout(() => {
@@ -329,12 +335,14 @@ export const ChatWidget = ({ projectId, projectName }: ChatWidgetProps = {}) => 
             updateMessageStatus(messageId, 'failed')
             addSystemMessage(`❌ Build failed: ${status.errorMessage || 'Unknown error'}`, 'error')
             setIsProcessing(false)
+            setCurrentLoadingStatus(null)
           }
         },
         (error) => {
           updateMessageStatus(messageId, 'failed')
           addSystemMessage(`❌ Error: ${error.message}`, 'error')
           setIsProcessing(false)
+          setCurrentLoadingStatus(null)
         }
       )
 
@@ -344,15 +352,11 @@ export const ChatWidget = ({ projectId, projectName }: ChatWidgetProps = {}) => 
       // Clear attached images after successful submission
       attachedImages.forEach(img => URL.revokeObjectURL(img.preview))
       setAttachedImages([])
-
-      // Reset file input for next upload
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
     } catch (error) {
       updateMessageStatus(messageId, 'failed')
       addSystemMessage(`❌ Failed to submit: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error')
       setIsProcessing(false)
+      setCurrentLoadingStatus(null)
     } finally {
       setIsSubmitting(false)
       lastStatusRef.current = null // Reset for next submission
@@ -409,193 +413,77 @@ export const ChatWidget = ({ projectId, projectName }: ChatWidgetProps = {}) => 
 
         {/* Chat Window */}
         {isOpen && (
-          <Card className="w-80 h-[576px] flex flex-col shadow-2xl" isBlurred={true}>
+          <Card className={`w-80 flex flex-col shadow-2xl transition-all ${isExpanded ? 'h-[576px]' : 'h-auto'}`} isBlurred={true}>
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-divider">
-              <div className="flex items-center gap-2">
-                <MessageCircle className="h-5 w-5" />
-                <span>{activeProjectName || 'Quick Build'}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="light"
-                  size="sm"
-                  onPress={() => navigate('/')}
-                  title="Back to Projects"
-                  isIconOnly
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="light"
-                  size="sm"
-                  onPress={() => setIsOpen(false)}
-                  isIconOnly
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
+            <div className="flex items-center justify-end px-4 pt-4">
+              <Button
+                variant="light"
+                size="sm"
+                onPress={() => setIsExpanded(!isExpanded)}
+                title={isExpanded ? "Collapse" : "Expand"}
+                isIconOnly
+              >
+                {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </Button>
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-4 space-y-3 py-4">
-              {messages.length === 0 && (
-                <div className="text-center py-12">
-                  <div className="bg-content2 rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                    <MessageCircle className="h-8 w-8 opacity-60" />
+            {isExpanded && (
+              <div className="flex-1 overflow-y-auto px-4 space-y-3 py-4">
+                {messages.filter(msg => msg.type === 'user').length === 0 && (
+                  <div className="text-center py-12">
+                    <div className="bg-content2 rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                      <MessageCircle className="h-8 w-8 opacity-60" />
+                    </div>
+                    <p className="opacity-70 leading-relaxed">
+                      {activeProjectId
+                        ? "No prompts yet"
+                        : "Select a project to start building!"
+                      }
+                    </p>
                   </div>
-                  <p className="opacity-70 leading-relaxed">
-                    {activeProjectId
-                      ? "Describe changes to your app and I'll build them instantly!"
-                      : "Select a project to start building!"
-                    }
-                  </p>
-                </div>
-              )}
-              
-              {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
+                )}
+
+                {messages.filter(msg => msg.type === 'user').map((message) => (
                   <div
-                    className={`max-w-[80%] rounded-2xl px-4 py-3 backdrop-blur-sm ${
-                      message.type === 'user'
-                        ? 'bg-primary text-primary-foreground shadow-sm'
-                        : message.status === 'failed'
-                        ? 'bg-danger/10 text-danger border border-danger/20'
-                        : 'bg-content2 text-foreground'
-                    }`}
+                    key={message.id}
+                    className="flex justify-end"
                   >
-                    <div className="flex items-start gap-2">
-                      <span className="flex-1 leading-relaxed">{message.content}</span>
-                      {message.type === 'user' && getStatusIcon(message.status)}
-                    </div>
-                    <div className="opacity-60 mt-2 text-xs">
-                      {formatTime(message.timestamp)}
+                    <div className="max-w-[80%] rounded-2xl px-4 py-3 backdrop-blur-sm bg-primary text-primary-foreground shadow-sm">
+                      <div className="flex items-start gap-2">
+                        <span className="flex-1 leading-relaxed">{message.content}</span>
+                        {getStatusIcon(message.status)}
+                      </div>
+                      <div className="opacity-60 mt-2 text-xs">
+                        {formatTime(message.timestamp)}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-              
-              {isProcessing && (
-                <div className="flex justify-start">
-                  <div className="bg-content2 rounded-2xl px-4 py-3 max-w-[80%] backdrop-blur-sm">
-                    <Spinner size="sm" />
-                  </div>
-                </div>
-              )}
-              
-              <div ref={messagesEndRef} />
-            </div>
+                ))}
+
+                <div ref={messagesEndRef} />
+              </div>
+            )}
 
             {/* Input */}
-            <div
-              className="p-4 border-t border-divider"
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-            >
-              {/* Image Previews */}
-              {attachedImages.length > 0 && (
-                <div className="mb-3 flex gap-2 overflow-x-auto pb-2">
-                  {attachedImages.map((image) => (
-                    <div key={image.id} className="relative flex-shrink-0">
-                      <div className="relative w-20 h-20 rounded-lg overflow-hidden border-2 border-divider">
-                        <img
-                          src={image.preview}
-                          alt="Preview"
-                          className="w-full h-full object-cover"
-                        />
-                        {image.uploadStatus === 'uploading' && (
-                          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                            <Loader2 className="h-5 w-5 text-white animate-spin" />
-                          </div>
-                        )}
-                        {image.uploadStatus === 'failed' && (
-                          <div className="absolute inset-0 bg-danger/50 flex items-center justify-center">
-                            <AlertCircle className="h-5 w-5 text-white" />
-                          </div>
-                        )}
-                        {image.uploadStatus === 'ready' && (
-                          <div className="absolute top-0 right-0 bg-success rounded-bl-lg p-0.5">
-                            <CheckCircle className="h-3 w-3 text-white" />
-                          </div>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => removeImage(image.id)}
-                        className="absolute -top-2 -right-2 bg-danger rounded-full p-1 hover:bg-danger/80"
-                        type="button"
-                      >
-                        <X className="h-3 w-3 text-white" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Drag & Drop Overlay */}
-              {isDragging && (
-                <div className="absolute inset-0 bg-primary/10 border-2 border-dashed border-primary rounded-lg flex items-center justify-center z-10 pointer-events-none">
-                  <div className="text-center">
-                    <ImageIcon className="h-12 w-12 mx-auto mb-2 text-primary" />
-                    <p className="text-sm font-medium text-primary">Drop file here</p>
-                  </div>
-                </div>
-              )}
-
-              <form onSubmit={handleSubmit}>
-                <div className="relative">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime,application/pdf"
-                    onChange={(e) => handleFileSelect(e.target.files)}
-                    className="hidden"
-                  />
-                  <Textarea
-                    ref={textareaRef}
-                    value={currentPrompt}
-                    onValueChange={setCurrentPrompt}
-                    onKeyDown={handleKeyDown}
-                    placeholder={activeProjectId ? "Describe your changes..." : "Select a project first..."}
-                    className="pr-20"
-                    classNames={{
-                      input: "min-h-[60px] max-h-[120px] resize-none"
-                    }}
-                    isDisabled={isSubmitting || !activeProjectId}
-                    minRows={2}
-                    maxRows={5}
-                    variant="bordered"
-                  />
-                  <div className="absolute bottom-2 right-2 flex gap-1">
-                    <Button
-                      size="sm"
-                      variant="light"
-                      isIconOnly
-                      onPress={() => fileInputRef.current?.click()}
-                      isDisabled={!activeProjectId || attachedImages.length > 0}
-                      title="Attach file (image, video, or PDF)"
-                    >
-                      <ImageIcon className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      type="submit"
-                      size="sm"
-                      isDisabled={!currentPrompt.trim() || isSubmitting || !activeProjectId}
-                      isIconOnly
-                      color="primary"
-                    >
-                      {isSubmitting ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Send className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              </form>
+            <div className="p-4">
+              <PromptInput
+                value={currentPrompt}
+                onChange={setCurrentPrompt}
+                onSubmit={handleSubmit}
+                onKeyDown={handleKeyDown}
+                onFileSelect={handleFileSelect}
+                onRemoveFile={removeImage}
+                attachedFiles={attachedImages}
+                isSubmitting={isSubmitting || isProcessing}
+                isDisabled={!activeProjectId || isSubmitting || isProcessing}
+                placeholder={activeProjectId ? "Describe your changes..." : "Select a project first..."}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                isDragging={isDragging}
+                loadingStatus={currentLoadingStatus}
+              />
             </div>
           </Card>
         )}

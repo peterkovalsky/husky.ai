@@ -15,7 +15,15 @@ export interface DeleteProjectMessage {
   timestamp: string;
 }
 
-export type QueueMessage = JobMessage | DeleteProjectMessage;
+export interface DeleteMediaMessage {
+  action: 'DELETE_MEDIA';
+  mediaId: string;
+  userId: string;
+  projectId?: string; // Optional: if provided, only clean from this project's builds
+  timestamp: string;
+}
+
+export type QueueMessage = JobMessage | DeleteProjectMessage | DeleteMediaMessage;
 
 export interface ReceiveMessageResult {
   messages: Array<{
