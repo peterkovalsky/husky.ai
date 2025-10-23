@@ -16,7 +16,7 @@ interface NewProjectStarterProps {
 
 type AppState = 'initial' | 'submitted' | 'loading' | 'ready' | 'error'
 
-export const NewProjectStarter = ({ projectId, projectName }: NewProjectStarterProps) => {
+export const NewProjectStarter = ({ projectId }: NewProjectStarterProps) => {
   const [prompt, setPrompt] = useState('')
   const [appState, setAppState] = useState<AppState>('initial')
   const [jobStatus, setJobStatus] = useState<JobStatus | null>(null)

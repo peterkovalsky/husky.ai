@@ -2,12 +2,13 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { AuthLayout } from './AuthLayout'
-import { Button, Input, Divider } from '@heroui/react'
-import { Loader2, Mail, Lock, AlertCircle, ArrowRight, UserPlus } from 'lucide-react'
+import { Button, Input, Checkbox } from '@heroui/react'
+import { Loader2, AlertCircle } from 'lucide-react'
 
 export const SignIn = () => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { signIn } = useAuth()
@@ -15,7 +16,7 @@ export const SignIn = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!email || !password) {
       setError('Please fill in all fields')
       return
@@ -34,7 +35,7 @@ export const SignIn = () => {
   }
 
   return (
-    <AuthLayout title="Sign In" subtitle="Welcome back to Husky AI">
+    <AuthLayout title="Log In">
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && (
           <div className="flex items-center gap-3 p-4 rounded-lg bg-red-50 border border-red-200 text-red-700">
@@ -50,30 +51,42 @@ export const SignIn = () => {
             name="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email"
-            startContent={<Mail className="h-4 w-4 text-default-400" />}
+            placeholder="Enter your email"
+            classNames={{
+              input: "bg-transparent placeholder:text-gray-600",
+              inputWrapper: "bg-white/30 backdrop-blur-sm border-white/30"
+            }}
             required
           />
 
-          <div className="space-y-2">
-            <Input
-              type="password"
-              id="password"
-              name="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Password"
-              startContent={<Lock className="h-4 w-4 text-default-400" />}
-              required
-            />
-            <div className="flex justify-end">
-              <Link
-                to="/forgot-password"
-                className="text-sm text-primary hover:underline font-medium"
-              >
-                Forgot password?
-              </Link>
-            </div>
+          <Input
+            type="password"
+            id="password"
+            name="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Enter your password"
+            classNames={{
+              input: "bg-transparent placeholder:text-gray-600",
+              inputWrapper: "bg-white/30 backdrop-blur-sm border-white/30"
+            }}
+            required
+          />
+
+          <div className="flex items-center justify-between">
+            <Checkbox
+              size="sm"
+              isSelected={rememberMe}
+              onValueChange={setRememberMe}
+            >
+              Remember me
+            </Checkbox>
+            <Link
+              to="/forgot-password"
+              className="text-sm text-default-500 hover:text-default-700"
+            >
+              Forgot password?
+            </Link>
           </div>
         </div>
 
@@ -91,32 +104,16 @@ export const SignIn = () => {
                 Signing in...
               </>
             ) : (
-              <>
-                Sign In
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </>
+              'Log In'
             )}
           </Button>
 
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <Divider className="w-full" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-white px-2 text-gray-500">Or</span>
-            </div>
+          <div className="text-center text-sm text-default-500">
+            Need to create an account?{' '}
+            <Link to="/signup" className="text-primary hover:underline font-medium">
+              Sign Up
+            </Link>
           </div>
-
-          <Button 
-            as={Link}
-            to="/signup"
-            variant="bordered"
-            size="lg"
-            className="w-full"
-          >
-            Create an account
-            <UserPlus className="ml-2 h-4 w-4" />
-          </Button>
         </div>
       </form>
     </AuthLayout>
