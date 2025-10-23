@@ -44,40 +44,36 @@ export const SignIn = () => {
         )}
 
         <div className="space-y-4">
-          <div>
-            <Input
-              type="email"
-              id="email"
-              name="email"
-              label="Email Address"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email address"
-              startContent={<Mail className="h-4 w-4 text-default-400" />}
-              required
-            />
-          </div>
+          <Input
+            type="email"
+            id="email"
+            name="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email"
+            startContent={<Mail className="h-4 w-4 text-default-400" />}
+            required
+          />
 
-          <div>
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-sm font-medium">Password</span>
-              <Link 
-                to="/forgot-password" 
-                className="text-sm text-primary hover:underline font-medium"
-              >
-                Forgot password?
-              </Link>
-            </div>
+          <div className="space-y-2">
             <Input
               type="password"
               id="password"
               name="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter your password"
+              placeholder="Password"
               startContent={<Lock className="h-4 w-4 text-default-400" />}
               required
             />
+            <div className="flex justify-end">
+              <Link
+                to="/forgot-password"
+                className="text-sm text-primary hover:underline font-medium"
+              >
+                Forgot password?
+              </Link>
+            </div>
           </div>
         </div>
 

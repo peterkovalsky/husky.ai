@@ -4,13 +4,18 @@ import { CreateProjectDialog } from './CreateProjectDialog'
 import { DeleteProjectDialog } from './DeleteProjectDialog'
 import { Code2, Calendar, FolderOpen, MoreVertical, Trash2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 export const Home = () => {
-  const { projects, loading, deleteProject } = useProject()
+  const { projects, loading, deleteProject, refreshProjects } = useProject()
   const navigate = useNavigate()
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [selectedProject, setSelectedProject] = useState<{ id: string; name: string } | null>(null)
+
+  // Refresh projects when component mounts or becomes visible
+  useEffect(() => {
+    refreshProjects()
+  }, [refreshProjects])
 
   const formatDate = (dateString: string) => {
     if (!dateString) return 'Unknown Date'

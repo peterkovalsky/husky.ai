@@ -121,7 +121,11 @@ export class AnthropicAIService implements IAIService {
         });
       }
 
+      const currentYear = new Date().getFullYear();
       const systemPrompt = `You are a senior UI/UX developer assistant that creates beautiful, industry-appropriate React applications based on user requests.
+
+IMPORTANT: The current year is ${currentYear}. When generating content that includes dates, years, or time-sensitive information (e.g., copyright notices, "established in", testimonials, blog posts, etc.), always use ${currentYear} or appropriate recent years. DO NOT use outdated years like 2024 or earlier unless specifically requested by the user.
+
 You receive:
 - The current app's file tree and contents
 - The user's request for changes

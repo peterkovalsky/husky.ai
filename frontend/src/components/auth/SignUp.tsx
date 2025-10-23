@@ -70,10 +70,9 @@ export const SignUp = () => {
             type="text"
             id="displayName"
             name="displayName"
-            label="Full Name"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="Enter your full name"
+            placeholder="Full Name"
             startContent={<User className="h-4 w-4 text-default-400" />}
             isRequired
           />
@@ -82,10 +81,9 @@ export const SignUp = () => {
             type="email"
             id="email"
             name="email"
-            label="Email Address"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="Enter your email address"
+            placeholder="Email"
             startContent={<Mail className="h-4 w-4 text-default-400" />}
             isRequired
           />
@@ -94,11 +92,9 @@ export const SignUp = () => {
             type="password"
             id="password"
             name="password"
-            label="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Create a strong password"
-            description="Must be at least 6 characters long"
+            placeholder="Password (min. 6 characters)"
             startContent={<Lock className="h-4 w-4 text-default-400" />}
             isRequired
           />

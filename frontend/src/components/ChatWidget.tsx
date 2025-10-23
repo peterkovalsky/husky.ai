@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { ApiService, type JobStatus } from '../services/api'
 import { useProject } from '../contexts/ProjectContext'
 import { Button, Card } from '@heroui/react'
-import { MessageCircle, Loader2, CheckCircle, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react'
-import { PromptInput, type AttachedImage } from './PromptInput'
+import { MessageCircle, Loader2, CheckCircle, AlertCircle, ChevronDown, ChevronUp, ArrowLeft } from 'lucide-react'
+import { PromptInput } from './PromptInput'
+import { useMediaUpload } from '../hooks/useMediaUpload'
 
 interface ChatMessage {
   id: string
@@ -28,9 +30,8 @@ export const ChatWidget = ({ projectId }: ChatWidgetProps = {}) => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [currentLoadingStatus, setCurrentLoadingStatus] = useState<'QUEUED' | 'PROCESSING' | 'BUILDING' | null>(null)
-  const [attachedImages, setAttachedImages] = useState<AttachedImage[]>([])
-  const [isDragging, setIsDragging] = useState(false)
   const { currentProject } = useProject()
+  const navigate = useNavigate()
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const pollCleanupRef = useRef<(() => void) | null>(null)
@@ -38,6 +39,25 @@ export const ChatWidget = ({ projectId }: ChatWidgetProps = {}) => {
 
   // Use explicit projectId prop if provided, otherwise fall back to context
   const activeProjectId = projectId || currentProject?.id
+
+  // Media upload hook
+  const {
+    attachedImages,
+    isDragging,
+    handleFileSelect,
+    handleDragOver,
+    handleDragLeave,
+    handleDrop,
+    removeFile,
+    getMediaIds,
+    clearFiles,
+    hasUploadingFiles,
+    hasFailedFiles,
+  } = useMediaUpload({
+    projectId: activeProjectId,
+    onError: (message) => addSystemMessage(message, 'error'),
+    maxFiles: 1,
+  })
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -74,160 +94,6 @@ export const ChatWidget = ({ projectId }: ChatWidgetProps = {}) => {
     setMessages(prev => [...prev, systemMessage])
   }
 
-  const validateFile = (file: File): string | null => {
-    const allowedTypes = [
-      // Images
-      'image/jpeg',
-      'image/png',
-      'image/gif',
-      'image/webp',
-      // Videos
-      'video/mp4',
-      'video/webm',
-      'video/quicktime', // .mov
-      // PDFs
-      'application/pdf',
-    ]
-    if (!allowedTypes.includes(file.type)) {
-      return 'Only images (JPEG, PNG, GIF, WebP), videos (MP4, WebM, MOV), and PDFs are allowed'
-    }
-    const maxSize = 50 * 1024 * 1024 // 50MB (increased for videos)
-    if (file.size > maxSize) {
-      return 'File must be smaller than 50MB'
-    }
-    return null
-  }
-
-  const uploadImage = async (file: File) => {
-    if (!activeProjectId) {
-      console.error('No active project for image upload')
-      return
-    }
-
-    const imageId = Date.now().toString()
-    const preview = URL.createObjectURL(file)
-
-    // Add to attached images with pending status
-    const newImage: AttachedImage = {
-      id: imageId,
-      file,
-      preview,
-      uploadStatus: 'uploading'
-    }
-    setAttachedImages(prev => [...prev, newImage])
-
-    try {
-      // Step 1: Get presigned upload URL
-      const { mediaId, uploadUrl } = await ApiService.generatePresignedUpload(
-        file.name,
-        file.type,
-        activeProjectId
-      )
-
-      // Step 2: Upload to S3
-      await ApiService.uploadToS3(file, uploadUrl)
-
-      // Step 3: Confirm upload
-      await ApiService.confirmMediaUpload(mediaId)
-
-      // Update image status to ready
-      setAttachedImages(prev =>
-        prev.map(img =>
-          img.id === imageId
-            ? { ...img, uploadStatus: 'ready', mediaId }
-            : img
-        )
-      )
-    } catch (error) {
-      console.error('Image upload failed:', error)
-      setAttachedImages(prev =>
-        prev.map(img =>
-          img.id === imageId
-            ? { ...img, uploadStatus: 'failed', error: error instanceof Error ? error.message : 'Upload failed' }
-            : img
-        )
-      )
-    }
-  }
-
-  const handleFileSelect = async (files: FileList | null) => {
-    if (!files || files.length === 0) return
-
-    // Limit to 1 file per request
-    if (files.length > 1) {
-      addSystemMessage('Only 1 file can be uploaded per request', 'error')
-      return
-    }
-
-    // Check if there's already an attached file
-    if (attachedImages.length > 0) {
-      addSystemMessage('Please remove the existing file before uploading a new one', 'error')
-      return
-    }
-
-    const file = files[0]
-    const error = validateFile(file)
-    if (error) {
-      addSystemMessage(error, 'error')
-      return
-    }
-    await uploadImage(file)
-  }
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDragging(true)
-  }
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDragging(false)
-  }
-
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDragging(false)
-
-    const files = e.dataTransfer.files
-    await handleFileSelect(files)
-  }
-
-  const removeImage = (imageId: string) => {
-    // Find the image before removing
-    const image = attachedImages.find(img => img.id === imageId)
-
-    // Optimistic delete - remove from UI immediately
-    setAttachedImages(prev => {
-      const img = prev.find(i => i.id === imageId)
-      if (img) {
-        URL.revokeObjectURL(img.preview)
-      }
-      return prev.filter(i => i.id !== imageId)
-    })
-
-    // Async cleanup - delete from backend if it was uploaded
-    if (image?.mediaId && activeProjectId) {
-      ApiService.deleteMedia(image.mediaId, activeProjectId)
-        .then(() => {
-          console.log(`[ChatWidget] Successfully deleted media ${image.mediaId} from backend`)
-        })
-        .catch(error => {
-          console.error(`[ChatWidget] Failed to delete media ${image.mediaId} from backend:`, error)
-          // Don't show error to user - image already removed from UI
-        })
-    }
-  }
-
-  // Cleanup blob URLs on unmount
-  useEffect(() => {
-    return () => {
-      attachedImages.forEach(img => URL.revokeObjectURL(img.preview))
-    }
-  }, [])
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -240,15 +106,13 @@ export const ChatWidget = ({ projectId }: ChatWidgetProps = {}) => {
     }
 
     // Check if any images are still uploading
-    const uploadingImages = attachedImages.filter(img => img.uploadStatus === 'uploading')
-    if (uploadingImages.length > 0) {
+    if (hasUploadingFiles()) {
       addSystemMessage('Please wait for images to finish uploading', 'error')
       return
     }
 
     // Check if any images failed
-    const failedImages = attachedImages.filter(img => img.uploadStatus === 'failed')
-    if (failedImages.length > 0) {
+    if (hasFailedFiles()) {
       addSystemMessage('Please remove failed images before submitting', 'error')
       return
     }
@@ -263,9 +127,7 @@ export const ChatWidget = ({ projectId }: ChatWidgetProps = {}) => {
     }
 
     // Get mediaIds from ready images
-    const mediaIds = attachedImages
-      .filter(img => img.uploadStatus === 'ready' && img.mediaId)
-      .map(img => img.mediaId!)
+    const mediaIds = getMediaIds()
 
     console.log('[ChatWidget] Attached images:', attachedImages)
     console.log('[ChatWidget] Media IDs to submit:', mediaIds)
@@ -348,8 +210,7 @@ export const ChatWidget = ({ projectId }: ChatWidgetProps = {}) => {
       pollCleanupRef.current = cleanup
 
       // Clear attached images after successful submission
-      attachedImages.forEach(img => URL.revokeObjectURL(img.preview))
-      setAttachedImages([])
+      clearFiles()
     } catch (error) {
       updateMessageStatus(messageId, 'failed')
       addSystemMessage(`❌ Failed to submit: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error')
@@ -413,7 +274,15 @@ export const ChatWidget = ({ projectId }: ChatWidgetProps = {}) => {
         {isOpen && (
           <Card className={`w-80 flex flex-col shadow-2xl transition-all ${isExpanded ? 'h-[576px]' : 'h-auto'}`} isBlurred={true}>
             {/* Header */}
-            <div className="flex items-center justify-end px-4 pt-4">
+            <div className="flex items-center justify-between px-4 pt-4">
+              <Button
+                variant="light"
+                size="sm"
+                onPress={() => navigate('/dashboard')}
+                startContent={<ArrowLeft className="h-4 w-4" />}
+              >
+                Back to projects
+              </Button>
               <Button
                 variant="light"
                 size="sm"
@@ -471,7 +340,7 @@ export const ChatWidget = ({ projectId }: ChatWidgetProps = {}) => {
                 onSubmit={handleSubmit}
                 onKeyDown={handleKeyDown}
                 onFileSelect={handleFileSelect}
-                onRemoveFile={removeImage}
+                onRemoveFile={removeFile}
                 attachedFiles={attachedImages}
                 isSubmitting={isSubmitting || isProcessing}
                 isDisabled={!activeProjectId || isSubmitting || isProcessing}

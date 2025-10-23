@@ -11,6 +11,7 @@ interface ProjectContextType {
   currentProject: Project | null;
   setCurrentProject: (project: Project) => void;
   deleteProject?: (projectId: string) => Promise<void>;
+  refreshProjects: () => Promise<void>;
   loading: boolean;
   error: string | null;
 }
@@ -108,10 +109,10 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
   const handleDeleteProject = useCallback(async (projectId: string) => {
     try {
       await ApiService.deleteProject(projectId);
-      
+
       // Remove from projects list
       setProjects(prev => prev.filter(p => p.id !== projectId));
-      
+
       // If deleted project was current project, clear it
       if (currentProject?.id === projectId) {
         setCurrentProject(null);
@@ -121,6 +122,18 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
     }
   }, [currentProject]);
 
+  const handleRefreshProjects = useCallback(async () => {
+    if (!currentWorkspace) return;
+
+    try {
+      const { projects } = await ApiService.getProjects(currentWorkspace.id);
+      setProjects(projects);
+    } catch (err) {
+      console.error('Failed to refresh projects:', err);
+      setError(err instanceof Error ? err.message : 'Failed to refresh projects');
+    }
+  }, [currentWorkspace]);
+
   const value: ProjectContextType = {
     workspaces,
     currentWorkspace,
@@ -128,6 +141,7 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
     currentProject,
     setCurrentProject: handleSetCurrentProject,
     deleteProject: handleDeleteProject,
+    refreshProjects: handleRefreshProjects,
     loading,
     error,
   };

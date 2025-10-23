@@ -3,6 +3,7 @@ import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure
 import { Plus } from 'lucide-react'
 import { ApiService } from '../services/api'
 import { useNavigate } from 'react-router-dom'
+import { useProject } from '../contexts/ProjectContext'
 
 interface CreateProjectDialogProps {
   onProjectCreated?: (projectId: string) => void
@@ -16,6 +17,7 @@ export const CreateProjectDialog = ({ onProjectCreated, isFirstProject }: Create
   const [isCreating, setIsCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
+  const { refreshProjects } = useProject()
 
   const handleSubmit = async () => {
     if (!name.trim()) {
@@ -32,14 +34,17 @@ export const CreateProjectDialog = ({ onProjectCreated, isFirstProject }: Create
         description: description.trim() || undefined
       })
 
+      // Refresh projects list in context
+      await refreshProjects()
+
       // Close dialog and reset form
       onOpenChange()
       setName('')
       setDescription('')
-      
+
       // Navigate to the new project
       navigate(`/project/${project.id}`)
-      
+
       // Optional callback
       onProjectCreated?.(project.id)
     } catch (error) {
@@ -83,8 +88,7 @@ export const CreateProjectDialog = ({ onProjectCreated, isFirstProject }: Create
           
           <ModalBody className="space-y-5">
             <Input
-              label="Project Name"
-              placeholder="My Awesome App"
+              placeholder="Project Name"
               value={name}
               onValueChange={setName}
               isDisabled={isCreating}
@@ -92,16 +96,14 @@ export const CreateProjectDialog = ({ onProjectCreated, isFirstProject }: Create
               variant="bordered"
               size="lg"
             />
-            
+
             <Textarea
-              label="Description"
-              placeholder="Describe what your app will do..."
+              placeholder="Description (Optional)"
               value={description}
               onValueChange={setDescription}
               isDisabled={isCreating}
               variant="bordered"
               minRows={4}
-              description="Optional"
             />
 
             {error && (
