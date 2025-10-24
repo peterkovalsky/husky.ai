@@ -6,6 +6,13 @@ import "./index.css";
 import App from "./App.tsx";
 import { AuthProvider } from "./contexts/AuthContext.tsx";
 import { ToastProvider } from "./contexts/ToastContext.tsx";
+import posthog from 'posthog-js';
+import { PostHogProvider } from 'posthog-js/react'
+
+posthog.init(import.meta.env.VITE_PUBLIC_POSTHOG_KEY, {
+  api_host: import.meta.env.VITE_PUBLIC_POSTHOG_HOST,
+  defaults: '2025-05-24',
+});
 
 createRoot(document.getElementById("root")!).render(
   // <StrictMode>
@@ -15,7 +22,9 @@ createRoot(document.getElementById("root")!).render(
       <ToastProvider>
         <HeroUIProvider>
           <main className="light text-foreground bg-background">
-            <App />
+            <PostHogProvider client={posthog}>
+              <App />
+            </PostHogProvider>
           </main>
         </HeroUIProvider>
       </ToastProvider>
