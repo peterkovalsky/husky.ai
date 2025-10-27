@@ -14,6 +14,7 @@ export interface NodeModulesCopyResult {
 
 export interface IBuildService {
   buildApp(appDirectory: string, projectId?: string): Promise<BuildResult>;
+  buildAppWithBasePath(appDirectory: string, basePath: string): Promise<BuildResult>;
   saveFileTreeToDisk(fileTree: Record<string, string>, projectId: string, version: number): Promise<string>;
   cleanWorkingDirectory(projectId: string): Promise<void>;
   copyPackageLockJson(targetDirectory: string, projectId: string): Promise<void>;

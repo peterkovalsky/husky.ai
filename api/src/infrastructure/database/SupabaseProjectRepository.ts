@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
-import { Project, CreateProjectRequest } from '../../domain/entities/Project';
+import { Project, CreateProjectRequest, PublishingStatus, ProjectStatus } from '../../domain/entities/Project';
 import { SupabaseClientFactory } from '../../shared/database/SupabaseClientFactory';
 
 export class SupabaseProjectRepository implements IProjectRepository {
@@ -121,6 +121,69 @@ export class SupabaseProjectRepository implements IProjectRepository {
     if (error) throw error;
   }
 
+  async setSubdomain(projectId: string, subdomain: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('projects')
+      .update({ subdomain })
+      .eq('id', projectId);
+
+    if (error) throw error;
+  }
+
+  async isSubdomainTaken(subdomain: string): Promise<boolean> {
+    const { data, error } = await this.supabase
+      .from('projects')
+      .select('id')
+      .eq('subdomain', subdomain)
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error;
+    return !!data;
+  }
+
+  async updatePublishingStatus(projectId: string, status: PublishingStatus): Promise<void> {
+    const { error } = await this.supabase
+      .from('projects')
+      .update({ published_status: status })
+      .eq('id', projectId);
+
+    if (error) throw error;
+  }
+
+  async updatePublishingError(projectId: string, errorMessage: string | null): Promise<void> {
+    const { error } = await this.supabase
+      .from('projects')
+      .update({ publishing_error: errorMessage })
+      .eq('id', projectId);
+
+    if (error) throw error;
+  }
+
+  async updateCloudFrontDetails(
+    projectId: string,
+    distributionId: string,
+    domain: string
+  ): Promise<void> {
+    const { error } = await this.supabase
+      .from('projects')
+      .update({
+        cloudfront_distribution_id: distributionId,
+        cloudfront_domain: domain
+      })
+      .eq('id', projectId);
+
+    if (error) throw error;
+  }
+
+  async setPublishedAt(projectId: string, publishedAt: Date | null): Promise<void> {
+    const { error } = await this.supabase
+      .from('projects')
+      .update({ published_at: publishedAt ? publishedAt.toISOString() : null })
+      .eq('id', projectId);
+
+    if (error) throw error;
+  }
+
   private mapToEntity(data: any): Project {
     return {
       id: data.id,
@@ -128,8 +191,14 @@ export class SupabaseProjectRepository implements IProjectRepository {
       description: data.description,
       previewUrl: data.preview_url,
       workspaceId: data.workspace_id,
-      status: data.status || 'ACTIVE',
+      status: data.status || ProjectStatus.ACTIVE,
       currentVersion: data.current_version || 0,
+      subdomain: data.subdomain,
+      publishedStatus: data.published_status || PublishingStatus.UNPUBLISHED,
+      publishedAt: data.published_at ? new Date(data.published_at) : undefined,
+      cloudfrontDistributionId: data.cloudfront_distribution_id,
+      cloudfrontDomain: data.cloudfront_domain,
+      publishingError: data.publishing_error,
       createdAt: new Date(data.created_at),
       modifiedAt: new Date(data.modified_at)
     };

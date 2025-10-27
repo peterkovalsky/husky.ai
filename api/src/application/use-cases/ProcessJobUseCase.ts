@@ -267,8 +267,13 @@ export class ProcessJobUseCase {
       // Update build status to BUILDING
       await this.buildRepository.updateStatus(buildId!, "BUILDING");
 
-      // Build stage
-      console.log(`Running build stage for prompt ${safePromptId}...`);
+      // Assign version number before building (need it for S3 paths)
+      const buildVersion = await this.buildRepository.getNextVersionForProject(safeProjectId);
+      await this.buildRepository.updateVersion(buildId!, buildVersion);
+      console.log(`Assigned version ${buildVersion} to build ${buildId}`);
+
+      // Build stage - Preview build with project-specific base path
+      console.log(`Running preview build stage for prompt ${safePromptId}...`);
       const buildResult = await this.buildService.buildApp(appDirectory, safeProjectId);
 
       if (!buildResult.success) {
@@ -278,22 +283,14 @@ export class ProcessJobUseCase {
       metrics.dependencyInstallTimeMs = buildResult.dependencyInstallTime || 0;
       metrics.buildTimeMs = buildResult.buildTime || 0;
 
-      // Upload to S3
-      console.log(`Uploading to S3 for prompt ${safePromptId}...`);
+      // Upload preview build to preview bucket
+      console.log(`Uploading preview build to preview bucket for prompt ${safePromptId}...`);
       const uploadStartTime = Date.now();
       const uploadResult = await this.storageService.uploadReactApp(appDirectory, safePromptId, safeProjectId);
       metrics.s3UploadTimeMs = Date.now() - uploadStartTime;
 
       if (!uploadResult.success) {
         throw new Error(`Failed to upload app to S3: ${uploadResult.error}`);
-      }
-
-      // Calculate total time
-      metrics.totalTimeMs = Date.now() - jobStartTime;
-
-      // Update build metrics in database
-      if (buildId) {
-        await this.buildRepository.updateMetrics(buildId, metrics);
       }
 
       // Save preview URL to project (only set if it's not already set)
@@ -304,10 +301,76 @@ export class ProcessJobUseCase {
         }
       }
 
-      // Assign version number now that build is successful
-      const buildVersion = await this.buildRepository.getNextVersionForProject(safeProjectId);
-      await this.buildRepository.updateVersion(buildId!, buildVersion);
-      console.log(`Assigned version ${buildVersion} to build ${buildId}`);
+      // Upload source code to projects bucket
+      try {
+        console.log(`Uploading source code to projects bucket for project ${safeProjectId} version ${buildVersion}...`);
+        const sourceUploadStartTime = Date.now();
+        const sourceUploadResult = await this.storageService.uploadSourceCode(appDirectory, safeProjectId, buildVersion);
+
+        if (sourceUploadResult.success) {
+          metrics.versionSourceUploadTimeMs = Date.now() - sourceUploadStartTime;
+          console.log(`Source code uploaded successfully in ${metrics.versionSourceUploadTimeMs}ms. Files: ${sourceUploadResult.uploadedFiles?.length || 0}`);
+        } else {
+          console.warn(`Failed to upload source code to projects bucket: ${sourceUploadResult.error}`);
+        }
+      } catch (error) {
+        console.warn(`Error uploading source code to projects bucket:`, error);
+      }
+
+      // Upload preview build to projects bucket (preview-build folder)
+      try {
+        console.log(`Uploading preview build to projects bucket for project ${safeProjectId} version ${buildVersion}...`);
+        const previewUploadStartTime = Date.now();
+        const previewUploadResult = await this.storageService.uploadPreviewVersion(appDirectory, safeProjectId, buildVersion);
+
+        if (previewUploadResult.success) {
+          metrics.versionPreviewUploadTimeMs = Date.now() - previewUploadStartTime;
+          console.log(`Preview build uploaded successfully in ${metrics.versionPreviewUploadTimeMs}ms. Files: ${previewUploadResult.uploadedFiles?.length || 0}`);
+        } else {
+          console.warn(`Failed to upload preview build to projects bucket: ${previewUploadResult.error}`);
+        }
+      } catch (error) {
+        console.warn(`Error uploading preview build to projects bucket:`, error);
+      }
+
+      // Clean dist folder before production build
+      console.log(`Cleaning dist folder before production build...`);
+      const distPath = path.join(appDirectory, "dist");
+      if (fs.existsSync(distPath)) {
+        fs.rmSync(distPath, { recursive: true, force: true });
+        console.log(`Dist folder cleaned`);
+      }
+
+      // Build production version with root path
+      console.log(`Running production build with root path for prompt ${safePromptId}...`);
+      const productionBuildStartTime = Date.now();
+      const productionBuildResult = await this.buildService.buildAppWithBasePath(appDirectory, "/");
+      metrics.productionBuildTimeMs = Date.now() - productionBuildStartTime;
+
+      if (!productionBuildResult.success) {
+        console.warn(`Production build failed: ${productionBuildResult.error || "Unknown build error"}`);
+      } else {
+        console.log(`Production build completed in ${metrics.productionBuildTimeMs}ms`);
+
+        // Upload production build to projects bucket (production-build folder)
+        try {
+          console.log(`Uploading production build to projects bucket for project ${safeProjectId} version ${buildVersion}...`);
+          const productionUploadStartTime = Date.now();
+          const productionUploadResult = await this.storageService.uploadProductionVersion(appDirectory, safeProjectId, buildVersion);
+
+          if (productionUploadResult.success) {
+            metrics.versionProductionUploadTimeMs = Date.now() - productionUploadStartTime;
+            console.log(`Production build uploaded successfully in ${metrics.versionProductionUploadTimeMs}ms. Files: ${productionUploadResult.uploadedFiles?.length || 0}`);
+          } else {
+            console.warn(`Failed to upload production build to projects bucket: ${productionUploadResult.error}`);
+          }
+        } catch (error) {
+          console.warn(`Error uploading production build to projects bucket:`, error);
+        }
+      }
+
+      // Calculate total time
+      metrics.totalTimeMs = Date.now() - jobStartTime;
 
       // Update build status to READY
       await this.buildRepository.updateStatus(buildId!, "READY");
@@ -317,52 +380,12 @@ export class ProcessJobUseCase {
         await this.buildRepository.updateTokens(buildId!, aiResponse.usage.inputTokens, aiResponse.usage.outputTokens);
       }
 
-      // Upload version history to S3 versions bucket (after build is READY and version assigned)
-      try {
-        console.log(`Uploading source code to versions bucket for project ${safeProjectId} version ${buildVersion}...`);
-        console.log(`Source upload directory: ${appDirectory}`);
-        const sourceUploadStartTime = Date.now();
-        const sourceUploadResult = await this.storageService.uploadSourceCode(appDirectory, safeProjectId, buildVersion);
-        
-        if (sourceUploadResult.success) {
-          metrics.versionSourceUploadTimeMs = Date.now() - sourceUploadStartTime;
-          console.log(`Source code uploaded successfully in ${metrics.versionSourceUploadTimeMs}ms. Files: ${sourceUploadResult.uploadedFiles?.length || 0}`);
-        } else {
-          console.warn(`Failed to upload source code to versions bucket: ${sourceUploadResult.error}`);
-        }
-      } catch (error) {
-        console.warn(`Error uploading source code to versions bucket:`, error);
-      }
-
-      try {
-        console.log(`Uploading build to versions bucket for project ${safeProjectId} version ${buildVersion}...`);
-        console.log(`Build upload directory: ${appDirectory}`);
-        const distPath = path.join(appDirectory, "dist");
-        console.log(`Dist path exists: ${fs.existsSync(distPath)}`);
-        if (fs.existsSync(distPath)) {
-          const distFiles = fs.readdirSync(distPath);
-          console.log(`Dist folder contents: ${distFiles.join(', ')}`);
-        }
-        
-        const buildUploadStartTime = Date.now();
-        const buildUploadResult = await this.storageService.uploadProductionVersion(appDirectory, safeProjectId, buildVersion);
-        
-        if (buildUploadResult.success) {
-          metrics.versionProductionUploadTimeMs = Date.now() - buildUploadStartTime;
-          console.log(`Build uploaded successfully in ${metrics.versionProductionUploadTimeMs}ms. Files: ${buildUploadResult.uploadedFiles?.length || 0}`);
-        } else {
-          console.warn(`Failed to upload build to versions bucket: ${buildUploadResult.error}`);
-        }
-      } catch (error) {
-        console.warn(`Error uploading build to versions bucket:`, error);
-      }
-
-      // Update build metrics with version upload timings
-      if (buildId && (metrics.versionSourceUploadTimeMs || metrics.versionProductionUploadTimeMs)) {
+      // Update build metrics with all final timings
+      if (buildId) {
         try {
           await this.buildRepository.updateMetrics(buildId, metrics);
         } catch (metricsError) {
-          console.warn("Failed to update version upload metrics:", metricsError);
+          console.warn("Failed to update build metrics:", metricsError);
         }
       }
 
@@ -385,12 +408,14 @@ export class ProcessJobUseCase {
       console.log(`    - node_modules:     ${metrics.nodeModulesCopyTimeMs || 0}ms ${metrics.nodeModulesCopyTimeMs ? '(copied from template)' : '(already exists)'}`);
       console.log(`SETUP PHASE:`);
       console.log(`  Public S3 Upload:     ${metrics.publicS3UploadTimeMs || 0}ms ${metrics.publicS3UploadTimeMs ? `(${mediaIds?.length || 0} images)` : ''}`);
-      console.log(`SEQUENTIAL PHASE:`);
+      console.log(`BUILD & UPLOAD PHASE:`);
       console.log(`  npm install:          ${metrics.dependencyInstallTimeMs || 0}ms ${metrics.dependencyInstallTimeMs === 0 ? '(skipped - package.json unchanged)' : ''}`);
-      console.log(`  Vite Build:           ${metrics.buildTimeMs || 0}ms`);
-      console.log(`  S3 Upload:            ${metrics.s3UploadTimeMs || 0}ms`);
-      console.log(`  Version Source:       ${metrics.versionSourceUploadTimeMs || 0}ms`);
-      console.log(`  Version Production:   ${metrics.versionProductionUploadTimeMs || 0}ms`);
+      console.log(`  Preview Build:        ${metrics.buildTimeMs || 0}ms`);
+      console.log(`  Preview Upload (S3):  ${metrics.s3UploadTimeMs || 0}ms`);
+      console.log(`  Source Upload:        ${metrics.versionSourceUploadTimeMs || 0}ms`);
+      console.log(`  Preview Upload (Ver): ${metrics.versionPreviewUploadTimeMs || 0}ms`);
+      console.log(`  Production Build:     ${metrics.productionBuildTimeMs || 0}ms`);
+      console.log(`  Production Upload:    ${metrics.versionProductionUploadTimeMs || 0}ms`);
       console.log(`---`);
       console.log(`Total Wall-Clock:       ${metrics.totalTimeMs || 0}ms`);
       console.log(`Parallelization Savings: ~${Math.max(0, Math.min(metrics.aiGenerationTimeMs || 0, metrics.environmentPrepTimeMs || 0))}ms`);

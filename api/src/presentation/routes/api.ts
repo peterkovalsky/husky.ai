@@ -6,6 +6,7 @@ import { ProjectController } from '../controllers/ProjectController';
 import { WorkspaceController } from '../controllers/WorkspaceController';
 import { UserController } from '../controllers/UserController';
 import { MediaController } from '../controllers/MediaController';
+import { PublishingController } from '../controllers/PublishingController';
 interface ApiRoutesDependencies {
   authMiddleware: AuthMiddleware;
   workspaceAccessMiddleware: WorkspaceAccessMiddleware;
@@ -14,6 +15,7 @@ interface ApiRoutesDependencies {
   workspaceController: WorkspaceController;
   userController: UserController;
   mediaController: MediaController;
+  publishingController: PublishingController;
 }
 
 export function createApiRoutes(deps: ApiRoutesDependencies): Router {
@@ -88,6 +90,31 @@ export function createApiRoutes(deps: ApiRoutesDependencies): Router {
   router.delete('/media/:mediaId',
     deps.authMiddleware.authenticate,
     deps.mediaController.deleteMedia
+  );
+
+  // Publishing routes
+  router.post('/projects/:projectId/publish',
+    deps.authMiddleware.authenticate,
+    deps.workspaceAccessMiddleware.checkProjectAccess('projectId'),
+    deps.publishingController.publish
+  );
+
+  router.post('/projects/:projectId/unpublish',
+    deps.authMiddleware.authenticate,
+    deps.workspaceAccessMiddleware.checkProjectAccess('projectId'),
+    deps.publishingController.unpublish
+  );
+
+  router.get('/projects/:projectId/publish/status',
+    deps.authMiddleware.authenticate,
+    deps.workspaceAccessMiddleware.checkProjectAccess('projectId'),
+    deps.publishingController.getStatus
+  );
+
+  router.post('/projects/:projectId/publish/retry',
+    deps.authMiddleware.authenticate,
+    deps.workspaceAccessMiddleware.checkProjectAccess('projectId'),
+    deps.publishingController.retry
   );
 
   return router;

@@ -23,7 +23,21 @@ export interface DeleteMediaMessage {
   timestamp: string;
 }
 
-export type QueueMessage = JobMessage | DeleteProjectMessage | DeleteMediaMessage;
+export interface PublishProjectMessage {
+  action: 'PUBLISH';
+  projectId: string;
+  userId: string;
+  timestamp: string;
+}
+
+export interface UnpublishProjectMessage {
+  action: 'UNPUBLISH';
+  projectId: string;
+  userId: string;
+  timestamp: string;
+}
+
+export type QueueMessage = JobMessage | DeleteProjectMessage | DeleteMediaMessage | PublishProjectMessage | UnpublishProjectMessage;
 
 export interface ReceiveMessageResult {
   messages: Array<{

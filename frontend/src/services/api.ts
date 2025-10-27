@@ -32,6 +32,10 @@ export interface Project {
   workspaceId: string;
   createdAt: string;
   modifiedAt: string;
+  subdomain?: string;
+  publishedStatus?: PublishingStatus;
+  publishedAt?: string;
+  currentVersion?: number;
 }
 
 export interface Prompt {
@@ -124,6 +128,21 @@ export interface ConfirmMediaUploadResponse {
     s3Key: string;
     mimeType: string;
   };
+}
+
+export type PublishingStatus = 'UNPUBLISHED' | 'PUBLISHING' | 'PUBLISHED' | 'FAILED' | 'UNPUBLISHING';
+
+export interface PublishStatusResponse {
+  status: PublishingStatus;
+  publishedAt?: string;
+  publishedUrl?: string;
+  error?: string;
+  subdomain?: string;
+}
+
+export interface PublishResponse {
+  message: string;
+  projectId: string;
 }
 
 
@@ -286,5 +305,58 @@ export class ApiService {
     return this.request<{ success: boolean }>(endpoint, {
       method: 'DELETE',
     });
+  }
+
+  // Publishing methods
+  static async publishProject(projectId: string): Promise<PublishResponse> {
+    return this.request<PublishResponse>(`/api/projects/${projectId}/publish`, {
+      method: 'POST',
+    });
+  }
+
+  static async unpublishProject(projectId: string): Promise<PublishResponse> {
+    return this.request<PublishResponse>(`/api/projects/${projectId}/unpublish`, {
+      method: 'POST',
+    });
+  }
+
+  static async getPublishStatus(projectId: string): Promise<PublishStatusResponse> {
+    return this.request<PublishStatusResponse>(`/api/projects/${projectId}/publish/status`);
+  }
+
+  static async retryPublish(projectId: string): Promise<PublishResponse> {
+    return this.request<PublishResponse>(`/api/projects/${projectId}/publish/retry`, {
+      method: 'POST',
+    });
+  }
+
+  static async pollPublishStatus(
+    projectId: string,
+    onUpdate: (status: PublishStatusResponse) => void,
+    onError: (error: Error) => void
+  ): Promise<() => void> {
+    const poll = async () => {
+      try {
+        const status = await this.getPublishStatus(projectId);
+        onUpdate(status);
+
+        // Stop polling if publishing is in final state
+        if (status.status === 'PUBLISHED' || status.status === 'FAILED' || status.status === 'UNPUBLISHED') {
+          clearInterval(intervalId);
+        }
+      } catch (error) {
+        onError(error instanceof Error ? error : new Error('Failed to poll publish status'));
+        clearInterval(intervalId);
+      }
+    };
+
+    // Poll immediately
+    await poll();
+
+    // Set up interval for polling every 2 seconds
+    const intervalId = setInterval(poll, 2000);
+
+    // Return cleanup function
+    return () => clearInterval(intervalId);
   }
 }

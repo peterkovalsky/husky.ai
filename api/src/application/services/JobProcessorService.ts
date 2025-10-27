@@ -1,7 +1,9 @@
-import { IQueueService, QueueMessage, JobMessage, DeleteProjectMessage, DeleteMediaMessage } from '../../domain/services/IQueueService';
+import { IQueueService, QueueMessage, JobMessage, DeleteProjectMessage, DeleteMediaMessage, PublishProjectMessage, UnpublishProjectMessage } from '../../domain/services/IQueueService';
 import { ProcessJobUseCase } from '../use-cases/ProcessJobUseCase';
 import { DeleteProjectUseCase } from '../use-cases/DeleteProjectUseCase';
 import { ProcessMediaDeletionUseCase } from '../use-cases/ProcessMediaDeletionUseCase';
+import { ProcessPublishJobUseCase } from '../use-cases/ProcessPublishJobUseCase';
+import { ProcessUnpublishJobUseCase } from '../use-cases/ProcessUnpublishJobUseCase';
 import { ILogger } from '../../shared/logger/Logger';
 
 export class JobProcessorService {
@@ -13,6 +15,8 @@ export class JobProcessorService {
     private processJobUseCase: ProcessJobUseCase,
     private deleteProjectUseCase: DeleteProjectUseCase,
     private processMediaDeletionUseCase: ProcessMediaDeletionUseCase,
+    private processPublishJobUseCase: ProcessPublishJobUseCase,
+    private processUnpublishJobUseCase: ProcessUnpublishJobUseCase,
     private logger: ILogger,
     private intervalMs: number = 5000
   ) {}
@@ -88,6 +92,16 @@ export class JobProcessorService {
           // Handle media deletion
           this.logger.info(`Processing delete media message`, { mediaId: message.mediaId });
           await this.processMediaDeletionUseCase.execute(message as DeleteMediaMessage);
+        } else if (message.action === 'PUBLISH') {
+          // Handle project publishing
+          const publishMessage = message as PublishProjectMessage;
+          this.logger.info(`Processing publish project message`, { projectId: publishMessage.projectId });
+          await this.processPublishJobUseCase.execute(publishMessage.projectId);
+        } else if (message.action === 'UNPUBLISH') {
+          // Handle project unpublishing
+          const unpublishMessage = message as UnpublishProjectMessage;
+          this.logger.info(`Processing unpublish project message`, { projectId: unpublishMessage.projectId });
+          await this.processUnpublishJobUseCase.execute(unpublishMessage.projectId);
         }
       } else {
         // Handle regular job processing

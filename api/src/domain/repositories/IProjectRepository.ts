@@ -1,4 +1,4 @@
-import { Project, CreateProjectRequest } from '../entities/Project';
+import { Project, CreateProjectRequest, PublishingStatus } from '../entities/Project';
 
 export interface IProjectRepository {
   create(request: CreateProjectRequest): Promise<Project>;
@@ -10,4 +10,16 @@ export interface IProjectRepository {
   updateCurrentVersion(projectId: string, version: number): Promise<void>;
   updateStatus(projectId: string, status: string): Promise<void>;
   deleteById(projectId: string): Promise<void>;
+
+  // Publishing methods
+  setSubdomain(projectId: string, subdomain: string): Promise<void>;
+  isSubdomainTaken(subdomain: string): Promise<boolean>;
+  updatePublishingStatus(projectId: string, status: PublishingStatus): Promise<void>;
+  updatePublishingError(projectId: string, error: string | null): Promise<void>;
+  updateCloudFrontDetails(
+    projectId: string,
+    distributionId: string,
+    domain: string
+  ): Promise<void>;
+  setPublishedAt(projectId: string, publishedAt: Date | null): Promise<void>;
 }

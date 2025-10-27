@@ -13,6 +13,9 @@ import { IStorageService } from '../../domain/services/IStorageService';
 import { IQueueService } from '../../domain/services/IQueueService';
 import { IBuildService } from '../../domain/services/IBuildService';
 import { IProjectEnvironmentService } from '../../domain/services/IProjectEnvironmentService';
+import { ISubdomainService } from '../../domain/services/ISubdomainService';
+import { ICloudFrontService } from '../../domain/services/ICloudFrontService';
+import { IRoute53Service } from '../../domain/services/IRoute53Service';
 
 // Infrastructure Implementations
 import { SupabaseWorkspaceRepository } from '../../infrastructure/database/SupabaseWorkspaceRepository';
@@ -26,6 +29,9 @@ import { SQSQueueService } from '../../infrastructure/queue/SQSQueueService';
 import { BuildService } from '../../infrastructure/build/BuildService';
 import { ProjectEnvironmentService } from '../../infrastructure/build/ProjectEnvironmentService';
 import { SupabaseAuthService } from '../../infrastructure/auth/SupabaseAuthService';
+import { SubdomainService } from '../../infrastructure/subdomain/SubdomainService';
+import { CloudFrontService } from '../../infrastructure/cdn/CloudFrontService';
+import { Route53Service } from '../../infrastructure/dns/Route53Service';
 
 // Application Use Cases
 import { CreatePromptUseCase } from '../../application/use-cases/CreatePromptUseCase';
@@ -40,6 +46,11 @@ import { GeneratePresignedUploadUseCase } from '../../application/use-cases/Gene
 import { ConfirmMediaUploadUseCase } from '../../application/use-cases/ConfirmMediaUploadUseCase';
 import { DeleteMediaUseCase } from '../../application/use-cases/DeleteMediaUseCase';
 import { ProcessMediaDeletionUseCase } from '../../application/use-cases/ProcessMediaDeletionUseCase';
+import { InitiatePublishingUseCase } from '../../application/use-cases/InitiatePublishingUseCase';
+import { InitiateUnpublishingUseCase } from '../../application/use-cases/InitiateUnpublishingUseCase';
+import { GetPublishStatusUseCase } from '../../application/use-cases/GetPublishStatusUseCase';
+import { ProcessPublishJobUseCase } from '../../application/use-cases/ProcessPublishJobUseCase';
+import { ProcessUnpublishJobUseCase } from '../../application/use-cases/ProcessUnpublishJobUseCase';
 
 // Presentation Layer
 import { AuthMiddleware } from '../../presentation/middleware/AuthMiddleware';
@@ -49,6 +60,7 @@ import { ProjectController } from '../../presentation/controllers/ProjectControl
 import { WorkspaceController } from '../../presentation/controllers/WorkspaceController';
 import { UserController } from '../../presentation/controllers/UserController';
 import { MediaController } from '../../presentation/controllers/MediaController';
+import { PublishingController } from '../../presentation/controllers/PublishingController';
 
 export function setupContainer(): DIContainer {
   const container = new DIContainer();
@@ -78,6 +90,10 @@ export function setupContainer(): DIContainer {
 
   container.registerFactory<SupabaseAuthService>('authService', () => new SupabaseAuthService());
 
+  container.registerFactory<ISubdomainService>('subdomainService', () => new SubdomainService());
+  container.registerFactory<ICloudFrontService>('cloudFrontService', () => new CloudFrontService());
+  container.registerFactory<IRoute53Service>('route53Service', () => new Route53Service());
+
   // Register Use Cases
   container.registerFactory<CreatePromptUseCase>('createPromptUseCase', () => new CreatePromptUseCase(
     container.get<IPromptRepository>('promptRepository'),
@@ -95,7 +111,8 @@ export function setupContainer(): DIContainer {
 
   container.registerFactory<CreateProjectUseCase>('createProjectUseCase', () => new CreateProjectUseCase(
     container.get<IProjectRepository>('projectRepository'),
-    container.get<IWorkspaceRepository>('workspaceRepository')
+    container.get<IWorkspaceRepository>('workspaceRepository'),
+    container.get<ISubdomainService>('subdomainService')
   ));
 
   container.registerFactory<GetProjectDetailsUseCase>('getProjectDetailsUseCase', () => new GetProjectDetailsUseCase(
@@ -198,6 +215,42 @@ export function setupContainer(): DIContainer {
     container.get<GeneratePresignedUploadUseCase>('generatePresignedUploadUseCase'),
     container.get<ConfirmMediaUploadUseCase>('confirmMediaUploadUseCase'),
     container.get<DeleteMediaUseCase>('deleteMediaUseCase')
+  ));
+
+  // Register Publishing Use Cases
+  container.registerFactory<InitiatePublishingUseCase>('initiatePublishingUseCase', () => new InitiatePublishingUseCase(
+    container.get<IProjectRepository>('projectRepository'),
+    container.get<IBuildRepository>('buildRepository'),
+    container.get<IQueueService>('queueService')
+  ));
+
+  container.registerFactory<InitiateUnpublishingUseCase>('initiateUnpublishingUseCase', () => new InitiateUnpublishingUseCase(
+    container.get<IProjectRepository>('projectRepository'),
+    container.get<IQueueService>('queueService')
+  ));
+
+  container.registerFactory<GetPublishStatusUseCase>('getPublishStatusUseCase', () => new GetPublishStatusUseCase(
+    container.get<IProjectRepository>('projectRepository')
+  ));
+
+  container.registerFactory<ProcessPublishJobUseCase>('processPublishJobUseCase', () => new ProcessPublishJobUseCase(
+    container.get<IProjectRepository>('projectRepository'),
+    container.get<IStorageService>('storageService'),
+    container.get<ICloudFrontService>('cloudFrontService'),
+    container.get<IRoute53Service>('route53Service')
+  ));
+
+  container.registerFactory<ProcessUnpublishJobUseCase>('processUnpublishJobUseCase', () => new ProcessUnpublishJobUseCase(
+    container.get<IProjectRepository>('projectRepository'),
+    container.get<ICloudFrontService>('cloudFrontService'),
+    container.get<IRoute53Service>('route53Service')
+  ));
+
+  // Register Publishing Controller
+  container.registerFactory<PublishingController>('publishingController', () => new PublishingController(
+    container.get<InitiatePublishingUseCase>('initiatePublishingUseCase'),
+    container.get<InitiateUnpublishingUseCase>('initiateUnpublishingUseCase'),
+    container.get<GetPublishStatusUseCase>('getPublishStatusUseCase')
   ));
 
   return container;

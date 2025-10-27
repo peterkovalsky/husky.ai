@@ -95,6 +95,49 @@ export class S3StorageService implements IStorageService {
     }
   }
 
+  async uploadPreviewVersion(appDirectory: string, projectId: string, version: number): Promise<UploadResult> {
+    try {
+      const distPath = path.join(appDirectory, "dist");
+
+      if (!fs.existsSync(distPath)) {
+        return {
+          success: false,
+          error: "No dist folder found for preview upload"
+        };
+      }
+
+      // Check if dist folder has contents
+      const distContents = fs.readdirSync(distPath);
+      console.log(`[S3StorageService] Dist folder contents: ${distContents.join(', ')}`);
+
+      if (distContents.length === 0) {
+        return {
+          success: false,
+          error: "Dist folder is empty - no files to upload"
+        };
+      }
+
+      const s3Prefix = `${projectId}/web/v${version}/preview-build/`;
+      console.log(`[S3StorageService] Uploading preview from ${distPath} to ${s3Prefix} in bucket ${this.projectsBucketName}`);
+
+      const uploadedFiles = await this.uploadDirectory(
+        distPath,
+        s3Prefix,
+        this.projectsBucketName
+      );
+
+      return {
+        success: true,
+        uploadedFiles
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown upload error'
+      };
+    }
+  }
+
   async uploadProductionVersion(appDirectory: string, projectId: string, version: number): Promise<UploadResult> {
     try {
       const distPath = path.join(appDirectory, "dist");
@@ -117,8 +160,8 @@ export class S3StorageService implements IStorageService {
         };
       }
 
-      const s3Prefix = `${projectId}/web/v${version}/build/`;
-      console.log(`[S3StorageService] Uploading from ${distPath} to ${s3Prefix} in bucket ${this.projectsBucketName}`);
+      const s3Prefix = `${projectId}/web/v${version}/production-build/`;
+      console.log(`[S3StorageService] Uploading production from ${distPath} to ${s3Prefix} in bucket ${this.projectsBucketName}`);
 
       const uploadedFiles = await this.uploadDirectory(
         distPath,

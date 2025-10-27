@@ -29,6 +29,8 @@ const jobProcessorService = new JobProcessorService(
   container.get('processJobUseCase'),
   container.get('deleteProjectUseCase'),
   container.get('processMediaDeletionUseCase'),
+  container.get('processPublishJobUseCase'),
+  container.get('processUnpublishJobUseCase'),
   logger,
   config.jobProcessor.intervalMs
 );

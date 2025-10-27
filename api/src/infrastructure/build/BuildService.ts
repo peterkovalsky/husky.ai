@@ -314,4 +314,46 @@ export class BuildService implements IBuildService {
       };
     }
   }
+
+  async buildAppWithBasePath(appDirectory: string, basePath: string): Promise<BuildResult> {
+    try {
+      const buildCommand = "npm run build";
+      const nodeBinPath = path.join(appDirectory, 'node_modules', '.bin');
+
+      console.log(`Building with base path: ${basePath}`);
+      const buildStartTime = Date.now();
+
+      // Set up environment variables for the build with custom base path
+      const buildEnv = {
+        ...process.env,
+        NODE_ENV: 'development',
+        PATH: `${nodeBinPath}:${process.env.PATH}`,
+        VITE_BASE_PATH: basePath,
+      };
+
+      const { stdout, stderr } = await this.execAsync(buildCommand, {
+        cwd: appDirectory,
+        env: buildEnv,
+        timeout: 300000, // 5 minutes timeout
+        killSignal: "SIGTERM",
+      });
+      const buildTime = Date.now() - buildStartTime;
+
+      return {
+        success: true,
+        output: stdout,
+        error: stderr || undefined,
+        dependencyInstallTime: 0,
+        buildTime,
+      };
+    } catch (error: any) {
+      console.error("Build process error:", error);
+
+      return {
+        success: false,
+        output: error.stdout || "",
+        error: error.stderr || error.message,
+      };
+    }
+  }
 }

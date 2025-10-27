@@ -1,4 +1,15 @@
-export type ProjectStatus = 'ACTIVE' | 'DELETING';
+export enum ProjectStatus {
+  ACTIVE = 'ACTIVE',
+  DELETING = 'DELETING'
+}
+
+export enum PublishingStatus {
+  UNPUBLISHED = 'UNPUBLISHED',
+  PUBLISHING = 'PUBLISHING',
+  PUBLISHED = 'PUBLISHED',
+  FAILED = 'FAILED',
+  UNPUBLISHING = 'UNPUBLISHING'
+}
 
 export interface Project {
   id: string;
@@ -8,6 +19,12 @@ export interface Project {
   workspaceId: string;
   status: ProjectStatus;
   currentVersion: number;
+  subdomain?: string;
+  publishedStatus: PublishingStatus;
+  publishedAt?: Date;
+  cloudfrontDistributionId?: string;
+  cloudfrontDomain?: string;
+  publishingError?: string;
   createdAt: Date;
   modifiedAt: Date;
 }

@@ -1,5 +1,6 @@
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
 import { IWorkspaceRepository } from '../../domain/repositories/IWorkspaceRepository';
+import { ISubdomainService } from '../../domain/services/ISubdomainService';
 import { CreateProjectDto } from '../dto/ProjectDto';
 import { User } from '../../domain/entities/User';
 import { Project } from '../../domain/entities/Project';
@@ -7,7 +8,8 @@ import { Project } from '../../domain/entities/Project';
 export class CreateProjectUseCase {
   constructor(
     private projectRepository: IProjectRepository,
-    private workspaceRepository: IWorkspaceRepository
+    private workspaceRepository: IWorkspaceRepository,
+    private subdomainService: ISubdomainService
   ) {}
 
   async execute(dto: CreateProjectDto, user: User): Promise<Project> {
@@ -39,6 +41,14 @@ export class CreateProjectUseCase {
       workspaceId: targetWorkspaceId
     });
 
-    return project;
+    // Generate and set subdomain for the project
+    const subdomain = await this.subdomainService.generateUniqueSubdomain(
+      (sub) => this.projectRepository.isSubdomainTaken(sub)
+    );
+    await this.projectRepository.setSubdomain(project.id, subdomain);
+
+    // Fetch updated project with subdomain
+    const updatedProject = await this.projectRepository.findById(project.id);
+    return updatedProject!;
   }
 }
