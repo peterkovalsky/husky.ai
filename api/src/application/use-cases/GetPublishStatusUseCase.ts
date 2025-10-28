@@ -6,6 +6,8 @@ export interface PublishStatusDto {
   status: PublishingStatus;
   publishedAt?: Date;
   publishedUrl?: string;
+  publishedVersion?: number;
+  currentVersion: number;
   error?: string;
   subdomain?: string;
 }
@@ -36,11 +38,21 @@ export class GetPublishStatusUseCase {
         ? `https://${project.subdomain}.${publishDomain}`
         : undefined;
 
+    // Return generic error message if there's a publishing error
+    let errorMessage: string | undefined;
+    if (project.publishingError) {
+      errorMessage = project.publishedStatus === PublishingStatus.FAILED
+        ? 'An error occurred while publishing your project. Please try again.'
+        : project.publishingError;
+    }
+
     return {
       status: project.publishedStatus,
       publishedAt: project.publishedAt,
       publishedUrl,
-      error: project.publishingError || undefined,
+      publishedVersion: project.publishedVersion,
+      currentVersion: project.currentVersion,
+      error: errorMessage,
       subdomain: project.subdomain,
     };
   }

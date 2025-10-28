@@ -22,4 +22,5 @@ export interface IProjectRepository {
     domain: string
   ): Promise<void>;
   setPublishedAt(projectId: string, publishedAt: Date | null): Promise<void>;
+  setPublishedVersion(projectId: string, version: number | null): Promise<void>;
 }

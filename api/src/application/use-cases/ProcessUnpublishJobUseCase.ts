@@ -81,6 +81,7 @@ export class ProcessUnpublishJobUseCase {
       // Step 4: Update project status
       await this.projectRepository.updatePublishingStatus(projectId, PublishingStatus.UNPUBLISHED);
       await this.projectRepository.setPublishedAt(projectId, null);
+      await this.projectRepository.setPublishedVersion(projectId, null);
       await this.projectRepository.updateCloudFrontDetails(projectId, '', '');
       await this.projectRepository.updatePublishingError(projectId, null);
 
@@ -88,11 +89,11 @@ export class ProcessUnpublishJobUseCase {
     } catch (error) {
       console.error(`[ProcessUnpublishJobUseCase] Failed to unpublish project ${projectId}:`, error);
 
-      // Update status to FAILED and store error message
+      // Update status to FAILED and store generic error message
       await this.projectRepository.updatePublishingStatus(projectId, PublishingStatus.FAILED);
       await this.projectRepository.updatePublishingError(
         projectId,
-        error instanceof Error ? error.message : 'Unknown error'
+        'An error occurred while unpublishing your project. Please try again.'
       );
 
       throw error;

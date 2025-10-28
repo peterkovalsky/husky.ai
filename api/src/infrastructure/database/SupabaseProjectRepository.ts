@@ -184,6 +184,15 @@ export class SupabaseProjectRepository implements IProjectRepository {
     if (error) throw error;
   }
 
+  async setPublishedVersion(projectId: string, version: number | null): Promise<void> {
+    const { error } = await this.supabase
+      .from('projects')
+      .update({ published_version: version })
+      .eq('id', projectId);
+
+    if (error) throw error;
+  }
+
   private mapToEntity(data: any): Project {
     return {
       id: data.id,
@@ -196,6 +205,7 @@ export class SupabaseProjectRepository implements IProjectRepository {
       subdomain: data.subdomain,
       publishedStatus: data.published_status || PublishingStatus.UNPUBLISHED,
       publishedAt: data.published_at ? new Date(data.published_at) : undefined,
+      publishedVersion: data.published_version,
       cloudfrontDistributionId: data.cloudfront_distribution_id,
       cloudfrontDomain: data.cloudfront_domain,
       publishingError: data.publishing_error,

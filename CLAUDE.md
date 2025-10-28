@@ -74,7 +74,44 @@ The API follows Clean Architecture with four distinct layers:
 - **State Management**: React Context for auth and project state
 - **API Integration**: Centralized API service with polling for job status
 - **Routing**: React Router for navigation
-- **Styling**: Tailwind CSS with Radix UI components
+- **Styling**: Tailwind CSS with HeroUI components
+- **UI Components**: HeroUI (https://www.heroui.com)
+
+### UI Component Standards
+**ALWAYS use HeroUI components from the official documentation: https://www.heroui.com/docs/components**
+
+When building UI features:
+- ✅ DO: Use HeroUI components (Button, Card, Modal, Alert, Input, etc.)
+- ✅ DO: Reference official HeroUI docs for component APIs and props
+- ✅ DO: Use HeroUI's color variants (primary, secondary, success, warning, danger)
+- ✅ DO: Leverage built-in HeroUI features (variants, sizes, states)
+- ❌ DON'T: Create custom components when HeroUI provides equivalent functionality
+- ❌ DON'T: Use custom divs/spans when HeroUI components are available
+- ❌ DON'T: Manually style alerts/notifications - use HeroUI Alert component
+
+**Available HeroUI Components:**
+- Layout: Card, CardBody, CardHeader, CardFooter, Divider, Spacer
+- Forms: Input, Textarea, Select, Checkbox, Radio, Switch, Slider
+- Feedback: Alert, Modal, Popover, Tooltip, Spinner, Progress
+- Navigation: Button, Dropdown, Tabs, Breadcrumbs, Pagination
+- Data Display: Table, Code, Chip, Badge, Avatar, User
+- And 60+ more components
+
+**Example - Preferred Approach:**
+```typescript
+// GOOD: Using HeroUI components
+import { Alert, Card, CardBody, Code } from '@heroui/react'
+
+<Alert color="warning" variant="flat" description="Warning message" />
+<Card><CardBody><Code>npm install</Code></CardBody></Card>
+```
+
+```typescript
+// BAD: Custom divs instead of HeroUI components
+<div className="bg-warning-50 border border-warning-200 rounded p-3">
+  <p className="text-warning-700">Warning message</p>
+</div>
+```
 
 ### Project Structure
 Generated apps are stored in project directories:

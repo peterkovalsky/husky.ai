@@ -30,7 +30,7 @@ export class InitiatePublishingUseCase {
 
     // Check if already publishing or unpublishing
     if (project.publishedStatus === PublishingStatus.PUBLISHING || project.publishedStatus === PublishingStatus.UNPUBLISHING) {
-      throw new Error(`Publishing operation already in progress (status: ${project.publishedStatus})`);
+      throw new Error('Publishing operation already in progress. Please wait for it to complete.');
     }
 
     // Check if project has at least one successful build
@@ -38,12 +38,12 @@ export class InitiatePublishingUseCase {
     const hasSuccessfulBuild = builds.some((build) => build.status === 'READY');
 
     if (!hasSuccessfulBuild) {
-      throw new Error('Cannot publish: project has no successful builds');
+      throw new Error('Your project needs at least one successful build before publishing.');
     }
 
     // Ensure project has a subdomain (should have been generated at creation)
     if (!project.subdomain) {
-      throw new Error('Project subdomain is not set. Please contact support.');
+      throw new Error('Unable to publish project. Please contact support.');
     }
 
     // Set status to PUBLISHING

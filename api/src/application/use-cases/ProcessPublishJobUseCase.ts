@@ -99,19 +99,20 @@ export class ProcessPublishJobUseCase {
       // Step 5: Update project status to PUBLISHED
       await this.projectRepository.updatePublishingStatus(projectId, PublishingStatus.PUBLISHED);
       await this.projectRepository.setPublishedAt(projectId, new Date());
+      await this.projectRepository.setPublishedVersion(projectId, project.currentVersion);
       await this.projectRepository.updatePublishingError(projectId, null);
 
       console.log(
-        `[ProcessPublishJobUseCase] Successfully published project ${projectId} at ${project.subdomain}.${this.publishDomain}`
+        `[ProcessPublishJobUseCase] Successfully published project ${projectId} version ${project.currentVersion} at ${project.subdomain}.${this.publishDomain}`
       );
     } catch (error) {
       console.error(`[ProcessPublishJobUseCase] Failed to publish project ${projectId}:`, error);
 
-      // Update status to FAILED and store error message
+      // Update status to FAILED and store generic error message
       await this.projectRepository.updatePublishingStatus(projectId, PublishingStatus.FAILED);
       await this.projectRepository.updatePublishingError(
         projectId,
-        error instanceof Error ? error.message : 'Unknown error'
+        'An error occurred while publishing your project. Please try again.'
       );
 
       throw error;

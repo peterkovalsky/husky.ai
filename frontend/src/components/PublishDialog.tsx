@@ -1,21 +1,19 @@
-import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button } from '@heroui/react'
-import { ApiService, type PublishStatusResponse } from '../services/api'
+import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, Card, CardBody, Divider, Code, Alert, Chip } from '@heroui/react'
+import { ApiService, PublishingStatus, type PublishStatusResponse } from '../services/api'
 import { useState, useEffect, useRef } from 'react'
-import { CheckCircle2, Loader2, XCircle, Globe, Copy, ExternalLink } from 'lucide-react'
+import { Loader2, Globe, Calendar, Package } from 'lucide-react'
 
 interface PublishDialogProps {
   isOpen: boolean
   onOpenChange: (open: boolean) => void
   projectId: string
-  projectName: string
-  projectModifiedAt: string
   onSuccess?: () => void
 }
 
-export const PublishDialog = ({ isOpen, onOpenChange, projectId, projectName, projectModifiedAt, onSuccess }: PublishDialogProps) => {
+export const PublishDialog = ({ isOpen, onOpenChange, projectId, onSuccess }: PublishDialogProps) => {
   const [publishStatus, setPublishStatus] = useState<PublishStatusResponse | null>(null)
   const [isInitiating, setIsInitiating] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [showUnpublishConfirm, setShowUnpublishConfirm] = useState(false)
   const pollCleanupRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
@@ -43,13 +41,11 @@ export const PublishDialog = ({ isOpen, onOpenChange, projectId, projectName, pr
       setPublishStatus(status)
     } catch (err) {
       console.error('[PublishDialog] Failed to load publish status:', err)
-      setError(err instanceof Error ? err.message : 'Failed to load publish status')
     }
   }
 
   const handlePublish = async () => {
     setIsInitiating(true)
-    setError(null)
 
     try {
       await ApiService.publishProject(projectId)
@@ -60,186 +56,283 @@ export const PublishDialog = ({ isOpen, onOpenChange, projectId, projectName, pr
         (status) => {
           setPublishStatus(status)
 
-          if (status.status === 'PUBLISHED') {
+          if (status.status === PublishingStatus.PUBLISHED) {
             if (onSuccess) {
               onSuccess()
             }
           }
         },
         (err) => {
-          setError(err.message)
+          console.error('Publish polling error:', err)
         }
       )
 
       pollCleanupRef.current = cleanup
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to initiate publishing')
+      console.error('Failed to initiate publishing:', err)
+    } finally {
+      setIsInitiating(false)
+    }
+  }
+
+  const handleUnpublish = async () => {
+    setShowUnpublishConfirm(false)
+    setIsInitiating(true)
+
+    try {
+      await ApiService.unpublishProject(projectId)
+
+      // Start polling for status updates
+      const cleanup = await ApiService.pollPublishStatus(
+        projectId,
+        (status) => {
+          setPublishStatus(status)
+
+          if (status.status === PublishingStatus.UNPUBLISHED) {
+            if (onSuccess) {
+              onSuccess()
+            }
+          }
+        },
+        (err) => {
+          console.error('Unpublish polling error:', err)
+        }
+      )
+
+      pollCleanupRef.current = cleanup
+    } catch (err) {
+      console.error('Failed to initiate unpublishing:', err)
     } finally {
       setIsInitiating(false)
     }
   }
 
   const handleRetry = async () => {
-    setError(null)
     await handlePublish()
-  }
-
-  const handleCopyUrl = () => {
-    if (publishStatus?.publishedUrl) {
-      navigator.clipboard.writeText(publishStatus.publishedUrl)
-    }
-  }
-
-  const handleOpenUrl = () => {
-    if (publishStatus?.publishedUrl) {
-      window.open(publishStatus.publishedUrl, '_blank')
-    }
   }
 
   const getStatusDisplay = () => {
     if (!publishStatus) return null
 
     switch (publishStatus.status) {
-      case 'UNPUBLISHED':
+      case PublishingStatus.UNPUBLISHED:
+        return null
+      case PublishingStatus.PUBLISHING:
         return (
-          <div className="text-center text-default-500 my-4">
-            This project has not been published yet.
+          <Card shadow="none" className="bg-primary-50 border border-primary-200">
+            <CardBody className="flex flex-row items-center justify-center gap-2 py-4">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              <span className="text-sm text-default-700">Publishing your project...</span>
+            </CardBody>
+          </Card>
+        )
+      case PublishingStatus.PUBLISHED:
+        return (
+          <div className="space-y-4">
+            <Card shadow="none" className="bg-default-100">
+              <CardBody className="gap-2 p-3">
+                <div className="flex items-center gap-2">
+                  <Globe className="h-3.5 w-3.5 text-default-600" />
+                  <a
+                    href={publishStatus.publishedUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-primary hover:underline break-all"
+                  >
+                    {publishStatus.publishedUrl}
+                  </a>
+                </div>
+                {publishStatus?.publishedVersion !== undefined && (
+                  <>
+                    <Divider className="my-1" />
+                    <div className="flex items-center gap-2 text-xs text-default-600">
+                      <Package className="h-3.5 w-3.5" />
+                      <span>Version {publishStatus.publishedVersion}</span>
+                      {publishStatus.currentVersion > publishStatus.publishedVersion && (
+                        <Chip color="warning" variant="flat" size="sm">
+                          Update available (v{publishStatus.currentVersion})
+                        </Chip>
+                      )}
+                    </div>
+                  </>
+                )}
+                {publishStatus?.publishedAt && (
+                  <>
+                    <Divider className="my-1" />
+                    <div className="flex items-center gap-2 text-xs text-default-600">
+                      <Calendar className="h-3.5 w-3.5" />
+                      <span>
+                        Published {new Date(publishStatus.publishedAt).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric'
+                        })} at {new Date(publishStatus.publishedAt).toLocaleTimeString('en-US', {
+                          hour: 'numeric',
+                          minute: '2-digit',
+                          hour12: true
+                        })}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </CardBody>
+            </Card>
           </div>
         )
-      case 'PUBLISHING':
+      case PublishingStatus.FAILED:
         return (
-          <div className="flex items-center justify-center gap-3 my-6">
-            <Loader2 className="h-5 w-5 animate-spin text-primary" />
-            <span className="text-default-700">Publishing your project...</span>
-          </div>
+          <Alert
+            color="danger"
+            variant="flat"
+            title="Publishing failed"
+            description={publishStatus.error || "An error occurred while publishing your project. Please try again."}
+            classNames={{
+              title: "text-sm",
+              description: "text-xs"
+            }}
+          />
         )
-      case 'PUBLISHED':
+      case PublishingStatus.UNPUBLISHING:
         return (
-          <div className="my-6 space-y-4">
-            <div className="flex items-center justify-center gap-2 text-success">
-              <CheckCircle2 className="h-5 w-5" />
-              <span className="font-medium">Project published successfully!</span>
-            </div>
-            <div className="bg-default-100 rounded-lg p-4 space-y-3">
-              <div className="flex items-center gap-2 text-sm text-default-600">
-                <Globe className="h-4 w-4" />
-                <span>Published URL:</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 bg-default-200 px-3 py-2 rounded text-sm">
-                  {publishStatus.publishedUrl}
-                </code>
-                <Button
-                  isIconOnly
-                  size="sm"
-                  variant="flat"
-                  onPress={handleCopyUrl}
-                >
-                  <Copy className="h-4 w-4" />
-                </Button>
-                <Button
-                  isIconOnly
-                  size="sm"
-                  variant="flat"
-                  onPress={handleOpenUrl}
-                >
-                  <ExternalLink className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </div>
-        )
-      case 'FAILED':
-        return (
-          <div className="my-6 space-y-3">
-            <div className="flex items-center justify-center gap-2 text-danger">
-              <XCircle className="h-5 w-5" />
-              <span className="font-medium">Publishing failed</span>
-            </div>
-            {publishStatus.error && (
-              <div className="bg-danger-50 border border-danger-200 rounded-lg p-3">
-                <p className="text-sm text-danger-700">{publishStatus.error}</p>
-              </div>
-            )}
-          </div>
-        )
-      case 'UNPUBLISHING':
-        return (
-          <div className="flex items-center justify-center gap-3 my-6">
-            <Loader2 className="h-5 w-5 animate-spin text-default-500" />
-            <span className="text-default-700">Unpublishing your project...</span>
-          </div>
+          <Card shadow="none" className="bg-default-50 border border-default-200">
+            <CardBody className="flex flex-row items-center justify-center gap-2 py-4">
+              <Loader2 className="h-4 w-4 animate-spin text-default-500" />
+              <span className="text-sm text-default-700">Unpublishing your project...</span>
+            </CardBody>
+          </Card>
         )
       default:
         return null
     }
   }
 
-  const canPublish = publishStatus?.status === 'UNPUBLISHED' || publishStatus?.status === 'FAILED'
-  const isProcessing = publishStatus?.status === 'PUBLISHING' || publishStatus?.status === 'UNPUBLISHING'
+  const canPublish = publishStatus?.status === PublishingStatus.UNPUBLISHED || publishStatus?.status === PublishingStatus.FAILED
+  const canRepublish = publishStatus?.status === PublishingStatus.PUBLISHED
+  const canUnpublish = publishStatus?.status === PublishingStatus.PUBLISHED
+  const isProcessing = publishStatus?.status === PublishingStatus.PUBLISHING || publishStatus?.status === PublishingStatus.UNPUBLISHING
+
+  const getSubtitle = () => {
+    if (publishStatus?.status === PublishingStatus.UNPUBLISHED || publishStatus?.status === PublishingStatus.FAILED) {
+      return 'Your app will be available to the public via the URL below once published.'
+    }
+
+    if (publishStatus?.status === PublishingStatus.PUBLISHED) {
+      return 'Republishing will update your live website with the latest changes.'
+    }
+
+    return ''
+  }
 
   return (
-    <Modal isOpen={isOpen} onOpenChange={onOpenChange} size="lg">
-      <ModalContent>
-        {(onClose) => (
-          <>
-            <ModalHeader className="flex flex-col gap-1">
-              <h3 className="text-xl font-semibold">Publish Project</h3>
-              <p className="text-sm font-normal text-default-500">{projectName}</p>
-            </ModalHeader>
-            <ModalBody>
-              {publishStatus?.subdomain && (
-                <div className="bg-primary-50 border border-primary-200 rounded-lg p-4 mb-4">
-                  <div className="text-sm font-medium text-primary-700 mb-1">Your project will be available at:</div>
-                  <code className="text-sm text-primary-900">
-                    {publishStatus.subdomain}.{import.meta.env.VITE_PUBLISH_DOMAIN || 'huskystudio.ai'}
-                  </code>
+    <>
+      <Modal isOpen={isOpen} onOpenChange={onOpenChange} size="md">
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader className="flex flex-col gap-2">
+                <div className="flex items-center justify-between pr-8">
+                  <h3 className="text-lg font-semibold">Publish Website</h3>
+                  <Chip
+                    color={publishStatus?.status === PublishingStatus.PUBLISHED ? 'success' : 'default'}
+                    variant="flat"
+                    size="sm"
+                  >
+                    {publishStatus?.status === PublishingStatus.PUBLISHED ? 'Published' : 'Not Published'}
+                  </Chip>
                 </div>
-              )}
-
-              <div className="space-y-2 mb-4">
-                <div className="flex justify-between text-sm">
-                  <span className="text-default-500">Last project update:</span>
-                  <span className="text-default-700">{new Date(projectModifiedAt).toLocaleString()}</span>
-                </div>
-                {publishStatus?.publishedAt && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-default-500">Last published:</span>
-                    <span className="text-default-700">{new Date(publishStatus.publishedAt).toLocaleString()}</span>
-                  </div>
+                <p className="text-xs font-normal text-default-500">
+                  {getSubtitle()}
+                </p>
+              </ModalHeader>
+              <ModalBody className="gap-4 py-4">
+                {publishStatus?.subdomain && (publishStatus.status === PublishingStatus.UNPUBLISHED || publishStatus.status === PublishingStatus.FAILED) && (
+                  <Card shadow="none" className="bg-primary-50/50">
+                    <CardBody className="p-4 gap-2">
+                      <p className="text-sm font-medium text-primary-700">Your project will be available at:</p>
+                      <Code size="sm" className="text-sm text-primary-900 bg-white/60">
+                        {publishStatus.subdomain}.{import.meta.env.VITE_PUBLISH_DOMAIN || 'huskystudio.ai'}
+                      </Code>
+                    </CardBody>
+                  </Card>
                 )}
-              </div>
 
-              {getStatusDisplay()}
-
-              {error && (
-                <div className="bg-danger-50 border border-danger-200 rounded-lg p-3">
-                  <p className="text-sm text-danger-700">{error}</p>
+                {getStatusDisplay()}
+              </ModalBody>
+              <ModalFooter className="pt-2 flex justify-between">
+                <div>
+                  {canUnpublish && (
+                    <Button
+                      variant="light"
+                      color="danger"
+                      onPress={() => setShowUnpublishConfirm(true)}
+                      isDisabled={isProcessing}
+                      size="sm"
+                    >
+                      Unpublish
+                    </Button>
+                  )}
                 </div>
-              )}
-            </ModalBody>
-            <ModalFooter>
-              <Button
-                variant="light"
-                onPress={onClose}
-                isDisabled={isProcessing}
-              >
-                Close
-              </Button>
-              {canPublish && (
+                <div className="flex gap-2">
+                  <Button
+                    variant="light"
+                    onPress={onClose}
+                    isDisabled={isProcessing}
+                    size="sm"
+                  >
+                    Close
+                  </Button>
+                  {(canPublish || canRepublish) && (
+                    <Button
+                      color="primary"
+                      onPress={publishStatus?.status === PublishingStatus.FAILED ? handleRetry : handlePublish}
+                      isLoading={isInitiating}
+                      isDisabled={isProcessing}
+                      size="sm"
+                    >
+                      {canRepublish ? 'Republish' : (publishStatus?.status === PublishingStatus.FAILED ? 'Retry' : 'Publish')}
+                    </Button>
+                  )}
+                </div>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
+
+      {/* Unpublish Confirmation Dialog */}
+      <Modal isOpen={showUnpublishConfirm} onOpenChange={setShowUnpublishConfirm} size="sm">
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader>
+                <h3 className="text-lg font-semibold">Unpublish Website</h3>
+              </ModalHeader>
+              <ModalBody>
+                <p className="text-sm text-default-600">
+                  This will take your website offline and remove it from public access. Your project files will remain safe, and you can republish anytime.
+                </p>
+              </ModalBody>
+              <ModalFooter>
                 <Button
-                  color="primary"
-                  onPress={publishStatus?.status === 'FAILED' ? handleRetry : handlePublish}
-                  isLoading={isInitiating}
-                  isDisabled={isProcessing}
+                  variant="light"
+                  onPress={onClose}
+                  size="sm"
                 >
-                  {publishStatus?.status === 'FAILED' ? 'Retry' : 'Publish'}
+                  Cancel
                 </Button>
-              )}
-            </ModalFooter>
-          </>
-        )}
-      </ModalContent>
-    </Modal>
+                <Button
+                  color="danger"
+                  onPress={handleUnpublish}
+                  isLoading={isInitiating}
+                  size="sm"
+                >
+                  Unpublish
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
+    </>
   )
 }

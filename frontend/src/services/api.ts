@@ -130,12 +130,22 @@ export interface ConfirmMediaUploadResponse {
   };
 }
 
-export type PublishingStatus = 'UNPUBLISHED' | 'PUBLISHING' | 'PUBLISHED' | 'FAILED' | 'UNPUBLISHING';
+export const PublishingStatus = {
+  UNPUBLISHED: 'UNPUBLISHED',
+  PUBLISHING: 'PUBLISHING',
+  PUBLISHED: 'PUBLISHED',
+  FAILED: 'FAILED',
+  UNPUBLISHING: 'UNPUBLISHING'
+} as const
+
+export type PublishingStatus = typeof PublishingStatus[keyof typeof PublishingStatus]
 
 export interface PublishStatusResponse {
   status: PublishingStatus;
   publishedAt?: string;
   publishedUrl?: string;
+  publishedVersion?: number;
+  currentVersion: number;
   error?: string;
   subdomain?: string;
 }

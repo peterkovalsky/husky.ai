@@ -3,10 +3,10 @@ import { Card, CardBody, CardHeader, Button, Dropdown, DropdownTrigger, Dropdown
 import { CreateProjectDialog } from './CreateProjectDialog'
 import { DeleteProjectDialog } from './DeleteProjectDialog'
 import { PublishDialog } from './PublishDialog'
-import { Code2, Calendar, FolderOpen, MoreVertical, Trash2, Globe, GlobeLock, Loader2, AlertCircle } from 'lucide-react'
+import { Code2, Calendar, FolderOpen, MoreVertical, Trash2, Globe, Loader2, AlertCircle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
-import { ApiService, type Project, type PublishingStatus } from '../services/api'
+import { PublishingStatus, type Project } from '../services/api'
 
 export const Home = () => {
   const { projects, loading, deleteProject, refreshProjects } = useProject()
@@ -14,7 +14,6 @@ export const Home = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [publishDialogOpen, setPublishDialogOpen] = useState(false)
   const [selectedProject, setSelectedProject] = useState<{ id: string; name: string; modifiedAt: string } | null>(null)
-  const [unpublishing, setUnpublishing] = useState<string | null>(null)
 
   // Refresh projects when component mounts or becomes visible
   useEffect(() => {
@@ -52,43 +51,29 @@ export const Home = () => {
     setPublishDialogOpen(true)
   }
 
-  const handleUnpublishClick = async (projectId: string) => {
-    if (confirm('Are you sure you want to unpublish this project? It will no longer be accessible at the published URL.')) {
-      try {
-        setUnpublishing(projectId)
-        await ApiService.unpublishProject(projectId)
-        await refreshProjects()
-      } catch (error) {
-        alert(error instanceof Error ? error.message : 'Failed to unpublish project')
-      } finally {
-        setUnpublishing(null)
-      }
-    }
-  }
-
   const getPublishingStatusBadge = (project: Project) => {
-    const status = project.publishedStatus || 'UNPUBLISHED'
+    const status = project.publishedStatus || PublishingStatus.UNPUBLISHED
 
     switch (status) {
-      case 'PUBLISHED':
+      case PublishingStatus.PUBLISHED:
         return (
           <Chip size="sm" color="success" variant="flat" startContent={<Globe className="h-3 w-3" />}>
             Published
           </Chip>
         )
-      case 'PUBLISHING':
+      case PublishingStatus.PUBLISHING:
         return (
           <Chip size="sm" color="primary" variant="flat" startContent={<Loader2 className="h-3 w-3 animate-spin" />}>
             Publishing
           </Chip>
         )
-      case 'UNPUBLISHING':
+      case PublishingStatus.UNPUBLISHING:
         return (
           <Chip size="sm" color="default" variant="flat" startContent={<Loader2 className="h-3 w-3 animate-spin" />}>
             Unpublishing
           </Chip>
         )
-      case 'FAILED':
+      case PublishingStatus.FAILED:
         return (
           <Chip size="sm" color="danger" variant="flat" startContent={<AlertCircle className="h-3 w-3" />}>
             Publish Failed
@@ -160,7 +145,7 @@ export const Home = () => {
                       </Button>
                     </DropdownTrigger>
                     <DropdownMenu aria-label="Project actions">
-                      {project.publishedStatus !== 'PUBLISHED' && project.publishedStatus !== 'PUBLISHING' && project.publishedStatus !== 'UNPUBLISHING' && (
+                      {(project.publishedStatus === PublishingStatus.UNPUBLISHED || project.publishedStatus === PublishingStatus.FAILED) ? (
                         <DropdownItem
                           key="publish"
                           textValue="Publish"
@@ -173,20 +158,19 @@ export const Home = () => {
                             Publish
                           </div>
                         </DropdownItem>
-                      )}
-                      {project.publishedStatus === 'PUBLISHED' && (
+                      ) : null}
+                      {project.publishedStatus === PublishingStatus.PUBLISHED ? (
                         <DropdownItem
-                          key="unpublish"
-                          textValue="Unpublish"
-                          onClick={() => handleUnpublishClick(project.id)}
-                          isDisabled={unpublishing === project.id}
+                          key="republish"
+                          textValue="Republish"
+                          onClick={() => handlePublishClick(project)}
                         >
                           <div className="flex items-center">
-                            <GlobeLock className="mr-2 h-4 w-4" />
-                            Unpublish
+                            <Globe className="mr-2 h-4 w-4" />
+                            Republish
                           </div>
                         </DropdownItem>
-                      )}
+                      ) : null}
                       <DropdownItem
                         key="delete"
                         textValue="Delete Project"
@@ -247,8 +231,6 @@ export const Home = () => {
             isOpen={publishDialogOpen}
             onOpenChange={setPublishDialogOpen}
             projectId={selectedProject.id}
-            projectName={selectedProject.name}
-            projectModifiedAt={selectedProject.modifiedAt}
             onSuccess={refreshProjects}
           />
         </>

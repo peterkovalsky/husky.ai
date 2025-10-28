@@ -28,7 +28,7 @@ export class InitiateUnpublishingUseCase {
 
     // Check if project is published
     if (project.publishedStatus !== PublishingStatus.PUBLISHED) {
-      throw new Error(`Cannot unpublish: project is not published (status: ${project.publishedStatus})`);
+      throw new Error('This project is not currently published.');
     }
 
     // Set status to UNPUBLISHING

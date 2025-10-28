@@ -22,6 +22,7 @@ export interface Project {
   subdomain?: string;
   publishedStatus: PublishingStatus;
   publishedAt?: Date;
+  publishedVersion?: number;
   cloudfrontDistributionId?: string;
   cloudfrontDomain?: string;
   publishingError?: string;
