@@ -31,6 +31,7 @@ const jobProcessorService = new JobProcessorService(
   container.get('processMediaDeletionUseCase'),
   container.get('processPublishJobUseCase'),
   container.get('processUnpublishJobUseCase'),
+  container.get('provisionHostnameUseCase'),
   logger,
   config.jobProcessor.intervalMs
 );

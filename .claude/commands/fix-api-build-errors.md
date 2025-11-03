@@ -1,0 +1,1 @@
+Run the `api` project and check console output for errors. Fix them and run again. Continue until api buils successfully.

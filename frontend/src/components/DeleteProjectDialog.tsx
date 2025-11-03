@@ -6,30 +6,34 @@ import {
   ModalBody,
   ModalFooter,
   Button,
-  Input
+  Input,
+  Alert
 } from '@heroui/react'
-import { AlertTriangle, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 
 interface DeleteProjectDialogProps {
   isOpen: boolean
   onOpenChange: (open: boolean) => void
   projectName: string
   projectId: string
+  publishedStatus?: string
   onConfirm: (projectId: string) => Promise<void>
 }
 
-export const DeleteProjectDialog = ({ 
-  isOpen, 
-  onOpenChange, 
-  projectName, 
-  projectId, 
-  onConfirm 
+export const DeleteProjectDialog = ({
+  isOpen,
+  onOpenChange,
+  projectName,
+  projectId,
+  publishedStatus,
+  onConfirm
 }: DeleteProjectDialogProps) => {
   const [confirmName, setConfirmName] = useState('')
   const [isDeleting, setIsDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const isValid = confirmName === projectName
+  const isPublished = publishedStatus === 'PUBLISHED'
   
   const handleConfirm = async () => {
     if (!isValid) return
@@ -71,42 +75,41 @@ export const DeleteProjectDialog = ({
             </ModalHeader>
 
             <ModalBody className="space-y-6">
-              <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/50 rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-red-900 dark:text-red-100">
-                      This will permanently delete
-                    </p>
-                    <p className="text-sm text-red-800 dark:text-red-200">
-                      <span className="font-semibold text-red-900 dark:text-red-100">{projectName}</span>
-                    </p>
-                    <p className="text-sm text-red-700 dark:text-red-300">
-                      and all associated data, including app versions, previews, and prompts. This action cannot be undone.
-                    </p>
-                  </div>
-                </div>
-              </div>
+              <Alert
+                color="danger"
+                variant="flat"
+                title="This will permanently delete your project"
+                description={
+                  <>
+                    <strong>{projectName}</strong> and all associated data will be permanently deleted, including app versions and builds.
+                    {isPublished && (
+                      <> Your website will be unpublished and no longer accessible.</>
+                    )}
+                    {' '}This action cannot be undone.
+                  </>
+                }
+              />
 
               <div className="space-y-3">
                 <Input
+                  type="text"
                   label={<span>Type <span className="font-semibold">{projectName}</span> to confirm:</span>}
                   value={confirmName}
                   onValueChange={setConfirmName}
                   placeholder={projectName}
+                  variant="bordered"
                   autoComplete="off"
                   isDisabled={isDeleting}
-                  size="lg"
                 />
               </div>
 
               {error && (
-                <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/50 rounded-lg p-4">
-                  <div className="flex items-center gap-3">
-                    <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400 flex-shrink-0" />
-                    <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
-                  </div>
-                </div>
+                <Alert
+                  color="danger"
+                  variant="bordered"
+                  title="Error"
+                  description={error}
+                />
               )}
             </ModalBody>
 

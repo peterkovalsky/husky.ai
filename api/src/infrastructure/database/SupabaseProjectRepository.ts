@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
-import { Project, CreateProjectRequest, PublishingStatus, ProjectStatus } from '../../domain/entities/Project';
+import { Project, CreateProjectRequest, PublishingStatus, ProjectStatus, HostnameStatus } from '../../domain/entities/Project';
 import { SupabaseClientFactory } from '../../shared/database/SupabaseClientFactory';
 
 export class SupabaseProjectRepository implements IProjectRepository {
@@ -193,6 +193,35 @@ export class SupabaseProjectRepository implements IProjectRepository {
     if (error) throw error;
   }
 
+  async update(projectId: string, updates: Partial<Project>): Promise<void> {
+    // Convert camelCase entity properties to snake_case database columns
+    const dbUpdates: any = {};
+
+    if (updates.name !== undefined) dbUpdates.name = updates.name;
+    if (updates.description !== undefined) dbUpdates.description = updates.description;
+    if (updates.previewUrl !== undefined) dbUpdates.preview_url = updates.previewUrl;
+    if (updates.status !== undefined) dbUpdates.status = updates.status;
+    if (updates.currentVersion !== undefined) dbUpdates.current_version = updates.currentVersion;
+    if (updates.subdomain !== undefined) dbUpdates.subdomain = updates.subdomain;
+    if (updates.publishedStatus !== undefined) dbUpdates.published_status = updates.publishedStatus;
+    if (updates.publishedAt !== undefined) dbUpdates.published_at = updates.publishedAt ? updates.publishedAt.toISOString() : null;
+    if (updates.publishedVersion !== undefined) dbUpdates.published_version = updates.publishedVersion;
+    if (updates.cloudfrontDistributionId !== undefined) dbUpdates.cloudfront_distribution_id = updates.cloudfrontDistributionId;
+    if (updates.cloudfrontDomain !== undefined) dbUpdates.cloudfront_domain = updates.cloudfrontDomain;
+    if (updates.cloudflareHostnameId !== undefined) dbUpdates.cloudflare_hostname_id = updates.cloudflareHostnameId;
+    if (updates.cloudflareHostnameStatus !== undefined) dbUpdates.cloudflare_hostname_status = updates.cloudflareHostnameStatus;
+    if (updates.hostnameStatus !== undefined) dbUpdates.hostname_status = updates.hostnameStatus;
+    if (updates.hostnameError !== undefined) dbUpdates.hostname_error = updates.hostnameError;
+    if (updates.publishingError !== undefined) dbUpdates.publishing_error = updates.publishingError;
+
+    const { error } = await this.supabase
+      .from('projects')
+      .update(dbUpdates)
+      .eq('id', projectId);
+
+    if (error) throw error;
+  }
+
   private mapToEntity(data: any): Project {
     return {
       id: data.id,
@@ -208,6 +237,10 @@ export class SupabaseProjectRepository implements IProjectRepository {
       publishedVersion: data.published_version,
       cloudfrontDistributionId: data.cloudfront_distribution_id,
       cloudfrontDomain: data.cloudfront_domain,
+      cloudflareHostnameId: data.cloudflare_hostname_id,
+      cloudflareHostnameStatus: data.cloudflare_hostname_status,
+      hostnameStatus: data.hostname_status as HostnameStatus | undefined,
+      hostnameError: data.hostname_error,
       publishingError: data.publishing_error,
       createdAt: new Date(data.created_at),
       modifiedAt: new Date(data.modified_at)

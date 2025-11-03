@@ -1,34 +1,33 @@
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
-import { IStorageService } from '../../domain/services/IStorageService';
-import { ICloudFrontService } from '../../domain/services/ICloudFrontService';
-import { IRoute53Service } from '../../domain/services/IRoute53Service';
-import { PublishingStatus } from '../../domain/entities/Project';
-import { S3Client, ListObjectsV2Command, CopyObjectCommand, DeleteObjectsCommand } from '@aws-sdk/client-s3';
+import { PublishingStatus, HostnameStatus } from '../../domain/entities/Project';
+import { S3Client } from '@aws-sdk/client-s3';
+import { R2PublishedAppsService } from '../../infrastructure/storage/R2PublishedAppsService';
+import { CloudflareSaaSService } from '../../infrastructure/cdn/CloudflareSaaSService';
+import { CloudflareKVService } from '../../infrastructure/storage/CloudflareKVService';
 
 export class ProcessPublishJobUseCase {
   private s3Client: S3Client;
   private projectsBucketName: string;
-  private publishBucketName: string;
   private publishDomain: string;
 
   constructor(
     private projectRepository: IProjectRepository,
-    private storageService: IStorageService,
-    private cloudFrontService: ICloudFrontService,
-    private route53Service: IRoute53Service
+    private r2PublishedAppsService: R2PublishedAppsService,
+    private cloudflareSaaSService: CloudflareSaaSService,
+    private cloudflareKVService: CloudflareKVService
   ) {
     const region = process.env.AWS_REGION;
     const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
     const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
 
     this.projectsBucketName = process.env.S3_PROJECTS_BUCKET_NAME!;
-    this.publishBucketName = process.env.S3_BUCKET_PUBLISHED_APPS!;
     this.publishDomain = process.env.PUBLISH_DOMAIN || 'huskystudio.ai';
 
-    if (!this.projectsBucketName || !this.publishBucketName) {
-      throw new Error('Missing S3 bucket configuration');
+    if (!this.projectsBucketName) {
+      throw new Error('Missing S3 projects bucket configuration');
     }
 
+    // S3 client for reading production builds from S3
     this.s3Client = new S3Client({
       region,
       credentials: {
@@ -40,7 +39,7 @@ export class ProcessPublishJobUseCase {
 
   async execute(projectId: string): Promise<void> {
     try {
-      console.log(`[ProcessPublishJobUseCase] Starting publish for project ${projectId}`);
+      console.log(`[ProcessPublishJobUseCase] Starting Cloudflare publish for project ${projectId}`);
 
       // Get project details
       const project = await this.projectRepository.findById(projectId);
@@ -56,55 +55,137 @@ export class ProcessPublishJobUseCase {
         throw new Error('No successful builds available for publishing');
       }
 
-      // Step 1: Copy production build from projects bucket to publish bucket
-      console.log(`[ProcessPublishJobUseCase] Copying production build to publish bucket`);
-      await this.copyProductionBuild(projectId, project.currentVersion);
-
-      // Step 2: Create or update CloudFront distribution
-      console.log(`[ProcessPublishJobUseCase] Setting up CloudFront distribution`);
-      let distributionId = project.cloudfrontDistributionId;
-      let cloudfrontDomain = project.cloudfrontDomain;
-
-      if (!distributionId) {
-        // First time publishing - create new distribution
-        const distribution = await this.cloudFrontService.createDistribution(
-          projectId,
-          project.subdomain,
-          this.publishDomain
-        );
-
-        distributionId = distribution.distributionId;
-        cloudfrontDomain = distribution.domain;
-
-        // Save CloudFront details
-        await this.projectRepository.updateCloudFrontDetails(
-          projectId,
-          distributionId,
-          cloudfrontDomain
-        );
-      }
-
-      // Step 3: Create/update Route53 record
-      console.log(`[ProcessPublishJobUseCase] Setting up DNS record`);
-      await this.route53Service.createOrUpdateRecord(
-        project.subdomain,
-        this.publishDomain,
-        cloudfrontDomain!
+      // Step 1: Copy production build from S3 to R2
+      console.log(`[ProcessPublishJobUseCase] Copying production build to R2`);
+      await this.r2PublishedAppsService.copyProductionBuildFromS3(
+        this.s3Client,
+        this.projectsBucketName,
+        projectId,
+        project.currentVersion
       );
 
-      // Step 4: Wait for CloudFront distribution to deploy
-      console.log(`[ProcessPublishJobUseCase] Waiting for CloudFront deployment`);
-      await this.waitForCloudFrontDeployment(distributionId);
+      // Step 2: Write subdomain → project ID mapping to KV
+      console.log(`[ProcessPublishJobUseCase] Writing subdomain mapping to KV`);
+      await this.cloudflareKVService.setSubdomainMapping(project.subdomain, projectId);
 
-      // Step 5: Update project status to PUBLISHED
+      const hostname = `${project.subdomain}.${this.publishDomain}`;
+      let hostnameId: string;
+      let needsSSLWait = false;
+
+      // Step 3: Check hostname provisioning status and handle accordingly
+      if (project.hostnameStatus === HostnameStatus.READY && project.cloudflareHostnameId) {
+        // PRE-PROVISIONED: Hostname and SSL already ready!
+        console.log(`[ProcessPublishJobUseCase] ✨ Hostname pre-provisioned and ready - instant publish!`);
+        hostnameId = project.cloudflareHostnameId;
+        needsSSLWait = false;
+
+      } else if (project.hostnameStatus === HostnameStatus.PROVISIONING) {
+        // PROVISIONING IN PROGRESS: Wait for it to complete
+        console.log(`[ProcessPublishJobUseCase] Hostname provisioning in progress, waiting...`);
+        hostnameId = project.cloudflareHostnameId || '';
+
+        if (hostnameId) {
+          // Wait for provisioning to complete (3 minutes max)
+          try {
+            await this.waitForProvisioningComplete(project.id, 180000);
+            console.log(`[ProcessPublishJobUseCase] Provisioning complete!`);
+            needsSSLWait = false;
+          } catch (error) {
+            console.warn(`[ProcessPublishJobUseCase] Provisioning timeout, will provision now`);
+            needsSSLWait = true;
+          }
+        } else {
+          // No hostname ID yet, provision now
+          console.log(`[ProcessPublishJobUseCase] No hostname ID, provisioning now`);
+          const result = await this.cloudflareSaaSService.createCustomHostname(project.subdomain);
+          hostnameId = result.hostnameId;
+          needsSSLWait = true;
+        }
+
+      } else if (project.cloudflareHostnameId) {
+        // REPUBLISH: Custom hostname already exists (but not pre-provisioned)
+        console.log(`[ProcessPublishJobUseCase] Republishing - reusing existing custom hostname`);
+        try {
+          const status = await this.cloudflareSaaSService.getCustomHostnameStatus(project.cloudflareHostnameId);
+          console.log(`[ProcessPublishJobUseCase] Existing hostname status: ${status.hostname} (SSL: ${status.sslStatus})`);
+          hostnameId = project.cloudflareHostnameId;
+          needsSSLWait = false;
+
+          // Quick DNS check to ensure site is still accessible (5 seconds max)
+          console.log(`[ProcessPublishJobUseCase] Quick DNS check...`);
+          try {
+            await this.cloudflareSaaSService.waitForDNSResolution(hostname, 5000, 1000);
+            console.log(`[ProcessPublishJobUseCase] Site is accessible`);
+          } catch (error) {
+            console.warn(`[ProcessPublishJobUseCase] Quick DNS check failed, site may take a moment`);
+          }
+        } catch (error) {
+          // Hostname doesn't exist anymore, create new one
+          console.log(`[ProcessPublishJobUseCase] Custom hostname no longer exists, creating new one`);
+          const result = await this.cloudflareSaaSService.createCustomHostname(project.subdomain);
+          hostnameId = result.hostnameId;
+          needsSSLWait = true;
+        }
+
+      } else {
+        // FALLBACK: No hostname exists, create now (NONE or FAILED status)
+        console.log(`[ProcessPublishJobUseCase] No hostname found, provisioning now (status: ${project.hostnameStatus})`);
+        const result = await this.cloudflareSaaSService.createCustomHostname(project.subdomain);
+        hostnameId = result.hostnameId;
+        console.log(`[ProcessPublishJobUseCase] Custom hostname created: ${hostname} (SSL: ${result.sslStatus})`);
+        needsSSLWait = true;
+      }
+
+      // Step 4: Update project with hostname info
+      await this.projectRepository.update(projectId, {
+        cloudflareHostnameId: hostnameId,
+        cloudflareHostnameStatus: 'pending',
+      });
+
+      // Step 5: Wait for DNS resolution and SSL activation (only if needed)
+      if (needsSSLWait) {
+        console.log(`[ProcessPublishJobUseCase] Waiting for DNS and SSL in parallel...`);
+
+        // Run DNS and SSL checks in parallel to save time
+        const results = await Promise.allSettled([
+          // DNS check: 45 seconds max, poll every 2 seconds
+          this.cloudflareSaaSService.waitForDNSResolution(hostname, 45000, 2000),
+
+          // SSL check: 3 minutes max, poll every 5 seconds
+          this.cloudflareSaaSService.waitForSSLActivation(hostnameId, 180000, 5000),
+        ]);
+
+        // Check DNS result
+        if (results[0].status === 'fulfilled') {
+          console.log(`[ProcessPublishJobUseCase] ✓ DNS resolved!`);
+        } else {
+          console.warn(`[ProcessPublishJobUseCase] DNS check timed out (site may take a moment to be accessible)`);
+        }
+
+        // Check SSL result
+        if (results[1].status === 'fulfilled') {
+          console.log(`[ProcessPublishJobUseCase] ✓ SSL certificate activated!`);
+        } else {
+          console.warn(`[ProcessPublishJobUseCase] SSL activation timed out (certificate may activate shortly)`);
+        }
+
+        console.log(`[ProcessPublishJobUseCase] Site setup complete!`);
+      } else {
+        console.log(`[ProcessPublishJobUseCase] SSL/DNS already configured, skipping wait ⚡`);
+      }
+
+      // Step 6: Update project status to PUBLISHED
       await this.projectRepository.updatePublishingStatus(projectId, PublishingStatus.PUBLISHED);
       await this.projectRepository.setPublishedAt(projectId, new Date());
       await this.projectRepository.setPublishedVersion(projectId, project.currentVersion);
       await this.projectRepository.updatePublishingError(projectId, null);
 
-      console.log(
-        `[ProcessPublishJobUseCase] Successfully published project ${projectId} version ${project.currentVersion} at ${project.subdomain}.${this.publishDomain}`
-      );
+      const successMessage = needsSSLWait
+        ? `Successfully published project ${projectId} version ${project.currentVersion} at https://${hostname}`
+        : `Successfully published project ${projectId} version ${project.currentVersion} at https://${hostname} (instant publish!)`;
+
+      console.log(`[ProcessPublishJobUseCase] ${successMessage}`);
+      console.log(`[ProcessPublishJobUseCase] Site is live and accessible!`);
     } catch (error) {
       console.error(`[ProcessPublishJobUseCase] Failed to publish project ${projectId}:`, error);
 
@@ -119,93 +200,47 @@ export class ProcessPublishJobUseCase {
     }
   }
 
-  private async copyProductionBuild(projectId: string, version: number): Promise<void> {
-    const sourcePath = `${projectId}/web/v${version}/production-build/`;
-    const destPath = `${projectId}/web/`;
-
-    // First, delete existing files in destination (for republishing)
-    await this.deleteS3Folder(this.publishBucketName, destPath);
-
-    // List all files in source
-    const listCommand = new ListObjectsV2Command({
-      Bucket: this.projectsBucketName,
-      Prefix: sourcePath,
-    });
-
-    const listResult = await this.s3Client.send(listCommand);
-
-    if (!listResult.Contents || listResult.Contents.length === 0) {
-      throw new Error(`No production build found at ${sourcePath}`);
-    }
-
-    // Copy each file
-    for (const object of listResult.Contents) {
-      if (!object.Key) continue;
-
-      const fileName = object.Key.replace(sourcePath, '');
-      const destKey = `${destPath}${fileName}`;
-
-      const copyCommand = new CopyObjectCommand({
-        Bucket: this.publishBucketName,
-        CopySource: `${this.projectsBucketName}/${object.Key}`,
-        Key: destKey,
-      });
-
-      await this.s3Client.send(copyCommand);
-      console.log(`[ProcessPublishJobUseCase] Copied ${object.Key} to ${destKey}`);
-    }
-
-    console.log(
-      `[ProcessPublishJobUseCase] Copied ${listResult.Contents.length} files to publish bucket`
-    );
-  }
-
-  private async deleteS3Folder(bucket: string, prefix: string): Promise<void> {
-    const listCommand = new ListObjectsV2Command({
-      Bucket: bucket,
-      Prefix: prefix,
-    });
-
-    const listResult = await this.s3Client.send(listCommand);
-
-    if (!listResult.Contents || listResult.Contents.length === 0) {
-      return; // Nothing to delete
-    }
-
-    const objectsToDelete = listResult.Contents.map((obj) => ({ Key: obj.Key! }));
-
-    const deleteCommand = new DeleteObjectsCommand({
-      Bucket: bucket,
-      Delete: {
-        Objects: objectsToDelete,
-      },
-    });
-
-    await this.s3Client.send(deleteCommand);
-    console.log(`[ProcessPublishJobUseCase] Deleted ${objectsToDelete.length} files from ${prefix}`);
-  }
-
-  private async waitForCloudFrontDeployment(
-    distributionId: string,
-    maxWaitTime: number = 900000 // 15 minutes
+  /**
+   * Wait for hostname provisioning to complete
+   * Polls database for status change from PROVISIONING to READY or FAILED
+   * @param projectId - Project ID
+   * @param maxWaitTime - Maximum time to wait in milliseconds (default 3 minutes)
+   * @returns Promise that resolves when provisioning completes or times out
+   */
+  private async waitForProvisioningComplete(
+    projectId: string,
+    maxWaitTime: number = 180000
   ): Promise<void> {
     const startTime = Date.now();
-    const pollInterval = 30000; // 30 seconds
+    const pollInterval = 5000; // Check every 5 seconds
+
+    console.log(`[ProcessPublishJobUseCase] Waiting for hostname provisioning to complete...`);
 
     while (Date.now() - startTime < maxWaitTime) {
-      const status = await this.cloudFrontService.getDistributionStatus(distributionId);
+      const project = await this.projectRepository.findById(projectId);
 
-      if (status === 'Deployed') {
-        console.log(`[ProcessPublishJobUseCase] CloudFront distribution deployed`);
+      if (!project) {
+        throw new Error(`Project ${projectId} not found`);
+      }
+
+      if (project.hostnameStatus === HostnameStatus.READY) {
+        console.log(`[ProcessPublishJobUseCase] Hostname provisioning complete (${Math.floor((Date.now() - startTime) / 1000)}s elapsed)`);
         return;
       }
 
+      if (project.hostnameStatus === HostnameStatus.FAILED) {
+        console.warn(`[ProcessPublishJobUseCase] Hostname provisioning failed: ${project.hostnameError}`);
+        throw new Error(`Hostname provisioning failed: ${project.hostnameError}`);
+      }
+
       console.log(
-        `[ProcessPublishJobUseCase] Waiting for deployment... (${Math.floor((Date.now() - startTime) / 1000)}s elapsed)`
+        `[ProcessPublishJobUseCase] Hostname status: ${project.hostnameStatus}, waiting... (${Math.floor((Date.now() - startTime) / 1000)}s elapsed)`
       );
+
       await new Promise((resolve) => setTimeout(resolve, pollInterval));
     }
 
-    throw new Error(`CloudFront distribution did not deploy within ${maxWaitTime}ms`);
+    throw new Error(`Hostname provisioning did not complete within ${maxWaitTime}ms`);
   }
+
 }

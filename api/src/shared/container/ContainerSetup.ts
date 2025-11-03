@@ -32,6 +32,9 @@ import { SupabaseAuthService } from '../../infrastructure/auth/SupabaseAuthServi
 import { SubdomainService } from '../../infrastructure/subdomain/SubdomainService';
 import { CloudFrontService } from '../../infrastructure/cdn/CloudFrontService';
 import { Route53Service } from '../../infrastructure/dns/Route53Service';
+import { R2PublishedAppsService } from '../../infrastructure/storage/R2PublishedAppsService';
+import { CloudflareSaaSService } from '../../infrastructure/cdn/CloudflareSaaSService';
+import { CloudflareKVService } from '../../infrastructure/storage/CloudflareKVService';
 
 // Application Use Cases
 import { CreatePromptUseCase } from '../../application/use-cases/CreatePromptUseCase';
@@ -51,6 +54,7 @@ import { InitiateUnpublishingUseCase } from '../../application/use-cases/Initiat
 import { GetPublishStatusUseCase } from '../../application/use-cases/GetPublishStatusUseCase';
 import { ProcessPublishJobUseCase } from '../../application/use-cases/ProcessPublishJobUseCase';
 import { ProcessUnpublishJobUseCase } from '../../application/use-cases/ProcessUnpublishJobUseCase';
+import { ProvisionHostnameUseCase } from '../../application/use-cases/ProvisionHostnameUseCase';
 
 // Presentation Layer
 import { AuthMiddleware } from '../../presentation/middleware/AuthMiddleware';
@@ -91,6 +95,13 @@ export function setupContainer(): DIContainer {
   container.registerFactory<SupabaseAuthService>('authService', () => new SupabaseAuthService());
 
   container.registerFactory<ISubdomainService>('subdomainService', () => new SubdomainService());
+
+  // Cloudflare services for publishing
+  container.registerFactory<R2PublishedAppsService>('r2PublishedAppsService', () => new R2PublishedAppsService());
+  container.registerFactory<CloudflareSaaSService>('cloudflareSaaSService', () => new CloudflareSaaSService());
+  container.registerFactory<CloudflareKVService>('cloudflareKVService', () => new CloudflareKVService());
+
+  // Keep AWS services for backward compatibility (not used for new publishes)
   container.registerFactory<ICloudFrontService>('cloudFrontService', () => new CloudFrontService());
   container.registerFactory<IRoute53Service>('route53Service', () => new Route53Service());
 
@@ -112,7 +123,8 @@ export function setupContainer(): DIContainer {
   container.registerFactory<CreateProjectUseCase>('createProjectUseCase', () => new CreateProjectUseCase(
     container.get<IProjectRepository>('projectRepository'),
     container.get<IWorkspaceRepository>('workspaceRepository'),
-    container.get<ISubdomainService>('subdomainService')
+    container.get<ISubdomainService>('subdomainService'),
+    container.get<IQueueService>('queueService')
   ));
 
   container.registerFactory<GetProjectDetailsUseCase>('getProjectDetailsUseCase', () => new GetProjectDetailsUseCase(
@@ -141,7 +153,10 @@ export function setupContainer(): DIContainer {
     container.get<IProjectRepository>('projectRepository'),
     container.get<IPromptRepository>('promptRepository'),
     container.get<IBuildRepository>('buildRepository'),
-    container.get<IStorageService>('storageService')
+    container.get<IStorageService>('storageService'),
+    container.get<R2PublishedAppsService>('r2PublishedAppsService'),
+    container.get<CloudflareSaaSService>('cloudflareSaaSService'),
+    container.get<CloudflareKVService>('cloudflareKVService')
   ));
 
   container.registerFactory<SetupUserUseCase>('setupUserUseCase', () => new SetupUserUseCase(
@@ -235,15 +250,21 @@ export function setupContainer(): DIContainer {
 
   container.registerFactory<ProcessPublishJobUseCase>('processPublishJobUseCase', () => new ProcessPublishJobUseCase(
     container.get<IProjectRepository>('projectRepository'),
-    container.get<IStorageService>('storageService'),
-    container.get<ICloudFrontService>('cloudFrontService'),
-    container.get<IRoute53Service>('route53Service')
+    container.get<R2PublishedAppsService>('r2PublishedAppsService'),
+    container.get<CloudflareSaaSService>('cloudflareSaaSService'),
+    container.get<CloudflareKVService>('cloudflareKVService')
   ));
 
   container.registerFactory<ProcessUnpublishJobUseCase>('processUnpublishJobUseCase', () => new ProcessUnpublishJobUseCase(
     container.get<IProjectRepository>('projectRepository'),
-    container.get<ICloudFrontService>('cloudFrontService'),
-    container.get<IRoute53Service>('route53Service')
+    container.get<R2PublishedAppsService>('r2PublishedAppsService'),
+    container.get<CloudflareSaaSService>('cloudflareSaaSService'),
+    container.get<CloudflareKVService>('cloudflareKVService')
+  ));
+
+  container.registerFactory<ProvisionHostnameUseCase>('provisionHostnameUseCase', () => new ProvisionHostnameUseCase(
+    container.get<IProjectRepository>('projectRepository'),
+    container.get<CloudflareSaaSService>('cloudflareSaaSService')
   ));
 
   // Register Publishing Controller

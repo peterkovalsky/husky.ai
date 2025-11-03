@@ -1,0 +1,12 @@
+name = "husky-published-sites"
+main = "src/index.ts"
+compatibility_date = "2025-01-15"
+
+# R2 Bucket binding
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "husky-published-apps"
+
+# Routes (configure after deployment)
+# Add custom domain routes via Cloudflare dashboard:
+# - *.huskystudio.ai/*

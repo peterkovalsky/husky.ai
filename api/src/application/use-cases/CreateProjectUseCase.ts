@@ -1,15 +1,17 @@
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
 import { IWorkspaceRepository } from '../../domain/repositories/IWorkspaceRepository';
 import { ISubdomainService } from '../../domain/services/ISubdomainService';
+import { IQueueService, ProvisionHostnameMessage } from '../../domain/services/IQueueService';
 import { CreateProjectDto } from '../dto/ProjectDto';
 import { User } from '../../domain/entities/User';
-import { Project } from '../../domain/entities/Project';
+import { Project, HostnameStatus } from '../../domain/entities/Project';
 
 export class CreateProjectUseCase {
   constructor(
     private projectRepository: IProjectRepository,
     private workspaceRepository: IWorkspaceRepository,
-    private subdomainService: ISubdomainService
+    private subdomainService: ISubdomainService,
+    private queueService: IQueueService
   ) {}
 
   async execute(dto: CreateProjectDto, user: User): Promise<Project> {
@@ -46,6 +48,30 @@ export class CreateProjectUseCase {
       (sub) => this.projectRepository.isSubdomainTaken(sub)
     );
     await this.projectRepository.setSubdomain(project.id, subdomain);
+
+    // Initialize hostname status to NONE
+    await this.projectRepository.update(project.id, {
+      hostnameStatus: HostnameStatus.NONE,
+      hostnameError: null,
+    });
+
+    // Queue background job to provision custom hostname + SSL
+    console.log(`[CreateProjectUseCase] Queueing hostname provisioning for project ${project.id} with subdomain ${subdomain}`);
+    const provisionMessage: ProvisionHostnameMessage = {
+      action: 'PROVISION_HOSTNAME',
+      projectId: project.id,
+      subdomain: subdomain,
+      timestamp: new Date().toISOString(),
+    };
+
+    try {
+      await this.queueService.sendMessage(provisionMessage);
+      console.log(`[CreateProjectUseCase] Hostname provisioning queued for project ${project.id}`);
+    } catch (error) {
+      // Don't fail project creation if queue fails
+      console.error(`[CreateProjectUseCase] Failed to queue hostname provisioning for project ${project.id}:`, error);
+      // Provisioning will happen during first publish as fallback
+    }
 
     // Fetch updated project with subdomain
     const updatedProject = await this.projectRepository.findById(project.id);

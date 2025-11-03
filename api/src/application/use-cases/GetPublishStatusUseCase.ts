@@ -1,6 +1,6 @@
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
 import { User } from '../../domain/entities/User';
-import { PublishingStatus } from '../../domain/entities/Project';
+import { PublishingStatus, HostnameStatus } from '../../domain/entities/Project';
 
 export interface PublishStatusDto {
   status: PublishingStatus;
@@ -10,6 +10,10 @@ export interface PublishStatusDto {
   currentVersion: number;
   error?: string;
   subdomain?: string;
+  sslStatus?: string; // Cloudflare SSL status (pending, active, failed)
+  hostnameStatus?: HostnameStatus; // Hostname provisioning status (NONE, PROVISIONING, READY, FAILED)
+  hostnameError?: string; // Hostname provisioning error message
+  canPublish?: boolean; // Whether site is ready to be published
 }
 
 export class GetPublishStatusUseCase {
@@ -46,6 +50,14 @@ export class GetPublishStatusUseCase {
         : project.publishingError;
     }
 
+    // Determine if project can be published
+    // Can publish if: hostname is ready OR hostname provisioning hasn't started (will provision on-the-spot)
+    const canPublish =
+      project.hostnameStatus === HostnameStatus.READY ||
+      project.hostnameStatus === HostnameStatus.NONE ||
+      project.hostnameStatus === HostnameStatus.FAILED ||
+      !project.hostnameStatus; // Legacy projects without status
+
     return {
       status: project.publishedStatus,
       publishedAt: project.publishedAt,
@@ -54,6 +66,10 @@ export class GetPublishStatusUseCase {
       currentVersion: project.currentVersion,
       error: errorMessage,
       subdomain: project.subdomain,
+      sslStatus: project.cloudflareHostnameStatus ?? undefined,
+      hostnameStatus: project.hostnameStatus,
+      hostnameError: project.hostnameError ?? undefined,
+      canPublish,
     };
   }
 }

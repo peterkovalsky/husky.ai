@@ -1,9 +1,10 @@
-import { IQueueService, QueueMessage, JobMessage, DeleteProjectMessage, DeleteMediaMessage, PublishProjectMessage, UnpublishProjectMessage } from '../../domain/services/IQueueService';
+import { IQueueService, QueueMessage, JobMessage, DeleteProjectMessage, DeleteMediaMessage, PublishProjectMessage, UnpublishProjectMessage, ProvisionHostnameMessage } from '../../domain/services/IQueueService';
 import { ProcessJobUseCase } from '../use-cases/ProcessJobUseCase';
 import { DeleteProjectUseCase } from '../use-cases/DeleteProjectUseCase';
 import { ProcessMediaDeletionUseCase } from '../use-cases/ProcessMediaDeletionUseCase';
 import { ProcessPublishJobUseCase } from '../use-cases/ProcessPublishJobUseCase';
 import { ProcessUnpublishJobUseCase } from '../use-cases/ProcessUnpublishJobUseCase';
+import { ProvisionHostnameUseCase } from '../use-cases/ProvisionHostnameUseCase';
 import { ILogger } from '../../shared/logger/Logger';
 
 export class JobProcessorService {
@@ -17,6 +18,7 @@ export class JobProcessorService {
     private processMediaDeletionUseCase: ProcessMediaDeletionUseCase,
     private processPublishJobUseCase: ProcessPublishJobUseCase,
     private processUnpublishJobUseCase: ProcessUnpublishJobUseCase,
+    private provisionHostnameUseCase: ProvisionHostnameUseCase,
     private logger: ILogger,
     private intervalMs: number = 5000
   ) {}
@@ -102,6 +104,11 @@ export class JobProcessorService {
           const unpublishMessage = message as UnpublishProjectMessage;
           this.logger.info(`Processing unpublish project message`, { projectId: unpublishMessage.projectId });
           await this.processUnpublishJobUseCase.execute(unpublishMessage.projectId);
+        } else if (message.action === 'PROVISION_HOSTNAME') {
+          // Handle hostname provisioning
+          const provisionMessage = message as ProvisionHostnameMessage;
+          this.logger.info(`Processing provision hostname message`, { projectId: provisionMessage.projectId, subdomain: provisionMessage.subdomain });
+          await this.provisionHostnameUseCase.execute(provisionMessage.projectId, provisionMessage.subdomain);
         }
       } else {
         // Handle regular job processing

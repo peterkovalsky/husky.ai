@@ -77,17 +77,38 @@ The API follows Clean Architecture with four distinct layers:
 - **Styling**: Tailwind CSS with HeroUI components
 - **UI Components**: HeroUI (https://www.heroui.com)
 
+### Documentation Strategy
+**ALWAYS use context7 MCP tools to fetch the latest API documentation**
+
+When working with any library or framework in this project:
+1. Use `mcp__context7__resolve-library-id` to find the correct library ID
+2. Use `mcp__context7__get-library-docs` to fetch up-to-date documentation
+3. Reference the retrieved docs for accurate API usage, props, and examples
+
+**Key libraries to fetch docs for:**
+- HeroUI/NextUI components
+- React 19
+- Vite
+- TypeScript
+- Tailwind CSS
+- Express
+- Supabase (JavaScript client)
+- AWS SDK (S3, SQS)
+- Anthropic SDK
+
 ### UI Component Standards
-**ALWAYS use HeroUI components from the official documentation: https://www.heroui.com/docs/components**
+**ALWAYS use HeroUI components - fetch latest docs via context7 before implementing**
 
 When building UI features:
+- ✅ DO: Use context7 to get latest HeroUI component documentation
 - ✅ DO: Use HeroUI components (Button, Card, Modal, Alert, Input, etc.)
-- ✅ DO: Reference official HeroUI docs for component APIs and props
+- ✅ DO: Reference fetched docs for component APIs and props
 - ✅ DO: Use HeroUI's color variants (primary, secondary, success, warning, danger)
 - ✅ DO: Leverage built-in HeroUI features (variants, sizes, states)
 - ❌ DON'T: Create custom components when HeroUI provides equivalent functionality
 - ❌ DON'T: Use custom divs/spans when HeroUI components are available
 - ❌ DON'T: Manually style alerts/notifications - use HeroUI Alert component
+- ❌ DON'T: Rely on outdated documentation - always fetch fresh docs via context7
 
 **Available HeroUI Components:**
 - Layout: Card, CardBody, CardHeader, CardFooter, Divider, Spacer

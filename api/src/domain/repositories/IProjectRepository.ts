@@ -23,4 +23,5 @@ export interface IProjectRepository {
   ): Promise<void>;
   setPublishedAt(projectId: string, publishedAt: Date | null): Promise<void>;
   setPublishedVersion(projectId: string, version: number | null): Promise<void>;
+  update(projectId: string, updates: Partial<Project>): Promise<void>;
 }

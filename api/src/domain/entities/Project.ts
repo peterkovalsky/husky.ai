@@ -11,6 +11,13 @@ export enum PublishingStatus {
   UNPUBLISHING = 'UNPUBLISHING'
 }
 
+export enum HostnameStatus {
+  NONE = 'NONE',
+  PROVISIONING = 'PROVISIONING',
+  READY = 'READY',
+  FAILED = 'FAILED'
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -25,6 +32,10 @@ export interface Project {
   publishedVersion?: number;
   cloudfrontDistributionId?: string;
   cloudfrontDomain?: string;
+  cloudflareHostnameId?: string | null;
+  cloudflareHostnameStatus?: string | null;
+  hostnameStatus?: HostnameStatus;
+  hostnameError?: string | null;
   publishingError?: string;
   createdAt: Date;
   modifiedAt: Date;

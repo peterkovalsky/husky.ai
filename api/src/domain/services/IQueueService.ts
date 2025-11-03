@@ -37,7 +37,14 @@ export interface UnpublishProjectMessage {
   timestamp: string;
 }
 
-export type QueueMessage = JobMessage | DeleteProjectMessage | DeleteMediaMessage | PublishProjectMessage | UnpublishProjectMessage;
+export interface ProvisionHostnameMessage {
+  action: 'PROVISION_HOSTNAME';
+  projectId: string;
+  subdomain: string;
+  timestamp: string;
+}
+
+export type QueueMessage = JobMessage | DeleteProjectMessage | DeleteMediaMessage | PublishProjectMessage | UnpublishProjectMessage | ProvisionHostnameMessage;
 
 export interface ReceiveMessageResult {
   messages: Array<{

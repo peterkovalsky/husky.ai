@@ -13,7 +13,7 @@ export const Home = () => {
   const navigate = useNavigate()
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [publishDialogOpen, setPublishDialogOpen] = useState(false)
-  const [selectedProject, setSelectedProject] = useState<{ id: string; name: string; modifiedAt: string } | null>(null)
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null)
 
   // Refresh projects when component mounts or becomes visible
   useEffect(() => {
@@ -33,7 +33,7 @@ export const Home = () => {
     })
   }
 
-  const handleDeleteProject = (project: { id: string; name: string; modifiedAt: string }) => {
+  const handleDeleteProject = (project: Project) => {
     setSelectedProject(project)
     setDeleteDialogOpen(true)
   }
@@ -44,7 +44,7 @@ export const Home = () => {
     }
   }
 
-  const handlePublishClick = (project: { id: string; name: string; modifiedAt: string }) => {
+  const handlePublishClick = (project: Project) => {
     console.log('[Home] Publish clicked for project:', project)
     setSelectedProject(project)
     console.log('[Home] Opening publish dialog')
@@ -225,6 +225,7 @@ export const Home = () => {
             onOpenChange={setDeleteDialogOpen}
             projectName={selectedProject.name}
             projectId={selectedProject.id}
+            publishedStatus={selectedProject.publishedStatus}
             onConfirm={confirmDeleteProject}
           />
           <PublishDialog
