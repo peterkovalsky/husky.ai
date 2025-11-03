@@ -171,16 +171,24 @@ export class ProcessJobUseCase {
       // Use public URLs for AI (not presigned URLs)
       const mediaUrls = publicMediaUrls;
 
-      // 4. Determine which AI model to use based on media presence
-      // - Use Sonnet 4.5 when images/media are present (better at analyzing and using images)
-      // - Use Haiku 4.5 when no images (faster, cheaper for text-only iterations)
+      // 4. Determine which AI model to use based on build history and media presence
+      // - ALWAYS use Sonnet 4.5 for the first successful build (better quality for initial project setup)
+      // - For subsequent builds:
+      //   * Use Sonnet 4.5 when images/media are present (better at analyzing and using images)
+      //   * Use Haiku 4.5 when no images (faster, cheaper for text-only iterations)
       const hasSuccessfulBuilds = await this.buildRepository.findLatestSuccessfulByProjectId(safeProjectId);
       const hasImages = mediaIds && mediaIds.length > 0;
-      const useHaiku = !hasImages; // Use Haiku only when no media is present
+      const isFirstBuild = !hasSuccessfulBuilds;
+      const useHaiku = !isFirstBuild && !hasImages; // Use Sonnet for first build, or if has images; otherwise use Haiku
 
       // 5. AI generation (runs while environment prep happens in parallel)
       console.log(`[PARALLEL] Running AI stage for prompt ${safePromptId}...`);
-      console.log(`[AI Model Selection] Using ${useHaiku ? 'Haiku' : 'Sonnet'} - Reason: ${hasImages ? 'has media (use Sonnet for better image analysis)' : 'no media (use Haiku for faster text-only iterations)'}`);
+      const modelReason = isFirstBuild
+        ? 'first build (always use Sonnet for better quality initial setup)'
+        : hasImages
+          ? 'has media (use Sonnet for better image analysis)'
+          : 'no media (use Haiku for faster text-only iterations)';
+      console.log(`[AI Model Selection] Using ${useHaiku ? 'Haiku' : 'Sonnet'} - Reason: ${modelReason}`);
       const aiStartTime = Date.now();
       const aiResponse = await this.aiService.generateResponse(prompt, safePromptId, useHaiku, mediaUrls);
       metrics.aiGenerationTimeMs = Date.now() - aiStartTime;
