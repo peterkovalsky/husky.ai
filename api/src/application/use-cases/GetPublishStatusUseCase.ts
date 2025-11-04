@@ -1,6 +1,20 @@
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
 import { User } from '../../domain/entities/User';
-import { PublishingStatus, HostnameStatus } from '../../domain/entities/Project';
+import { PublishingStatus, HostnameStatus, CustomDomainStatus } from '../../domain/entities/Project';
+
+export interface DNSInstructions {
+  type: 'CNAME';
+  name: string;  // Part before the domain (e.g., "www" for "www.example.com")
+  value: string; // CNAME target (e.g., "happy-cloud-42.huskystudio.ai")
+}
+
+export interface CustomDomainInfo {
+  domain: string;
+  status: CustomDomainStatus;
+  url?: string;  // Only when ACTIVE
+  error?: string;
+  dnsInstructions?: DNSInstructions;
+}
 
 export interface PublishStatusDto {
   status: PublishingStatus;
@@ -14,6 +28,7 @@ export interface PublishStatusDto {
   hostnameStatus?: HostnameStatus; // Hostname provisioning status (NONE, PROVISIONING, READY, FAILED)
   hostnameError?: string; // Hostname provisioning error message
   canPublish?: boolean; // Whether site is ready to be published
+  customDomain?: CustomDomainInfo; // Custom domain information
 }
 
 export class GetPublishStatusUseCase {
@@ -58,6 +73,28 @@ export class GetPublishStatusUseCase {
       project.hostnameStatus === HostnameStatus.FAILED ||
       !project.hostnameStatus; // Legacy projects without status
 
+    // Build custom domain info if custom domain is set
+    let customDomainInfo: CustomDomainInfo | undefined;
+    if (project.customDomain) {
+      const subdomain = project.subdomain || 'unknown';
+      const domainParts = project.customDomain.split('.');
+      const dnsRecordName = domainParts.length === 2 ? '@' : domainParts[0];
+
+      customDomainInfo = {
+        domain: project.customDomain,
+        status: project.customDomainStatus || CustomDomainStatus.NONE,
+        url: project.customDomainStatus === CustomDomainStatus.ACTIVE
+          ? `https://${project.customDomain}`
+          : undefined,
+        error: project.customDomainError ?? undefined,
+        dnsInstructions: {
+          type: 'CNAME',
+          name: dnsRecordName,
+          value: `${subdomain}.${publishDomain}`
+        }
+      };
+    }
+
     return {
       status: project.publishedStatus,
       publishedAt: project.publishedAt,
@@ -70,6 +107,7 @@ export class GetPublishStatusUseCase {
       hostnameStatus: project.hostnameStatus,
       hostnameError: project.hostnameError ?? undefined,
       canPublish,
+      customDomain: customDomainInfo,
     };
   }
 }

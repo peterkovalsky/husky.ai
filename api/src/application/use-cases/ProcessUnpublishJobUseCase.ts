@@ -29,6 +29,12 @@ export class ProcessUnpublishJobUseCase {
         await this.cloudflareKVService.deleteSubdomainMapping(project.subdomain);
       }
 
+      // Step 1.5: Delete custom domain mapping from KV if exists
+      if (project.customDomain) {
+        console.log(`[ProcessUnpublishJobUseCase] Deleting custom domain mapping from KV: ${project.customDomain}`);
+        await this.cloudflareKVService.deleteSubdomainMapping(project.customDomain);
+      }
+
       // Step 2: Delete published files from R2 (removes content)
       console.log(`[ProcessUnpublishJobUseCase] Deleting published files from R2`);
       const destPath = `${projectId}/web/`;

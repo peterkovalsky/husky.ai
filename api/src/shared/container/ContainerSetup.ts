@@ -35,6 +35,7 @@ import { Route53Service } from '../../infrastructure/dns/Route53Service';
 import { R2PublishedAppsService } from '../../infrastructure/storage/R2PublishedAppsService';
 import { CloudflareSaaSService } from '../../infrastructure/cdn/CloudflareSaaSService';
 import { CloudflareKVService } from '../../infrastructure/storage/CloudflareKVService';
+import { DNSVerificationService, IDNSVerificationService } from '../../infrastructure/dns/DNSVerificationService';
 
 // Application Use Cases
 import { CreatePromptUseCase } from '../../application/use-cases/CreatePromptUseCase';
@@ -55,6 +56,9 @@ import { GetPublishStatusUseCase } from '../../application/use-cases/GetPublishS
 import { ProcessPublishJobUseCase } from '../../application/use-cases/ProcessPublishJobUseCase';
 import { ProcessUnpublishJobUseCase } from '../../application/use-cases/ProcessUnpublishJobUseCase';
 import { ProvisionHostnameUseCase } from '../../application/use-cases/ProvisionHostnameUseCase';
+import { SetCustomDomainUseCase } from '../../application/use-cases/SetCustomDomainUseCase';
+import { VerifyCustomDomainDNSUseCase } from '../../application/use-cases/VerifyCustomDomainDNSUseCase';
+import { RemoveCustomDomainUseCase } from '../../application/use-cases/RemoveCustomDomainUseCase';
 
 // Presentation Layer
 import { AuthMiddleware } from '../../presentation/middleware/AuthMiddleware';
@@ -65,6 +69,7 @@ import { WorkspaceController } from '../../presentation/controllers/WorkspaceCon
 import { UserController } from '../../presentation/controllers/UserController';
 import { MediaController } from '../../presentation/controllers/MediaController';
 import { PublishingController } from '../../presentation/controllers/PublishingController';
+import { CustomDomainController } from '../../presentation/controllers/CustomDomainController';
 
 export function setupContainer(): DIContainer {
   const container = new DIContainer();
@@ -100,6 +105,7 @@ export function setupContainer(): DIContainer {
   container.registerFactory<R2PublishedAppsService>('r2PublishedAppsService', () => new R2PublishedAppsService());
   container.registerFactory<CloudflareSaaSService>('cloudflareSaaSService', () => new CloudflareSaaSService());
   container.registerFactory<CloudflareKVService>('cloudflareKVService', () => new CloudflareKVService());
+  container.registerFactory<IDNSVerificationService>('dnsVerificationService', () => new DNSVerificationService());
 
   // Keep AWS services for backward compatibility (not used for new publishes)
   container.registerFactory<ICloudFrontService>('cloudFrontService', () => new CloudFrontService());
@@ -252,7 +258,8 @@ export function setupContainer(): DIContainer {
     container.get<IProjectRepository>('projectRepository'),
     container.get<R2PublishedAppsService>('r2PublishedAppsService'),
     container.get<CloudflareSaaSService>('cloudflareSaaSService'),
-    container.get<CloudflareKVService>('cloudflareKVService')
+    container.get<CloudflareKVService>('cloudflareKVService'),
+    container.get<IDNSVerificationService>('dnsVerificationService')
   ));
 
   container.registerFactory<ProcessUnpublishJobUseCase>('processUnpublishJobUseCase', () => new ProcessUnpublishJobUseCase(
@@ -267,11 +274,34 @@ export function setupContainer(): DIContainer {
     container.get<CloudflareSaaSService>('cloudflareSaaSService')
   ));
 
+  // Register Custom Domain Use Cases
+  container.registerFactory<SetCustomDomainUseCase>('setCustomDomainUseCase', () => new SetCustomDomainUseCase(
+    container.get<IProjectRepository>('projectRepository')
+  ));
+
+  container.registerFactory<VerifyCustomDomainDNSUseCase>('verifyCustomDomainDNSUseCase', () => new VerifyCustomDomainDNSUseCase(
+    container.get<IProjectRepository>('projectRepository'),
+    container.get<IDNSVerificationService>('dnsVerificationService')
+  ));
+
+  container.registerFactory<RemoveCustomDomainUseCase>('removeCustomDomainUseCase', () => new RemoveCustomDomainUseCase(
+    container.get<IProjectRepository>('projectRepository'),
+    container.get<CloudflareSaaSService>('cloudflareSaaSService'),
+    container.get<CloudflareKVService>('cloudflareKVService')
+  ));
+
   // Register Publishing Controller
   container.registerFactory<PublishingController>('publishingController', () => new PublishingController(
     container.get<InitiatePublishingUseCase>('initiatePublishingUseCase'),
     container.get<InitiateUnpublishingUseCase>('initiateUnpublishingUseCase'),
     container.get<GetPublishStatusUseCase>('getPublishStatusUseCase')
+  ));
+
+  // Register Custom Domain Controller
+  container.registerFactory<CustomDomainController>('customDomainController', () => new CustomDomainController(
+    container.get<SetCustomDomainUseCase>('setCustomDomainUseCase'),
+    container.get<VerifyCustomDomainDNSUseCase>('verifyCustomDomainDNSUseCase'),
+    container.get<RemoveCustomDomainUseCase>('removeCustomDomainUseCase')
   ));
 
   return container;

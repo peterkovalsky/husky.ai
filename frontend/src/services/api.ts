@@ -140,6 +140,30 @@ export const PublishingStatus = {
 
 export type PublishingStatus = typeof PublishingStatus[keyof typeof PublishingStatus]
 
+export const CustomDomainStatus = {
+  NONE: 'NONE',
+  PENDING_DNS: 'PENDING_DNS',
+  PENDING_SSL: 'PENDING_SSL',
+  ACTIVE: 'ACTIVE',
+  FAILED: 'FAILED'
+} as const
+
+export type CustomDomainStatus = typeof CustomDomainStatus[keyof typeof CustomDomainStatus]
+
+export interface DNSInstructions {
+  type: 'CNAME';
+  name: string;
+  value: string;
+}
+
+export interface CustomDomainInfo {
+  domain: string;
+  status: CustomDomainStatus;
+  url?: string;
+  error?: string;
+  dnsInstructions?: DNSInstructions;
+}
+
 export interface PublishStatusResponse {
   status: PublishingStatus;
   publishedAt?: string;
@@ -148,6 +172,7 @@ export interface PublishStatusResponse {
   currentVersion: number;
   error?: string;
   subdomain?: string;
+  customDomain?: CustomDomainInfo;
 }
 
 export interface PublishResponse {
@@ -337,6 +362,26 @@ export class ApiService {
   static async retryPublish(projectId: string): Promise<PublishResponse> {
     return this.request<PublishResponse>(`/api/projects/${projectId}/publish/retry`, {
       method: 'POST',
+    });
+  }
+
+  // Custom domain methods
+  static async setCustomDomain(projectId: string, domain: string): Promise<{ message: string; domain: string; dnsInstructions: DNSInstructions }> {
+    return this.request(`/api/projects/${projectId}/custom-domain`, {
+      method: 'PUT',
+      body: JSON.stringify({ domain }),
+    });
+  }
+
+  static async verifyCustomDomainDNS(projectId: string): Promise<{ verified: boolean; error?: string }> {
+    return this.request(`/api/projects/${projectId}/custom-domain/verify`, {
+      method: 'POST',
+    });
+  }
+
+  static async removeCustomDomain(projectId: string): Promise<{ message: string }> {
+    return this.request(`/api/projects/${projectId}/custom-domain`, {
+      method: 'DELETE',
     });
   }
 

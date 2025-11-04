@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
-import { Project, CreateProjectRequest, PublishingStatus, ProjectStatus, HostnameStatus } from '../../domain/entities/Project';
+import { Project, CreateProjectRequest, PublishingStatus, ProjectStatus, HostnameStatus, CustomDomainStatus } from '../../domain/entities/Project';
 import { SupabaseClientFactory } from '../../shared/database/SupabaseClientFactory';
 
 export class SupabaseProjectRepository implements IProjectRepository {
@@ -193,6 +193,58 @@ export class SupabaseProjectRepository implements IProjectRepository {
     if (error) throw error;
   }
 
+  async setCustomDomain(projectId: string, domain: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('projects')
+      .update({ custom_domain: domain })
+      .eq('id', projectId);
+
+    if (error) throw error;
+  }
+
+  async isCustomDomainTaken(domain: string): Promise<boolean> {
+    const { data, error } = await this.supabase
+      .from('projects')
+      .select('id')
+      .eq('custom_domain', domain)
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error;
+    return !!data;
+  }
+
+  async clearCustomDomain(projectId: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('projects')
+      .update({
+        custom_domain: null,
+        custom_domain_cloudflare_id: null,
+        custom_domain_status: 'NONE',
+        custom_domain_error: null,
+        custom_domain_verified_at: null
+      })
+      .eq('id', projectId);
+
+    if (error) throw error;
+  }
+
+  async updateCustomDomainStatus(projectId: string, status: string, errorMessage?: string | null): Promise<void> {
+    const updateData: any = {
+      custom_domain_status: status
+    };
+
+    if (errorMessage !== undefined) {
+      updateData.custom_domain_error = errorMessage;
+    }
+
+    const { error } = await this.supabase
+      .from('projects')
+      .update(updateData)
+      .eq('id', projectId);
+
+    if (error) throw error;
+  }
+
   async update(projectId: string, updates: Partial<Project>): Promise<void> {
     // Convert camelCase entity properties to snake_case database columns
     const dbUpdates: any = {};
@@ -213,6 +265,11 @@ export class SupabaseProjectRepository implements IProjectRepository {
     if (updates.hostnameStatus !== undefined) dbUpdates.hostname_status = updates.hostnameStatus;
     if (updates.hostnameError !== undefined) dbUpdates.hostname_error = updates.hostnameError;
     if (updates.publishingError !== undefined) dbUpdates.publishing_error = updates.publishingError;
+    if (updates.customDomain !== undefined) dbUpdates.custom_domain = updates.customDomain;
+    if (updates.customDomainCloudflareId !== undefined) dbUpdates.custom_domain_cloudflare_id = updates.customDomainCloudflareId;
+    if (updates.customDomainStatus !== undefined) dbUpdates.custom_domain_status = updates.customDomainStatus;
+    if (updates.customDomainError !== undefined) dbUpdates.custom_domain_error = updates.customDomainError;
+    if (updates.customDomainVerifiedAt !== undefined) dbUpdates.custom_domain_verified_at = updates.customDomainVerifiedAt ? updates.customDomainVerifiedAt.toISOString() : null;
 
     const { error } = await this.supabase
       .from('projects')
@@ -242,6 +299,11 @@ export class SupabaseProjectRepository implements IProjectRepository {
       hostnameStatus: data.hostname_status as HostnameStatus | undefined,
       hostnameError: data.hostname_error,
       publishingError: data.publishing_error,
+      customDomain: data.custom_domain,
+      customDomainCloudflareId: data.custom_domain_cloudflare_id,
+      customDomainStatus: data.custom_domain_status as CustomDomainStatus | undefined,
+      customDomainError: data.custom_domain_error,
+      customDomainVerifiedAt: data.custom_domain_verified_at ? new Date(data.custom_domain_verified_at) : undefined,
       createdAt: new Date(data.created_at),
       modifiedAt: new Date(data.modified_at)
     };

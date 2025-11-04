@@ -18,6 +18,14 @@ export enum HostnameStatus {
   FAILED = 'FAILED'
 }
 
+export enum CustomDomainStatus {
+  NONE = 'NONE',
+  PENDING_DNS = 'PENDING_DNS',
+  PENDING_SSL = 'PENDING_SSL',
+  ACTIVE = 'ACTIVE',
+  FAILED = 'FAILED'
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -37,6 +45,11 @@ export interface Project {
   hostnameStatus?: HostnameStatus;
   hostnameError?: string | null;
   publishingError?: string;
+  customDomain?: string | null;
+  customDomainCloudflareId?: string | null;
+  customDomainStatus?: CustomDomainStatus;
+  customDomainError?: string | null;
+  customDomainVerifiedAt?: Date | null;
   createdAt: Date;
   modifiedAt: Date;
 }

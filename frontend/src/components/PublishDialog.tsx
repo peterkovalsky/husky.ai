@@ -2,6 +2,7 @@ import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, Card,
 import { ApiService, PublishingStatus, type PublishStatusResponse } from '../services/api'
 import { useState, useEffect, useRef } from 'react'
 import { Loader2, Globe, Calendar, Package } from 'lucide-react'
+import { CustomDomainSection } from './CustomDomainSection'
 
 interface PublishDialogProps {
   isOpen: boolean
@@ -116,7 +117,31 @@ export const PublishDialog = ({ isOpen, onOpenChange, projectId, onSuccess }: Pu
 
     switch (publishStatus.status) {
       case PublishingStatus.UNPUBLISHED:
-        return null
+        return (
+          <div className="space-y-4">
+            {publishStatus?.subdomain && (
+              <Card shadow="none" className="bg-default-50">
+                <CardBody className="gap-2 p-3">
+                  <div className="text-xs text-default-600">
+                    Your project will be published to:
+                  </div>
+                  <div className="flex items-center gap-2">         
+                    <Code size="sm" className="text-xs">
+                      https://{publishStatus.subdomain}.{import.meta.env.VITE_PUBLISH_DOMAIN || 'huskystudio.ai'}
+                    </Code>
+                  </div>
+                </CardBody>
+              </Card>
+            )}
+
+            {/* Custom Domain Section */}
+            <CustomDomainSection
+              projectId={projectId}
+              customDomain={publishStatus?.customDomain}
+              onUpdate={loadPublishStatus}
+            />
+          </div>
+        )
       case PublishingStatus.PUBLISHING:
         return (
           <Card shadow="none" className="bg-primary-50 border border-primary-200">
@@ -177,6 +202,13 @@ export const PublishDialog = ({ isOpen, onOpenChange, projectId, onSuccess }: Pu
                 )}
               </CardBody>
             </Card>
+
+            {/* Custom Domain Section */}
+            <CustomDomainSection
+              projectId={projectId}
+              customDomain={publishStatus?.customDomain}
+              onUpdate={loadPublishStatus}
+            />
           </div>
         )
       case PublishingStatus.FAILED:
@@ -245,17 +277,6 @@ export const PublishDialog = ({ isOpen, onOpenChange, projectId, onSuccess }: Pu
                 </p>
               </ModalHeader>
               <ModalBody className="gap-4 py-4">
-                {publishStatus?.subdomain && (publishStatus.status === PublishingStatus.UNPUBLISHED || publishStatus.status === PublishingStatus.FAILED) && (
-                  <Card shadow="none" className="bg-primary-50/50">
-                    <CardBody className="p-4 gap-2">
-                      <p className="text-sm font-medium text-primary-700">Your project will be available at:</p>
-                      <Code size="sm" className="text-sm text-primary-900 bg-white/60">
-                        {publishStatus.subdomain}.{import.meta.env.VITE_PUBLISH_DOMAIN || 'huskystudio.ai'}
-                      </Code>
-                    </CardBody>
-                  </Card>
-                )}
-
                 {getStatusDisplay()}
               </ModalBody>
               <ModalFooter className="pt-2 flex justify-between">

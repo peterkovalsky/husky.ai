@@ -7,6 +7,8 @@ import { WorkspaceController } from '../controllers/WorkspaceController';
 import { UserController } from '../controllers/UserController';
 import { MediaController } from '../controllers/MediaController';
 import { PublishingController } from '../controllers/PublishingController';
+import { CustomDomainController } from '../controllers/CustomDomainController';
+
 interface ApiRoutesDependencies {
   authMiddleware: AuthMiddleware;
   workspaceAccessMiddleware: WorkspaceAccessMiddleware;
@@ -16,6 +18,7 @@ interface ApiRoutesDependencies {
   userController: UserController;
   mediaController: MediaController;
   publishingController: PublishingController;
+  customDomainController: CustomDomainController;
 }
 
 export function createApiRoutes(deps: ApiRoutesDependencies): Router {
@@ -48,14 +51,14 @@ export function createApiRoutes(deps: ApiRoutesDependencies): Router {
   );
 
   // Project routes
-  router.get('/projects/:workspaceId', 
-    deps.authMiddleware.authenticate, 
-    deps.workspaceAccessMiddleware.checkWorkspaceAccess('workspaceId'), 
+  router.get('/projects/:workspaceId',
+    deps.authMiddleware.authenticate,
+    deps.workspaceAccessMiddleware.checkWorkspaceAccess('workspaceId'),
     deps.projectController.getProjectsByWorkspace
   );
 
-  router.post('/projects', 
-    deps.authMiddleware.authenticate, 
+  router.post('/projects',
+    deps.authMiddleware.authenticate,
     deps.projectController.createProject
   );
 
@@ -115,6 +118,25 @@ export function createApiRoutes(deps: ApiRoutesDependencies): Router {
     deps.authMiddleware.authenticate,
     deps.workspaceAccessMiddleware.checkProjectAccess('projectId'),
     deps.publishingController.retry
+  );
+
+  // Custom domain routes
+  router.put('/projects/:projectId/custom-domain',
+    deps.authMiddleware.authenticate,
+    deps.workspaceAccessMiddleware.checkProjectAccess('projectId'),
+    deps.customDomainController.setCustomDomain
+  );
+
+  router.post('/projects/:projectId/custom-domain/verify',
+    deps.authMiddleware.authenticate,
+    deps.workspaceAccessMiddleware.checkProjectAccess('projectId'),
+    deps.customDomainController.verifyDNS
+  );
+
+  router.delete('/projects/:projectId/custom-domain',
+    deps.authMiddleware.authenticate,
+    deps.workspaceAccessMiddleware.checkProjectAccess('projectId'),
+    deps.customDomainController.removeCustomDomain
   );
 
   return router;

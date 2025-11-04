@@ -1,10 +1,15 @@
 /**
  * Cloudflare Worker for routing published websites
- * Routes custom domains to R2 storage based on subdomain → project ID mapping
+ * Routes subdomains and custom domains to R2 storage based on KV mapping
  *
- * Example:
+ * Subdomain Example:
  * URL: https://happy-cloud-42.huskystudio.ai/assets/index.js
  * KV Lookup: happy-cloud-42 → 96a5e023-1ce5-44ff-b2e0-dced0c3e1ff9
+ * R2 Key: 96a5e023-1ce5-44ff-b2e0-dced0c3e1ff9/web/assets/index.js
+ *
+ * Custom Domain Example:
+ * URL: https://www.example.com/assets/index.js
+ * KV Lookup: www.example.com → 96a5e023-1ce5-44ff-b2e0-dced0c3e1ff9
  * R2 Key: 96a5e023-1ce5-44ff-b2e0-dced0c3e1ff9/web/assets/index.js
  */
 
@@ -45,26 +50,34 @@ export default {
       }
     }
 
-    // Extract subdomain from hostname
-    // Example: "happy-cloud-42.huskystudio.ai" → "happy-cloud-42"
-    const hostname = url.hostname;
-    const parts = hostname.split('.');
-
-    if (parts.length < 3) {
-      return new Response('Invalid hostname - missing subdomain', { status: 400 });
-    }
-
-    const subdomain = parts[0];
-
     // Look up project ID from KV
-    const projectId = await env.SUBDOMAIN_MAPPING.get(subdomain);
+    // Strategy: Try full hostname first (for custom domains), then try subdomain extraction
+    const hostname = url.hostname;
+    let projectId: string | null;
+
+    // Try 1: Check if full hostname is mapped (for custom domains like www.example.com)
+    projectId = await env.SUBDOMAIN_MAPPING.get(hostname);
+
+    if (projectId) {
+      console.log(`[Worker] Mapped custom domain ${hostname} → project ${projectId}`);
+    } else {
+      // Try 2: Extract subdomain for *.huskystudio.ai pattern
+      const parts = hostname.split('.');
+
+      if (parts.length >= 3) {
+        const subdomain = parts[0];
+        projectId = await env.SUBDOMAIN_MAPPING.get(subdomain);
+
+        if (projectId) {
+          console.log(`[Worker] Mapped subdomain ${subdomain} → project ${projectId}`);
+        }
+      }
+    }
 
     if (!projectId) {
-      console.log(`[Worker] No project found for subdomain: ${subdomain}`);
-      return new Response('Website not found - subdomain not mapped', { status: 404 });
+      console.log(`[Worker] No project found for hostname: ${hostname}`);
+      return new Response('Website not found - domain not mapped', { status: 404 });
     }
-
-    console.log(`[Worker] Mapped subdomain ${subdomain} → project ${projectId}`);
 
     // Map request path to R2 object key
     // URL path: /assets/index.js → R2 key: {projectId}/web/assets/index.js

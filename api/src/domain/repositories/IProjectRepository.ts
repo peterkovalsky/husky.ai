@@ -24,4 +24,10 @@ export interface IProjectRepository {
   setPublishedAt(projectId: string, publishedAt: Date | null): Promise<void>;
   setPublishedVersion(projectId: string, version: number | null): Promise<void>;
   update(projectId: string, updates: Partial<Project>): Promise<void>;
+
+  // Custom domain methods
+  setCustomDomain(projectId: string, domain: string): Promise<void>;
+  isCustomDomainTaken(domain: string): Promise<boolean>;
+  clearCustomDomain(projectId: string): Promise<void>;
+  updateCustomDomainStatus(projectId: string, status: string, error?: string | null): Promise<void>;
 }

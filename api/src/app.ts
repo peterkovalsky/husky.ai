@@ -62,6 +62,7 @@ const apiRoutes = createApiRoutes({
   userController: container.get('userController'),
   mediaController: container.get('mediaController'),
   publishingController: container.get('publishingController'),
+  customDomainController: container.get('customDomainController'),
 });
 
 app.use('/api', apiRoutes);

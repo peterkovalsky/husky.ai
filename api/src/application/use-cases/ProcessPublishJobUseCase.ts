@@ -1,9 +1,10 @@
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
-import { PublishingStatus, HostnameStatus } from '../../domain/entities/Project';
+import { PublishingStatus, HostnameStatus, CustomDomainStatus } from '../../domain/entities/Project';
 import { S3Client } from '@aws-sdk/client-s3';
 import { R2PublishedAppsService } from '../../infrastructure/storage/R2PublishedAppsService';
 import { CloudflareSaaSService } from '../../infrastructure/cdn/CloudflareSaaSService';
 import { CloudflareKVService } from '../../infrastructure/storage/CloudflareKVService';
+import { IDNSVerificationService } from '../../infrastructure/dns/DNSVerificationService';
 
 export class ProcessPublishJobUseCase {
   private s3Client: S3Client;
@@ -14,7 +15,8 @@ export class ProcessPublishJobUseCase {
     private projectRepository: IProjectRepository,
     private r2PublishedAppsService: R2PublishedAppsService,
     private cloudflareSaaSService: CloudflareSaaSService,
-    private cloudflareKVService: CloudflareKVService
+    private cloudflareKVService: CloudflareKVService,
+    private dnsVerificationService: IDNSVerificationService
   ) {
     const region = process.env.AWS_REGION;
     const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
@@ -67,6 +69,66 @@ export class ProcessPublishJobUseCase {
       // Step 2: Write subdomain → project ID mapping to KV
       console.log(`[ProcessPublishJobUseCase] Writing subdomain mapping to KV`);
       await this.cloudflareKVService.setSubdomainMapping(project.subdomain, projectId);
+
+      // Step 2.5: Process custom domain if configured
+      if (project.customDomain && project.customDomainStatus !== CustomDomainStatus.NONE) {
+        console.log(`[ProcessPublishJobUseCase] Processing custom domain: ${project.customDomain}`);
+
+        try {
+          // Verify DNS one more time before publishing
+          const expectedTarget = `${project.subdomain}.${this.publishDomain}`;
+          const dnsCheck = await this.dnsVerificationService.verifyCNAME(
+            project.customDomain,
+            expectedTarget
+          );
+
+          if (dnsCheck.verified) {
+            console.log(`[ProcessPublishJobUseCase] DNS verified for custom domain ${project.customDomain}`);
+
+            // Create or reuse Cloudflare custom hostname
+            if (!project.customDomainCloudflareId) {
+              console.log(`[ProcessPublishJobUseCase] Creating Cloudflare custom hostname for ${project.customDomain}`);
+              const result = await this.cloudflareSaaSService.createCustomHostname(project.customDomain);
+              await this.projectRepository.update(projectId, {
+                customDomainCloudflareId: result.hostnameId,
+                customDomainStatus: CustomDomainStatus.PENDING_SSL
+              });
+              console.log(`[ProcessPublishJobUseCase] Custom domain hostname created: ${result.hostnameId}`);
+            } else {
+              console.log(`[ProcessPublishJobUseCase] Reusing existing custom domain hostname: ${project.customDomainCloudflareId}`);
+            }
+
+            // Write KV mapping for custom domain
+            await this.cloudflareKVService.setSubdomainMapping(project.customDomain, projectId);
+            console.log(`[ProcessPublishJobUseCase] Custom domain KV mapping created`);
+
+            // Update status to ACTIVE
+            await this.projectRepository.updateCustomDomainStatus(
+              projectId,
+              CustomDomainStatus.ACTIVE,
+              null
+            );
+            console.log(`[ProcessPublishJobUseCase] Custom domain activated: ${project.customDomain}`);
+
+          } else {
+            // DNS not configured properly
+            console.warn(`[ProcessPublishJobUseCase] DNS verification failed for ${project.customDomain}: ${dnsCheck.error}`);
+            await this.projectRepository.updateCustomDomainStatus(
+              projectId,
+              CustomDomainStatus.PENDING_DNS,
+              dnsCheck.error || 'DNS verification failed'
+            );
+          }
+        } catch (error: any) {
+          // Custom domain failure doesn't fail the whole publish
+          console.error(`[ProcessPublishJobUseCase] Custom domain processing failed:`, error);
+          await this.projectRepository.updateCustomDomainStatus(
+            projectId,
+            CustomDomainStatus.FAILED,
+            error.message || 'Failed to configure custom domain'
+          );
+        }
+      }
 
       const hostname = `${project.subdomain}.${this.publishDomain}`;
       let hostnameId: string;
