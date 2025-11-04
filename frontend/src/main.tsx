@@ -6,30 +6,49 @@ import "./index.css";
 import App from "./App.tsx";
 import { AuthProvider } from "./contexts/AuthContext.tsx";
 import { ToastProvider } from "./contexts/ToastContext.tsx";
+import { ErrorBoundary } from "./components/ErrorBoundary.tsx";
 import posthog from 'posthog-js';
 import { PostHogProvider } from 'posthog-js/react'
 
 posthog.init(import.meta.env.VITE_PUBLIC_POSTHOG_KEY, {
   api_host: import.meta.env.VITE_PUBLIC_POSTHOG_HOST,
   defaults: '2025-05-24',
+
+  // Pageview and navigation tracking
+  capture_pageview: true,
+  capture_pageleave: true,
+
+  // Session recording (optional - can be disabled if not needed)
+  disable_session_recording: false,
+
+  // Performance monitoring
+  enable_recording_console_log: true,
+
+  // Respect user privacy
+  persistence: 'localStorage',
+  autocapture: true,
+
+  // Note: PostHog browser SDK handles uncaught exceptions automatically.
+  // Our ErrorBoundary and manual error tracking provide additional coverage
+  // and context beyond what automatic capture provides.
 });
 
 createRoot(document.getElementById("root")!).render(
   // <StrictMode>
-
-  <BrowserRouter>
-    <AuthProvider>
-      <ToastProvider>
-        <HeroUIProvider>
-          <main className="light text-foreground bg-background">
-            <PostHogProvider client={posthog}>
-              <App />
-            </PostHogProvider>
-          </main>
-        </HeroUIProvider>
-      </ToastProvider>
-    </AuthProvider>
-  </BrowserRouter>
-
+  <ErrorBoundary>
+    <BrowserRouter>
+      <AuthProvider>
+        <ToastProvider>
+          <HeroUIProvider>
+            <main className="light text-foreground bg-background">
+              <PostHogProvider client={posthog}>
+                <App />
+              </PostHogProvider>
+            </main>
+          </HeroUIProvider>
+        </ToastProvider>
+      </AuthProvider>
+    </BrowserRouter>
+  </ErrorBoundary>
   // </StrictMode>
 );

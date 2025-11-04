@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import type { User, Session } from '@supabase/supabase-js'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 import { AuthContext } from './AuthContext'
+import { errorTracking } from '../services/errorTracking'
 
 interface AuthProviderProps {
   children: ReactNode
@@ -33,7 +34,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       const { data: { session } } = result
       setSession(session)
       setUser(session?.user ?? null)
-      
+
+      // Identify user in PostHog if session exists
+      if (session?.user) {
+        errorTracking.identifyUser(session.user.id, {
+          email: session.user.email,
+          created_at: session.user.created_at,
+        });
+      }
+
       setLoading(false)
     }).catch(() => {
       setSession(null)
@@ -44,11 +53,23 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session)
       setUser(session?.user ?? null)
-      
-      
+
+      // Identify user in PostHog when they sign in
+      if (session?.user) {
+        errorTracking.identifyUser(session.user.id, {
+          email: session.user.email,
+          created_at: session.user.created_at,
+        });
+      }
+
+      // Reset user in PostHog when they sign out
+      if (event === 'SIGNED_OUT') {
+        errorTracking.resetUser();
+      }
+
       setLoading(false)
     })
 
@@ -90,17 +111,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     if (!isSupabaseConfigured()) {
       throw new Error('Supabase is not configured. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env file.')
     }
-    
+
     try {
       console.log('Attempting to sign out...')
       const { error } = await supabase.auth.signOut()
       if (error) {
-        console.error('Supabase signOut error:', error)
+        errorTracking.captureUserActionError(error, 'sign_out');
         throw error
       }
       console.log('Sign out successful')
     } catch (error) {
-      console.error('Sign out failed:', error)
+      if (error instanceof Error) {
+        errorTracking.captureUserActionError(error, 'sign_out');
+      }
       throw error
     }
   }

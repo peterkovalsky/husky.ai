@@ -139,5 +139,27 @@ export function createApiRoutes(deps: ApiRoutesDependencies): Router {
     deps.customDomainController.removeCustomDomain
   );
 
+  // Test error routes (DEVELOPMENT ONLY)
+  if (process.env.NODE_ENV !== 'production') {
+    const { TestErrorController } = require('../controllers/TestErrorController');
+    const testErrorController = new TestErrorController();
+
+    console.log('[API Routes] Test error endpoints enabled (development mode)');
+
+    // Test different error types
+    router.get('/test/error/validation', testErrorController.testValidationError);
+    router.get('/test/error/auth', testErrorController.testAuthError);
+    router.get('/test/error/authorization', testErrorController.testAuthorizationError);
+    router.get('/test/error/not-found', testErrorController.testNotFoundError);
+    router.get('/test/error/conflict', testErrorController.testConflictError);
+    router.get('/test/error/database', testErrorController.testDatabaseError);
+    router.get('/test/error/queue', testErrorController.testQueueError);
+    router.get('/test/error/build', testErrorController.testBuildError);
+    router.get('/test/error/external-service', testErrorController.testExternalServiceError);
+    router.get('/test/error/generic', testErrorController.testGenericError);
+    router.get('/test/error/async', testErrorController.testAsyncError);
+    router.get('/test/success', testErrorController.testSuccess);
+  }
+
   return router;
 }

@@ -3,6 +3,7 @@ import { AuthRequest } from './AuthMiddleware';
 import { IWorkspaceRepository } from '../../domain/repositories/IWorkspaceRepository';
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
 import { IPromptRepository } from '../../domain/repositories/IPromptRepository';
+import { ValidationError, AuthorizationError, NotFoundError } from '../../shared/errors/AppErrors';
 
 export class WorkspaceAccessMiddleware {
   constructor(
@@ -18,19 +19,21 @@ export class WorkspaceAccessMiddleware {
         const userId = req.user?.id;
 
         if (!userId || !workspaceId) {
-          return res.status(400).json({ error: 'Missing user or workspace information' });
+          throw new ValidationError('Missing user or workspace information');
         }
 
         const hasAccess = await this.workspaceRepository.checkUserAccess(userId, workspaceId);
-        
+
         if (!hasAccess) {
-          return res.status(403).json({ error: 'Access denied to workspace' });
+          throw new AuthorizationError('Access denied to workspace', {
+            userId,
+            workspaceId,
+          });
         }
 
         next();
       } catch (error) {
-        console.error('Workspace access check error:', error);
-        return res.status(500).json({ error: 'Internal server error during access check' });
+        next(error);
       }
     };
   };
@@ -42,19 +45,21 @@ export class WorkspaceAccessMiddleware {
         const userId = req.user?.id;
 
         if (!userId || !projectId) {
-          return res.status(400).json({ error: 'Missing user or project information' });
+          throw new ValidationError('Missing user or project information');
         }
 
         const hasAccess = await this.projectRepository.checkUserAccess(userId, projectId);
-        
+
         if (!hasAccess) {
-          return res.status(403).json({ error: 'Access denied to project' });
+          throw new AuthorizationError('Access denied to project', {
+            userId,
+            projectId,
+          });
         }
 
         next();
       } catch (error) {
-        console.error('Project access check error:', error);
-        return res.status(500).json({ error: 'Internal server error during access check' });
+        next(error);
       }
     };
   };
@@ -66,26 +71,29 @@ export class WorkspaceAccessMiddleware {
         const userId = req.user?.id;
 
         if (!userId || !promptId) {
-          return res.status(400).json({ error: 'Missing user or prompt information' });
+          throw new ValidationError('Missing user or prompt information');
         }
 
         // Get prompt to find its project
         const prompt = await this.promptRepository.findById(promptId);
         if (!prompt) {
-          return res.status(404).json({ error: 'Prompt not found' });
+          throw new NotFoundError('Prompt not found', { promptId });
         }
 
         // Check if user has access to the project
         const hasAccess = await this.projectRepository.checkUserAccess(userId, prompt.projectId);
-        
+
         if (!hasAccess) {
-          return res.status(403).json({ error: 'Access denied to prompt' });
+          throw new AuthorizationError('Access denied to prompt', {
+            userId,
+            promptId,
+            projectId: prompt.projectId,
+          });
         }
 
         next();
       } catch (error) {
-        console.error('Prompt access check error:', error);
-        return res.status(500).json({ error: 'Internal server error during access check' });
+        next(error);
       }
     };
   };

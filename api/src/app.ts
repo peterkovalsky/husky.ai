@@ -3,18 +3,27 @@ dotenv.config();
 
 import express from 'express';
 import cors from 'cors';
+import { setupExpressErrorHandler } from 'posthog-node';
 import { setupContainer } from './shared/container/ContainerSetup';
 import { loadAppConfig } from './shared/config/AppConfig';
-import { ConsoleLogger } from './shared/logger/Logger';
+import { ILogger } from './shared/logger/Logger';
+import { IPostHogErrorTracker } from './infrastructure/monitoring/PostHogErrorTracker';
 import { createApiRoutes } from './presentation/routes/api';
 import { JobProcessorService } from './application/services/JobProcessorService';
+import { ErrorMiddleware } from './presentation/middleware/ErrorMiddleware';
+import { requestIdMiddleware } from './presentation/middleware/RequestIdMiddleware';
 
 const app = express();
 const config = loadAppConfig();
-const logger = new ConsoleLogger();
 
 // Setup dependency injection container
 const container = setupContainer();
+
+// Get logger from container (with PostHog integration)
+const logger = container.get<ILogger>('logger');
+
+// Request ID middleware (must be first for proper tracking)
+app.use(requestIdMiddleware);
 
 // Configure CORS
 app.use(cors({
@@ -66,5 +75,19 @@ const apiRoutes = createApiRoutes({
 });
 
 app.use('/api', apiRoutes);
+
+// Setup PostHog Express error handler for exception autocapture
+// This must be set up BEFORE the global error middleware
+// Required for Express apps because Express handles uncaught exceptions internally
+const postHogErrorTracker = container.get<IPostHogErrorTracker>('postHogErrorTracker');
+const postHogClient = postHogErrorTracker.getClient();
+if (postHogClient) {
+  setupExpressErrorHandler(postHogClient, app);
+  console.log('[PostHog] Express error handler configured for exception autocapture');
+}
+
+// Global error handling middleware (MUST be last)
+const errorMiddleware = new ErrorMiddleware(logger);
+app.use(errorMiddleware.handle());
 
 export { app, config, logger, container };

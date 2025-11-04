@@ -5,6 +5,7 @@ import { IQueueService, ProvisionHostnameMessage } from '../../domain/services/I
 import { CreateProjectDto } from '../dto/ProjectDto';
 import { User } from '../../domain/entities/User';
 import { Project, HostnameStatus } from '../../domain/entities/Project';
+import { ValidationError, AuthorizationError, NotFoundError, QueueError } from '../../shared/errors/AppErrors';
 
 export class CreateProjectUseCase {
   constructor(
@@ -16,23 +17,28 @@ export class CreateProjectUseCase {
 
   async execute(dto: CreateProjectDto, user: User): Promise<Project> {
     if (!dto.name || typeof dto.name !== 'string' || !dto.name.trim()) {
-      throw new Error('Project name is required');
+      throw new ValidationError('Project name is required', { userId: user.id });
     }
 
     let targetWorkspaceId = dto.workspaceId;
-    
+
     // If no workspaceId provided, use user's default workspace
     if (!targetWorkspaceId) {
       const workspaces = await this.workspaceRepository.findByUserId(user.id);
       if (workspaces.length === 0) {
-        throw new Error('No workspace found. Please contact support.');
+        throw new NotFoundError('No workspace found. Please contact support.', {
+          userId: user.id,
+        });
       }
       targetWorkspaceId = workspaces[0].id; // Use first/default workspace
     } else {
       // Verify user has access to the specified workspace
       const hasAccess = await this.workspaceRepository.checkUserAccess(user.id, targetWorkspaceId);
       if (!hasAccess) {
-        throw new Error('Access denied to workspace');
+        throw new AuthorizationError('Access denied to workspace', {
+          userId: user.id,
+          workspaceId: targetWorkspaceId,
+        });
       }
     }
 

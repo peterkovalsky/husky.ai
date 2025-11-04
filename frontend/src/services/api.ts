@@ -182,6 +182,7 @@ export interface PublishResponse {
 
 
 import { supabase } from '../lib/supabase';
+import { errorTracking } from './errorTracking';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3333';
 
@@ -197,6 +198,8 @@ export class ApiService {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
+    const method = options.method || 'GET';
+
     try {
       const authHeaders = await this.getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
@@ -208,19 +211,64 @@ export class ApiService {
         ...options,
       });
 
+      // Extract request ID from response headers for error correlation
+      const requestId = response.headers.get('x-request-id');
+
       if (!response.ok) {
         const error: ApiError = await response.json().catch(() => ({
           error: `HTTP ${response.status}: ${response.statusText}`,
         }));
-        throw new Error(error.error || `HTTP ${response.status}: ${response.statusText}`);
+
+        const errorMessage = error.error || `HTTP ${response.status}: ${response.statusText}`;
+        const apiError = new Error(errorMessage);
+
+        // Capture API error in PostHog with full context
+        errorTracking.captureApiError(
+          apiError,
+          endpoint,
+          method,
+          response.status,
+          {
+            requestId: requestId || undefined,
+            errorDetails: error.details,
+          }
+        );
+
+        throw apiError;
       }
 
       return await response.json();
     } catch (error) {
-      if (error instanceof Error) {
+      // If error was already captured above, just re-throw
+      if (error instanceof Error && error.message.startsWith('HTTP')) {
         throw error;
       }
-      throw new Error('An unexpected error occurred');
+
+      // For network errors or unexpected errors, capture them
+      if (error instanceof Error) {
+        errorTracking.captureApiError(
+          error,
+          endpoint,
+          method,
+          undefined,
+          {
+            errorType: 'network_error',
+          }
+        );
+        throw error;
+      }
+
+      const unexpectedError = new Error('An unexpected error occurred');
+      errorTracking.captureApiError(
+        unexpectedError,
+        endpoint,
+        method,
+        undefined,
+        {
+          originalError: String(error),
+        }
+      );
+      throw unexpectedError;
     }
   }
 

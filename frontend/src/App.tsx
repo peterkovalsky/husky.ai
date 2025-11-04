@@ -11,6 +11,7 @@ import { AppLayout } from './components/AppLayout'
 import { useAuth } from './hooks/useAuth'
 import { ProjectProvider } from './contexts/ProjectContext'
 import { CheckCircle, Loader2 } from 'lucide-react'
+import { TestErrorPage } from './components/TestErrorPage'
 
 function App() {
   const { user, loading } = useAuth()
@@ -80,16 +81,23 @@ function App() {
           </ProtectedRoute>
         } 
       />
-      <Route 
-        path="/project/:project_id" 
+      <Route
+        path="/project/:project_id"
         element={
           <ProtectedRoute>
             <ProjectProvider>
               <ProjectPage />
             </ProjectProvider>
           </ProtectedRoute>
-        } 
+        }
       />
+      {/* Test Error Page - Development Only */}
+      {import.meta.env.DEV && (
+        <Route
+          path="/test/errors"
+          element={<TestErrorPage />}
+        />
+      )}
       <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>

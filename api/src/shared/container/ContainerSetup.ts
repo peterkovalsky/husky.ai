@@ -1,4 +1,7 @@
 import { DIContainer } from './DIContainer';
+import { loadAppConfig } from '../config/AppConfig';
+import { initializePostHogErrorTracker, IPostHogErrorTracker } from '../../infrastructure/monitoring/PostHogErrorTracker';
+import { ILogger, ConsoleLogger } from '../logger/Logger';
 
 // Domain Repositories
 import { IWorkspaceRepository } from '../../domain/repositories/IWorkspaceRepository';
@@ -73,6 +76,21 @@ import { CustomDomainController } from '../../presentation/controllers/CustomDom
 
 export function setupContainer(): DIContainer {
   const container = new DIContainer();
+
+  // Load configuration
+  const config = loadAppConfig();
+
+  // Initialize PostHog Error Tracker
+  const postHogErrorTracker = initializePostHogErrorTracker(
+    config.postHog.apiKey,
+    config.postHog.host
+  );
+  container.register<IPostHogErrorTracker>('postHogErrorTracker', postHogErrorTracker);
+
+  // Register Logger with PostHog integration
+  container.registerFactory<ILogger>('logger', () => new ConsoleLogger(
+    container.get<IPostHogErrorTracker>('postHogErrorTracker')
+  ));
 
   // Register Repositories
   container.registerFactory<IWorkspaceRepository>('workspaceRepository', () => new SupabaseWorkspaceRepository());
@@ -222,12 +240,11 @@ export function setupContainer(): DIContainer {
   ));
 
   container.registerFactory<ProcessMediaDeletionUseCase>('processMediaDeletionUseCase', () => {
-    const { ConsoleLogger } = require('../../shared/logger/Logger');
     return new ProcessMediaDeletionUseCase(
       container.get<IMediaRepository>('mediaRepository'),
       container.get<IBuildRepository>('buildRepository'),
       container.get<IStorageService>('storageService'),
-      new ConsoleLogger()
+      container.get<ILogger>('logger')
     );
   });
 

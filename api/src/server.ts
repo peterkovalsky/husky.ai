@@ -1,5 +1,7 @@
 import { app, config, logger, container } from './app';
 import { JobProcessorService } from './application/services/JobProcessorService';
+import { handleUnhandledRejection, handleUncaughtException } from './presentation/middleware/ErrorMiddleware';
+import { getPostHogErrorTracker } from './infrastructure/monitoring/PostHogErrorTracker';
 
 // Validate critical services are properly configured
 try {
@@ -63,3 +65,18 @@ const gracefulShutdown = (signal: string) => {
 
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// Global error handlers
+process.on('unhandledRejection', handleUnhandledRejection(logger));
+process.on('uncaughtException', handleUncaughtException(logger));
+
+// Shutdown PostHog on exit
+process.on('beforeExit', async () => {
+  try {
+    const postHog = getPostHogErrorTracker();
+    await postHog.shutdown();
+    logger.info('PostHog shut down successfully');
+  } catch (error) {
+    // PostHog might not be configured, ignore
+  }
+});
