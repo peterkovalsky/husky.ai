@@ -250,6 +250,16 @@ export class SupabaseBuildRepository implements IBuildRepository {
     if (error) throw error;
   }
 
+  async deleteByVersion(projectId: string, version: number): Promise<void> {
+    const { error } = await this.supabase
+      .from('builds')
+      .delete()
+      .eq('project_id', projectId)
+      .eq('version', version);
+
+    if (error) throw error;
+  }
+
   private mapToEntity(data: any): Build {
     return {
       id: data.id,

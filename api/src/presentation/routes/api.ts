@@ -79,6 +79,12 @@ export function createApiRoutes(deps: ApiRoutesDependencies): Router {
     deps.projectController.deleteProject
   );
 
+  router.post('/projects/:projectId/undo-version',
+    deps.authMiddleware.authenticate,
+    deps.workspaceAccessMiddleware.checkProjectAccess('projectId'),
+    deps.projectController.undoVersion
+  );
+
   // Media routes
   router.post('/media/presigned-upload',
     deps.authMiddleware.authenticate,

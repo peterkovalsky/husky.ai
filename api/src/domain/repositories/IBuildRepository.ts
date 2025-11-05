@@ -16,4 +16,5 @@ export interface IBuildRepository {
   removeMediaIdFromProject(projectId: string, mediaId: string): Promise<void>;
   removeMediaIdFromAllBuilds(mediaId: string): Promise<void>; // Remove media from all builds that reference it
   deleteByProjectId(projectId: string): Promise<void>;
+  deleteByVersion(projectId: string, version: number): Promise<void>;
 }

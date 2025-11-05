@@ -62,6 +62,7 @@ import { ProvisionHostnameUseCase } from '../../application/use-cases/ProvisionH
 import { SetCustomDomainUseCase } from '../../application/use-cases/SetCustomDomainUseCase';
 import { VerifyCustomDomainDNSUseCase } from '../../application/use-cases/VerifyCustomDomainDNSUseCase';
 import { RemoveCustomDomainUseCase } from '../../application/use-cases/RemoveCustomDomainUseCase';
+import { UndoVersionUseCase } from '../../application/use-cases/UndoVersionUseCase';
 
 // Presentation Layer
 import { AuthMiddleware } from '../../presentation/middleware/AuthMiddleware';
@@ -158,6 +159,12 @@ export function setupContainer(): DIContainer {
     container.get<IBuildRepository>('buildRepository')
   ));
 
+  container.registerFactory<UndoVersionUseCase>('undoVersionUseCase', () => new UndoVersionUseCase(
+    container.get<IBuildRepository>('buildRepository'),
+    container.get<IProjectRepository>('projectRepository'),
+    container.get<IStorageService>('storageService')
+  ));
+
   container.registerFactory<PrepareProjectEnvironmentUseCase>('prepareProjectEnvironmentUseCase', () => new PrepareProjectEnvironmentUseCase(
     container.get<IProjectEnvironmentService>('projectEnvironmentService')
   ));
@@ -208,6 +215,7 @@ export function setupContainer(): DIContainer {
   container.registerFactory<ProjectController>('projectController', () => new ProjectController(
     container.get<CreateProjectUseCase>('createProjectUseCase'),
     container.get<GetProjectDetailsUseCase>('getProjectDetailsUseCase'),
+    container.get<UndoVersionUseCase>('undoVersionUseCase'),
     container.get<IProjectRepository>('projectRepository'),
     container.get<IPromptRepository>('promptRepository'),
     container.get<IQueueService>('queueService')

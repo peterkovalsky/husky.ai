@@ -318,6 +318,12 @@ export class ApiService {
     });
   }
 
+  static async undoVersion(projectId: string): Promise<{ success: boolean; version: number; previewUrl: string }> {
+    return this.request<{ success: boolean; version: number; previewUrl: string }>(`/api/projects/${projectId}/undo-version`, {
+      method: 'POST',
+    });
+  }
+
   static async pollJobStatus(
     jobId: string,
     onUpdate: (status: JobStatus) => void,

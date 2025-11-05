@@ -2,8 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ApiService, type JobStatus } from '../services/api'
 import { useProject } from '../contexts/ProjectContext'
-import { Button, Card } from '@heroui/react'
-import { MessageCircle, Loader2, CheckCircle, AlertCircle, ChevronDown, ChevronUp, ArrowLeft } from 'lucide-react'
+import { Button, Card, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Alert } from '@heroui/react'
+import { MessageCircle, Loader2, CheckCircle, AlertCircle, ChevronDown, ChevronUp, ArrowLeft, RotateCcw } from 'lucide-react'
 import { PromptInput } from './PromptInput'
 import { useMediaUpload } from '../hooks/useMediaUpload'
 
@@ -30,6 +30,11 @@ export const ChatWidget = ({ projectId }: ChatWidgetProps = {}) => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [currentLoadingStatus, setCurrentLoadingStatus] = useState<'QUEUED' | 'PROCESSING' | 'BUILDING' | null>(null)
+  const [isUndoModalOpen, setIsUndoModalOpen] = useState(false)
+  const [isUndoing, setIsUndoing] = useState(false)
+  const [undoError, setUndoError] = useState<string | null>(null)
+  const [successfulBuildsCount, setSuccessfulBuildsCount] = useState(0)
+  const [currentVersion, setCurrentVersion] = useState<number>(0)
   const { currentProject } = useProject()
   const navigate = useNavigate()
 
@@ -74,6 +79,31 @@ export const ChatWidget = ({ projectId }: ChatWidgetProps = {}) => {
       }
     }
   }, [])
+
+  // Fetch successful builds count and current version
+  useEffect(() => {
+    const fetchProjectDetails = async () => {
+      if (!activeProjectId) {
+        setSuccessfulBuildsCount(0)
+        setCurrentVersion(0)
+        return
+      }
+
+      try {
+        const details = await ApiService.getProjectDetails(activeProjectId)
+        // Count builds with status READY
+        const readyBuilds = details.builds.filter(build => build.version > 0).length
+        setSuccessfulBuildsCount(readyBuilds)
+        setCurrentVersion(details.stats.currentVersion)
+      } catch (error) {
+        console.error('Failed to fetch project details:', error)
+        setSuccessfulBuildsCount(0)
+        setCurrentVersion(0)
+      }
+    }
+
+    fetchProjectDetails()
+  }, [activeProjectId])
 
   const updateMessageStatus = (messageId: string, status: ChatMessage['status'], jobId?: string) => {
     setMessages(prev => prev.map(msg => 
@@ -175,7 +205,11 @@ export const ChatWidget = ({ projectId }: ChatWidgetProps = {}) => {
             addSystemMessage('✅ Your app has been updated! Preview refreshed.', 'success')
             setIsProcessing(false)
             setCurrentLoadingStatus(null)
-            
+
+            // Update builds count and current version after successful build
+            setSuccessfulBuildsCount(prev => prev + 1)
+            setCurrentVersion(prev => prev + 1)
+
             // Cache-busting iframe reload
             setTimeout(() => {
               // Add timestamp to URL to force cache bypass
@@ -226,6 +260,47 @@ export const ChatWidget = ({ projectId }: ChatWidgetProps = {}) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSubmit(e)
+    }
+  }
+
+  const handleUndo = async () => {
+    if (!activeProjectId) return
+
+    setIsUndoing(true)
+    setUndoError(null)
+
+    try {
+      const result = await ApiService.undoVersion(activeProjectId)
+
+      // Update successful builds count and current version
+      setSuccessfulBuildsCount(prev => Math.max(0, prev - 1))
+      setCurrentVersion(result.version)
+
+      // Close modal
+      setIsUndoModalOpen(false)
+
+      // Show success message
+      addSystemMessage(`✅ Reverted to version ${result.version}`, 'success')
+
+      // Dispatch event to reload preview
+      setTimeout(() => {
+        const cacheBustUrl = result.previewUrl.includes('?')
+          ? `${result.previewUrl}&t=${Date.now()}`
+          : `${result.previewUrl}?t=${Date.now()}`
+
+        window.dispatchEvent(new CustomEvent('reloadPreview', {
+          detail: {
+            previewUrl: cacheBustUrl,
+            forceReload: true
+          }
+        }))
+      }, 500)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to undo version'
+      setUndoError(errorMessage)
+      addSystemMessage(`❌ ${errorMessage}`, 'error')
+    } finally {
+      setIsUndoing(false)
     }
   }
 
@@ -283,15 +358,29 @@ export const ChatWidget = ({ projectId }: ChatWidgetProps = {}) => {
               >
                 Back to projects
               </Button>
-              <Button
-                variant="light"
-                size="sm"
-                onPress={() => setIsExpanded(!isExpanded)}
-                title={isExpanded ? "Collapse" : "Expand"}
-                isIconOnly
-              >
-                {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </Button>
+              <div className="flex items-center gap-1">
+                {successfulBuildsCount >= 2 && (
+                  <Button
+                    variant="light"
+                    size="sm"
+                    onPress={() => setIsUndoModalOpen(true)}
+                    title="Undo last version"
+                    isIconOnly
+                    isDisabled={isProcessing || isSubmitting}
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                  </Button>
+                )}
+                <Button
+                  variant="light"
+                  size="sm"
+                  onPress={() => setIsExpanded(!isExpanded)}
+                  title={isExpanded ? "Collapse" : "Expand"}
+                  isIconOnly
+                >
+                  {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </Button>
+              </div>
             </div>
 
             {/* Messages */}
@@ -354,6 +443,59 @@ export const ChatWidget = ({ projectId }: ChatWidgetProps = {}) => {
             </div>
           </Card>
         )}
+
+        {/* Undo Confirmation Modal */}
+        <Modal
+          isOpen={isUndoModalOpen}
+          onClose={() => {
+            if (!isUndoing) {
+              setIsUndoModalOpen(false)
+              setUndoError(null)
+            }
+          }}
+          size="md"
+        >
+          <ModalContent>
+            <ModalHeader>Undo Last Version?</ModalHeader>
+            <ModalBody>
+              {undoError && (
+                <Alert
+                  color="danger"
+                  variant="flat"
+                  title="Error"
+                  description={undoError}
+                  className="mb-4"
+                />
+              )}
+              <p>
+                This will permanently delete the latest version (v{currentVersion}) and restore the previous version. This action cannot be undone.
+              </p>
+              <p className="text-sm opacity-70 mt-2">
+                Are you sure you want to continue?
+              </p>
+            </ModalBody>
+            <ModalFooter>
+              <Button
+                variant="light"
+                onPress={() => {
+                  setIsUndoModalOpen(false)
+                  setUndoError(null)
+                }}
+                isDisabled={isUndoing}
+              >
+                Cancel
+              </Button>
+              <Button
+                color="danger"
+                onPress={handleUndo}
+                isLoading={isUndoing}
+                isDisabled={isUndoing}
+              >
+                {isUndoing ? 'Undoing...' : 'Undo Version'}
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
       </div>
     </>
   )

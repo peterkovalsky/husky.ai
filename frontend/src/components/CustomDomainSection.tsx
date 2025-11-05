@@ -293,19 +293,21 @@ export const CustomDomainSection = ({ projectId, customDomain, onUpdate }: Custo
         </Alert>
       )}
 
-      {/* Remove button */}
-      <div className="pt-2">
-        <Button
-          size="sm"
-          color="danger"
-          variant="light"
-          onPress={handleRemove}
-          isLoading={isLoading}
-          startContent={<X className="w-3 h-3" />}
-        >
-          Remove Custom Domain
-        </Button>
-      </div>
+      {/* Remove button - hidden during SSL provisioning */}
+      {customDomain.status !== CustomDomainStatus.PENDING_SSL && (
+        <div className="pt-2">
+          <Button
+            size="sm"
+            color="danger"
+            variant="light"
+            onPress={handleRemove}
+            isLoading={isLoading}
+            startContent={<X className="w-3 h-3" />}
+          >
+            Remove Custom Domain
+          </Button>
+        </div>
+      )}
 
       {/* DNS Instructions Modal */}
       <Modal isOpen={showInstructions} onOpenChange={setShowInstructions} size="lg">

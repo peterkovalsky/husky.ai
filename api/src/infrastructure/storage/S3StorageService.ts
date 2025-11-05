@@ -435,6 +435,93 @@ export class S3StorageService implements IStorageService {
     }
   }
 
+  async deleteVersion(projectId: string, version: number): Promise<void> {
+    try {
+      const versionPrefix = `${projectId}/web/v${version}/`;
+      console.log(`[S3StorageService] Deleting version ${version} from ${this.projectsBucketName} with prefix: ${versionPrefix}`);
+
+      const listCommand = new ListObjectsV2Command({
+        Bucket: this.projectsBucketName,
+        Prefix: versionPrefix,
+      });
+
+      const listResult = await this.s3Client.send(listCommand);
+
+      if (listResult.Contents && listResult.Contents.length > 0) {
+        const objectsToDelete = listResult.Contents.map(obj => ({ Key: obj.Key! }));
+        console.log(`[S3StorageService] Found ${objectsToDelete.length} files to delete for version ${version}`);
+
+        // Delete in batches of 1000 (S3 limit)
+        while (objectsToDelete.length > 0) {
+          const batch = objectsToDelete.splice(0, 1000);
+
+          const deleteCommand = new DeleteObjectsCommand({
+            Bucket: this.projectsBucketName,
+            Delete: {
+              Objects: batch,
+            },
+          });
+
+          await this.s3Client.send(deleteCommand);
+        }
+        console.log(`[S3StorageService] Successfully deleted version ${version} files from S3`);
+      } else {
+        console.log(`[S3StorageService] No files found to delete for version ${version}`);
+      }
+    } catch (error) {
+      // Log error but don't throw - per requirements, continue with warning if S3 deletion fails
+      console.error(`[S3StorageService] Warning: Failed to delete version ${version} from S3:`, error instanceof Error ? error.message : 'Unknown error');
+    }
+  }
+
+  async copyVersionToPreview(projectId: string, version: number): Promise<string> {
+    try {
+      const sourcePrefix = `${projectId}/web/v${version}/preview-build/`;
+      const destPrefix = `projects/${projectId}/`;
+      console.log(`[S3StorageService] Copying version ${version} to preview - from ${sourcePrefix} to ${destPrefix}`);
+
+      // List all files in the preview-build folder
+      const listCommand = new ListObjectsV2Command({
+        Bucket: this.projectsBucketName,
+        Prefix: sourcePrefix,
+      });
+
+      const listResult = await this.s3Client.send(listCommand);
+
+      if (!listResult.Contents || listResult.Contents.length === 0) {
+        throw new Error(`No files found in version ${version} preview-build folder`);
+      }
+
+      console.log(`[S3StorageService] Found ${listResult.Contents.length} files to copy for version ${version}`);
+
+      // Copy each file to the preview bucket
+      for (const obj of listResult.Contents) {
+        if (!obj.Key) continue;
+
+        // Calculate relative path (remove source prefix)
+        const relativePath = obj.Key.substring(sourcePrefix.length);
+        const destKey = `${destPrefix}${relativePath}`;
+
+        // Copy object from projects bucket to preview bucket
+        const copyCommand = new CopyObjectCommand({
+          Bucket: this.bucketName,
+          CopySource: `${this.projectsBucketName}/${obj.Key}`,
+          Key: destKey,
+          ContentType: this.getContentType(obj.Key),
+        });
+
+        await this.s3Client.send(copyCommand);
+        console.log(`[S3StorageService] Copied ${obj.Key} to ${destKey}`);
+      }
+
+      const previewUrl = await this.getBucketWebsiteUrl(projectId);
+      console.log(`[S3StorageService] Successfully copied version ${version} to preview: ${previewUrl}`);
+      return previewUrl;
+    } catch (error) {
+      throw new Error(`Failed to copy version ${version} to preview: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
   async getPublicUrl(key: string): Promise<string> {
     return `${this.publicMediaBaseUrl}/${key}`;
   }

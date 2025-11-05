@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/AuthMiddleware';
 import { CreateProjectUseCase } from '../../application/use-cases/CreateProjectUseCase';
 import { GetProjectDetailsUseCase } from '../../application/use-cases/GetProjectDetailsUseCase';
+import { UndoVersionUseCase } from '../../application/use-cases/UndoVersionUseCase';
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
 import { IPromptRepository } from '../../domain/repositories/IPromptRepository';
 import { IQueueService, DeleteProjectMessage } from '../../domain/services/IQueueService';
@@ -10,6 +11,7 @@ export class ProjectController {
   constructor(
     private createProjectUseCase: CreateProjectUseCase,
     private getProjectDetailsUseCase: GetProjectDetailsUseCase,
+    private undoVersionUseCase: UndoVersionUseCase,
     private projectRepository: IProjectRepository,
     private promptRepository: IPromptRepository,
     private queueService: IQueueService
@@ -132,8 +134,46 @@ export class ProjectController {
     } catch (error) {
       console.error('Error deleting project:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      res.status(500).json({ 
+      res.status(500).json({
         error: 'Failed to delete project',
+        details: errorMessage
+      });
+    }
+  };
+
+  undoVersion = async (req: AuthRequest, res: Response) => {
+    try {
+      const { projectId } = req.params;
+
+      if (!req.user) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+
+      console.log(`POST /api/projects/${projectId}/undo-version - User: ${req.user.id}`);
+
+      const result = await this.undoVersionUseCase.execute(projectId);
+
+      console.log(`Successfully undid version for project ${projectId}, restored to version ${result.version}`);
+      res.json({
+        success: true,
+        version: result.version,
+        previewUrl: result.previewUrl
+      });
+    } catch (error) {
+      console.error('Error undoing version:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+      // Return specific status codes for different error types
+      if (errorMessage === 'Project not found') {
+        return res.status(404).json({ error: errorMessage });
+      }
+
+      if (errorMessage.includes('At least 2 successful builds required')) {
+        return res.status(400).json({ error: errorMessage });
+      }
+
+      res.status(500).json({
+        error: 'Failed to undo version',
         details: errorMessage
       });
     }
