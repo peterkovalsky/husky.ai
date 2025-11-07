@@ -1,10 +1,16 @@
 import Cloudflare from 'cloudflare';
 
+export interface TXTValidationRecord {
+  txt_name: string;
+  txt_value: string;
+}
+
 export interface CustomHostnameResult {
   hostnameId: string;
   hostname: string;
   status: string;
   sslStatus: string;
+  validationRecords?: TXTValidationRecord[];
 }
 
 /**
@@ -37,18 +43,31 @@ export class CloudflareSaaSService {
   }
 
   /**
-   * Create a custom hostname for a published site
+   * Create a custom hostname for a published site or custom domain
    * SSL certificate provisioning happens asynchronously
-   * @param subdomain - Subdomain (e.g., "happy-cloud-42")
+   * @param hostnameOrSubdomain - Full hostname (e.g., "www.example.com") or subdomain (e.g., "happy-cloud-42")
    * @returns Custom hostname details
    */
-  async createCustomHostname(subdomain: string): Promise<CustomHostnameResult> {
-    const hostname = `${subdomain}.${this.publishDomain}`;
+  async createCustomHostname(hostnameOrSubdomain: string): Promise<CustomHostnameResult> {
+    // Determine if this is a custom domain or a project subdomain
+    // Custom domains have dots and don't end with our publish domain
+    // Project subdomains are just the name (e.g., "happy-cloud-42")
+    const isCustomDomain = hostnameOrSubdomain.includes('.') &&
+                           !hostnameOrSubdomain.endsWith(this.publishDomain);
+
+    const hostname = isCustomDomain
+      ? hostnameOrSubdomain
+      : hostnameOrSubdomain.includes('.')
+        ? hostnameOrSubdomain  // Already has publish domain
+        : `${hostnameOrSubdomain}.${this.publishDomain}`;  // Append publish domain
 
     console.log(`[CloudflareSaaSService] Creating custom hostname: ${hostname}`);
 
+    let response;
+    let isDuplicate = false;
+
     try {
-      const response = await this.cf.customHostnames.create({
+      response = await this.cf.customHostnames.create({
         zone_id: this.zoneId,
         hostname: hostname,
         ssl: {
@@ -61,9 +80,37 @@ export class CloudflareSaaSService {
           },
         },
       });
+    } catch (createError: any) {
+      // Handle duplicate hostname - fetch existing one instead
+      if (createError.status === 409) {
+        console.log(`[CloudflareSaaSService] Custom hostname already exists for ${hostname}, fetching existing...`);
 
+        try {
+          // List custom hostnames to find the existing one
+          const listResponse = await this.cf.customHostnames.list({
+            zone_id: this.zoneId,
+            hostname: hostname,
+          });
+
+          if (listResponse.result && listResponse.result.length > 0) {
+            response = listResponse.result[0];
+            isDuplicate = true;
+            console.log(`[CloudflareSaaSService] Found existing custom hostname: ${response.id}`);
+          } else {
+            throw new Error(`Custom hostname exists but could not be found for ${hostname}`);
+          }
+        } catch (listError) {
+          console.error(`[CloudflareSaaSService] Failed to list existing custom hostname:`, listError);
+          throw createError;
+        }
+      } else {
+        throw createError;
+      }
+    }
+
+    try {
       console.log(
-        `[CloudflareSaaSService] Custom hostname created: ${response.id}, SSL status: ${response.ssl?.status}`
+        `[CloudflareSaaSService] Custom hostname ${isDuplicate ? 'found' : 'created'}: ${response.id}, SSL status: ${response.ssl?.status}`
       );
 
       // Log the full response to see what we're getting
@@ -80,65 +127,88 @@ export class CloudflareSaaSService {
         }
       }, null, 2));
 
-      // Automatically add TXT validation records to DNS
+      // Collect validation records to return
+      const validationRecords: TXTValidationRecord[] = [];
+
+      // For custom domains (user's own domains), we can't auto-add TXT records
+      // User must add them to their own DNS. Only auto-add for our subdomains.
       if (response.ssl?.validation_records && response.ssl.validation_records.length > 0) {
         console.log(`[CloudflareSaaSService] Found ${response.ssl.validation_records.length} validation records`);
 
+        // Collect validation records
         for (const record of response.ssl.validation_records) {
           if (record.txt_name && record.txt_value) {
-            console.log(`[CloudflareSaaSService] Creating TXT record: ${record.txt_name} = ${record.txt_value}`);
-
-            try {
-              // Create TXT record in DNS
-              await this.cf.dns.records.create({
-                zone_id: this.zoneId,
-                type: 'TXT',
-                name: record.txt_name,
-                content: record.txt_value,
-                ttl: 120, // 2 minutes for faster propagation
-                comment: `SSL validation for ${hostname}`,
-              });
-
-              console.log(`[CloudflareSaaSService] TXT record created successfully`);
-            } catch (dnsError: any) {
-              // If record already exists, try to update it
-              if (dnsError.status === 409 || dnsError.message?.includes('already exists')) {
-                console.log(`[CloudflareSaaSService] TXT record exists, updating...`);
-
-                // List existing records to find the one to update
-                const existingRecords = await this.cf.dns.records.list({
-                  zone_id: this.zoneId,
-                  type: 'TXT',
-                  name: record.txt_name,
-                });
-
-                if (existingRecords.result && existingRecords.result.length > 0) {
-                  const existingRecord = existingRecords.result[0];
-                  if (existingRecord.id) {
-                    await this.cf.dns.records.update(existingRecord.id, {
-                      zone_id: this.zoneId,
-                      type: 'TXT',
-                      name: record.txt_name,
-                      content: record.txt_value,
-                      ttl: 120,
-                      comment: `SSL validation for ${hostname}`,
-                    });
-                    console.log(`[CloudflareSaaSService] TXT record updated successfully`);
-                  }
-                }
-              } else {
-                console.error(`[CloudflareSaaSService] Failed to create TXT record:`, dnsError);
-              }
-            }
+            validationRecords.push({
+              txt_name: record.txt_name,
+              txt_value: record.txt_value,
+            });
           }
         }
 
-        console.log(`[CloudflareSaaSService] TXT validation records added, SSL should activate in 30-60 seconds`);
+        // Only auto-add TXT records for our own subdomains
+        if (!isCustomDomain) {
+          console.log(`[CloudflareSaaSService] Auto-adding TXT records for subdomain ${hostname}`);
+
+          for (const record of response.ssl.validation_records) {
+            if (record.txt_name && record.txt_value) {
+              console.log(`[CloudflareSaaSService] Creating TXT record: ${record.txt_name} = ${record.txt_value}`);
+
+              try {
+                // Create TXT record in DNS
+                await this.cf.dns.records.create({
+                  zone_id: this.zoneId,
+                  type: 'TXT',
+                  name: record.txt_name,
+                  content: record.txt_value,
+                  ttl: 120, // 2 minutes for faster propagation
+                  comment: `SSL validation for ${hostname}`,
+                });
+
+                console.log(`[CloudflareSaaSService] TXT record created successfully`);
+              } catch (dnsError: any) {
+                // If record already exists, try to update it
+                if (dnsError.status === 409 || dnsError.message?.includes('already exists')) {
+                  console.log(`[CloudflareSaaSService] TXT record exists, updating...`);
+
+                  // List existing records to find the one to update
+                  const existingRecords = await this.cf.dns.records.list({
+                    zone_id: this.zoneId,
+                    type: 'TXT',
+                    name: record.txt_name,
+                  });
+
+                  if (existingRecords.result && existingRecords.result.length > 0) {
+                    const existingRecord = existingRecords.result[0];
+                    if (existingRecord.id) {
+                      await this.cf.dns.records.update(existingRecord.id, {
+                        zone_id: this.zoneId,
+                        type: 'TXT',
+                        name: record.txt_name,
+                        content: record.txt_value,
+                        ttl: 120,
+                        comment: `SSL validation for ${hostname}`,
+                      });
+                      console.log(`[CloudflareSaaSService] TXT record updated successfully`);
+                    }
+                  }
+                } else {
+                  console.error(`[CloudflareSaaSService] Failed to create TXT record:`, dnsError);
+                }
+              }
+            }
+          }
+
+          console.log(`[CloudflareSaaSService] TXT validation records added, SSL should activate in 30-60 seconds`);
+        } else {
+          console.log(`[CloudflareSaaSService] Custom domain detected - user must add TXT records to their DNS`);
+          console.log(`[CloudflareSaaSService] Validation records:`, validationRecords);
+        }
       } else {
         console.log(`[CloudflareSaaSService] No validation records found in initial response`);
         console.log(`[CloudflareSaaSService] SSL status is: ${response.ssl?.status}`);
 
-        // If status is initializing, we might need to poll for validation records
+        // If status is initializing or pending_validation, we might need to poll for validation records
+        // This is especially important for duplicate hostnames that might already be in pending_validation state
         if (response.ssl?.status === 'initializing' || response.ssl?.status === 'pending_validation') {
           console.log(`[CloudflareSaaSService] Will check for validation records in a moment...`);
 
@@ -166,47 +236,68 @@ export class CloudflareSaaSService {
             if (fullHostnameData.ssl?.validation_records && fullHostnameData.ssl.validation_records.length > 0) {
               console.log(`[CloudflareSaaSService] Found validation records after polling!`);
 
+              // Collect validation records
               for (const record of fullHostnameData.ssl.validation_records) {
                 if (record.txt_name && record.txt_value) {
-                  console.log(`[CloudflareSaaSService] Creating TXT record: ${record.txt_name} = ${record.txt_value}`);
+                  validationRecords.push({
+                    txt_name: record.txt_name,
+                    txt_value: record.txt_value,
+                  });
+                }
+              }
 
-                  try {
-                    // Create TXT record in DNS
-                    await this.cf.dns.records.create({
-                      zone_id: this.zoneId,
-                      type: 'TXT',
-                      name: record.txt_name,
-                      content: record.txt_value,
-                      ttl: 120,
-                      comment: `SSL validation for ${hostname}`,
-                    });
+              // Only auto-add for subdomains, not custom domains
+              if (!isCustomDomain) {
+                for (const record of fullHostnameData.ssl.validation_records) {
+                  if (record.txt_name && record.txt_value) {
+                    console.log(`[CloudflareSaaSService] Creating TXT record: ${record.txt_name} = ${record.txt_value}`);
 
-                    console.log(`[CloudflareSaaSService] TXT record created successfully`);
-                  } catch (dnsError: any) {
-                    console.error(`[CloudflareSaaSService] Failed to create TXT record:`, dnsError);
+                    try {
+                      // Create TXT record in DNS
+                      await this.cf.dns.records.create({
+                        zone_id: this.zoneId,
+                        type: 'TXT',
+                        name: record.txt_name,
+                        content: record.txt_value,
+                        ttl: 120,
+                        comment: `SSL validation for ${hostname}`,
+                      });
+
+                      console.log(`[CloudflareSaaSService] TXT record created successfully`);
+                    } catch (dnsError: any) {
+                      console.error(`[CloudflareSaaSService] Failed to create TXT record:`, dnsError);
+                    }
                   }
                 }
               }
             }
 
-            // Also create the DNS record for the subdomain itself
-            await this.createSubdomainDNSRecord(hostname);
+            // Only create DNS record for our own subdomains, not custom domains
+            if (!isCustomDomain) {
+              await this.createSubdomainDNSRecord(hostname);
+            }
           } catch (pollError) {
             console.error(`[CloudflareSaaSService] Failed to poll for validation records:`, pollError);
 
             // Still try to create the DNS record even if TXT validation fails
+            // But only for our own subdomains, not custom domains
+            if (!isCustomDomain) {
+              try {
+                await this.createSubdomainDNSRecord(hostname);
+              } catch (dnsError) {
+                console.error(`[CloudflareSaaSService] Failed to create subdomain DNS record:`, dnsError);
+              }
+            }
+          }
+        } else {
+          // If not initializing/pending_validation, still create the DNS record
+          // But only for our own subdomains, not custom domains
+          if (!isCustomDomain) {
             try {
               await this.createSubdomainDNSRecord(hostname);
             } catch (dnsError) {
               console.error(`[CloudflareSaaSService] Failed to create subdomain DNS record:`, dnsError);
             }
-          }
-        } else {
-          // If not initializing/pending_validation, still create the DNS record
-          try {
-            await this.createSubdomainDNSRecord(hostname);
-          } catch (dnsError) {
-            console.error(`[CloudflareSaaSService] Failed to create subdomain DNS record:`, dnsError);
           }
         }
       }
@@ -216,6 +307,7 @@ export class CloudflareSaaSService {
         hostname: response.hostname,
         status: response.status || 'pending',
         sslStatus: response.ssl?.status || 'pending',
+        validationRecords: validationRecords.length > 0 ? validationRecords : undefined,
       };
     } catch (error) {
       console.error(`[CloudflareSaaSService] Failed to create custom hostname:`, error);
@@ -315,6 +407,39 @@ export class CloudflareSaaSService {
   async isSSLActive(hostnameId: string): Promise<boolean> {
     const status = await this.getCustomHostnameStatus(hostnameId);
     return status.sslStatus === 'active';
+  }
+
+  /**
+   * Get validation records for a custom hostname
+   * @param hostnameId - Custom hostname ID
+   * @returns Validation records if available
+   */
+  async getValidationRecords(hostnameId: string): Promise<TXTValidationRecord[]> {
+    console.log(`[CloudflareSaaSService] Getting validation records for hostname: ${hostnameId}`);
+
+    try {
+      const response = await this.cf.customHostnames.get(hostnameId, {
+        zone_id: this.zoneId,
+      });
+
+      if (response.ssl?.validation_records && response.ssl.validation_records.length > 0) {
+        const records: TXTValidationRecord[] = response.ssl.validation_records
+          .filter((r: any) => r.txt_name && r.txt_value)
+          .map((r: any) => ({
+            txt_name: r.txt_name,
+            txt_value: r.txt_value
+          }));
+
+        console.log(`[CloudflareSaaSService] Found ${records.length} validation records`);
+        return records;
+      }
+
+      console.log(`[CloudflareSaaSService] No validation records found`);
+      return [];
+    } catch (error) {
+      console.error(`[CloudflareSaaSService] Failed to get validation records:`, error);
+      throw new Error(`Failed to get validation records for hostname ${hostnameId}`);
+    }
   }
 
   /**

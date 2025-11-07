@@ -276,7 +276,8 @@ export function setupContainer(): DIContainer {
   ));
 
   container.registerFactory<GetPublishStatusUseCase>('getPublishStatusUseCase', () => new GetPublishStatusUseCase(
-    container.get<IProjectRepository>('projectRepository')
+    container.get<IProjectRepository>('projectRepository'),
+    container.get<CloudflareSaaSService>('cloudflareSaaSService')
   ));
 
   container.registerFactory<ProcessPublishJobUseCase>('processPublishJobUseCase', () => new ProcessPublishJobUseCase(
@@ -306,7 +307,9 @@ export function setupContainer(): DIContainer {
 
   container.registerFactory<VerifyCustomDomainDNSUseCase>('verifyCustomDomainDNSUseCase', () => new VerifyCustomDomainDNSUseCase(
     container.get<IProjectRepository>('projectRepository'),
-    container.get<IDNSVerificationService>('dnsVerificationService')
+    container.get<IDNSVerificationService>('dnsVerificationService'),
+    container.get<CloudflareSaaSService>('cloudflareSaaSService'),
+    container.get<CloudflareKVService>('cloudflareKVService')
   ));
 
   container.registerFactory<RemoveCustomDomainUseCase>('removeCustomDomainUseCase', () => new RemoveCustomDomainUseCase(

@@ -68,7 +68,9 @@ export class CustomDomainController {
 
       res.status(200).json({
         verified: result.verified,
-        error: result.error
+        error: result.error,
+        validationRecords: result.validationRecords,
+        message: result.message
       });
     } catch (error) {
       console.error('Error verifying DNS:', error);

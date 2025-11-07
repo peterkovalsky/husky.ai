@@ -1,11 +1,17 @@
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
 import { User } from '../../domain/entities/User';
 import { PublishingStatus, HostnameStatus, CustomDomainStatus } from '../../domain/entities/Project';
+import { CloudflareSaaSService } from '../../infrastructure/cdn/CloudflareSaaSService';
 
 export interface DNSInstructions {
   type: 'CNAME';
   name: string;  // Part before the domain (e.g., "www" for "www.example.com")
   value: string; // CNAME target (e.g., "happy-cloud-42.huskystudio.ai")
+}
+
+export interface TXTValidationRecord {
+  txt_name: string;
+  txt_value: string;
 }
 
 export interface CustomDomainInfo {
@@ -14,6 +20,8 @@ export interface CustomDomainInfo {
   url?: string;  // Only when ACTIVE
   error?: string;
   dnsInstructions?: DNSInstructions;
+  validationRecords?: TXTValidationRecord[];
+  validationMessage?: string;
 }
 
 export interface PublishStatusDto {
@@ -32,7 +40,10 @@ export interface PublishStatusDto {
 }
 
 export class GetPublishStatusUseCase {
-  constructor(private projectRepository: IProjectRepository) {}
+  constructor(
+    private projectRepository: IProjectRepository,
+    private cloudflareSaaSService: CloudflareSaaSService
+  ) {}
 
   async execute(projectId: string, user: User): Promise<PublishStatusDto> {
     if (!projectId) {
@@ -93,6 +104,26 @@ export class GetPublishStatusUseCase {
           value: `${subdomain}.${publishDomain}`
         }
       };
+
+      // If status is PENDING_SSL and we have a Cloudflare hostname ID, fetch validation records
+      if (
+        project.customDomainStatus === CustomDomainStatus.PENDING_SSL &&
+        project.customDomainCloudflareId
+      ) {
+        try {
+          const validationRecords = await this.cloudflareSaaSService.getValidationRecords(
+            project.customDomainCloudflareId
+          );
+
+          if (validationRecords.length > 0) {
+            customDomainInfo.validationRecords = validationRecords;
+            customDomainInfo.validationMessage = 'Please add the following TXT records to your DNS to complete SSL validation';
+          }
+        } catch (error) {
+          console.error(`[GetPublishStatusUseCase] Failed to fetch validation records:`, error);
+          // Don't fail the entire request if we can't fetch validation records
+        }
+      }
     }
 
     return {

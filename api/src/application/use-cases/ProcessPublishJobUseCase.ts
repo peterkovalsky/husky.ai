@@ -75,14 +75,20 @@ export class ProcessPublishJobUseCase {
         console.log(`[ProcessPublishJobUseCase] Processing custom domain: ${project.customDomain}`);
 
         try {
-          // Verify DNS one more time before publishing
-          const expectedTarget = `${project.subdomain}.${this.publishDomain}`;
-          const dnsCheck = await this.dnsVerificationService.verifyCNAME(
-            project.customDomain,
-            expectedTarget
-          );
+          // If custom domain is already ACTIVE, just update the KV mapping and skip provisioning
+          if (project.customDomainStatus === CustomDomainStatus.ACTIVE && project.customDomainCloudflareId) {
+            console.log(`[ProcessPublishJobUseCase] Custom domain already active, updating KV mapping`);
+            await this.cloudflareKVService.setSubdomainMapping(project.customDomain, projectId);
+            console.log(`[ProcessPublishJobUseCase] Custom domain KV mapping updated`);
+          } else {
+            // Verify DNS one more time before publishing
+            const expectedTarget = `${project.subdomain}.${this.publishDomain}`;
+            const dnsCheck = await this.dnsVerificationService.verifyCNAME(
+              project.customDomain,
+              expectedTarget
+            );
 
-          if (dnsCheck.verified) {
+            if (dnsCheck.verified) {
             console.log(`[ProcessPublishJobUseCase] DNS verified for custom domain ${project.customDomain}`);
 
             // Create or reuse Cloudflare custom hostname
@@ -110,14 +116,15 @@ export class ProcessPublishJobUseCase {
             );
             console.log(`[ProcessPublishJobUseCase] Custom domain activated: ${project.customDomain}`);
 
-          } else {
-            // DNS not configured properly
-            console.warn(`[ProcessPublishJobUseCase] DNS verification failed for ${project.customDomain}: ${dnsCheck.error}`);
-            await this.projectRepository.updateCustomDomainStatus(
-              projectId,
-              CustomDomainStatus.PENDING_DNS,
-              dnsCheck.error || 'DNS verification failed'
-            );
+            } else {
+              // DNS not configured properly
+              console.warn(`[ProcessPublishJobUseCase] DNS verification failed for ${project.customDomain}: ${dnsCheck.error}`);
+              await this.projectRepository.updateCustomDomainStatus(
+                projectId,
+                CustomDomainStatus.PENDING_DNS,
+                dnsCheck.error || 'DNS verification failed'
+              );
+            }
           }
         } catch (error: any) {
           // Custom domain failure doesn't fail the whole publish
