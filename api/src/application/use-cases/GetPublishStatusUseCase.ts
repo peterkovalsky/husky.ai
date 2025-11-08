@@ -76,13 +76,50 @@ export class GetPublishStatusUseCase {
         : project.publishingError;
     }
 
+    // Check real-time SSL status if hostname is still provisioning
+    let hostnameStatus = project.hostnameStatus;
+    let cloudflareHostnameStatus = project.cloudflareHostnameStatus;
+    let hostnameError = project.hostnameError;
+
+    if (
+      hostnameStatus === HostnameStatus.PROVISIONING &&
+      project.cloudflareHostnameId
+    ) {
+      try {
+        console.log(`[GetPublishStatusUseCase] Checking real-time SSL status for hostname ${project.cloudflareHostnameId}`);
+        const status = await this.cloudflareSaaSService.getCustomHostnameStatus(project.cloudflareHostnameId);
+        cloudflareHostnameStatus = status.sslStatus;
+
+        // If SSL is now active, update to READY
+        if (status.sslStatus === 'active') {
+          console.log(`[GetPublishStatusUseCase] ✓ SSL is now active! Updating hostname status to READY`);
+          await this.projectRepository.update(project.id, {
+            hostnameStatus: HostnameStatus.READY,
+            cloudflareHostnameStatus: 'active',
+            hostnameError: null,
+          });
+          hostnameStatus = HostnameStatus.READY;
+          hostnameError = null;
+        } else {
+          console.log(`[GetPublishStatusUseCase] SSL still ${status.sslStatus}, keeping status as PROVISIONING`);
+          // Update SSL status in case it changed (e.g., pending -> pending_validation)
+          await this.projectRepository.update(project.id, {
+            cloudflareHostnameStatus: status.sslStatus,
+          });
+        }
+      } catch (error) {
+        console.error(`[GetPublishStatusUseCase] Failed to check SSL status:`, error);
+        // Keep existing status if check fails
+      }
+    }
+
     // Determine if project can be published
     // Can publish if: hostname is ready OR hostname provisioning hasn't started (will provision on-the-spot)
     const canPublish =
-      project.hostnameStatus === HostnameStatus.READY ||
-      project.hostnameStatus === HostnameStatus.NONE ||
-      project.hostnameStatus === HostnameStatus.FAILED ||
-      !project.hostnameStatus; // Legacy projects without status
+      hostnameStatus === HostnameStatus.READY ||
+      hostnameStatus === HostnameStatus.NONE ||
+      hostnameStatus === HostnameStatus.FAILED ||
+      !hostnameStatus; // Legacy projects without status
 
     // Build custom domain info if custom domain is set
     let customDomainInfo: CustomDomainInfo | undefined;
@@ -134,9 +171,9 @@ export class GetPublishStatusUseCase {
       currentVersion: project.currentVersion,
       error: errorMessage,
       subdomain: project.subdomain,
-      sslStatus: project.cloudflareHostnameStatus ?? undefined,
-      hostnameStatus: project.hostnameStatus,
-      hostnameError: project.hostnameError ?? undefined,
+      sslStatus: cloudflareHostnameStatus ?? undefined,
+      hostnameStatus: hostnameStatus,
+      hostnameError: hostnameError ?? undefined,
       canPublish,
       customDomain: customDomainInfo,
     };

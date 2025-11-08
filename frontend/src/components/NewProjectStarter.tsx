@@ -2,8 +2,7 @@ import { useState, useRef } from 'react'
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ApiService, type JobStatus } from '../services/api'
-import { Button } from '@heroui/react'
-import { NewProjectLoading } from './NewProjectLoading'
+import { Button, Spinner } from '@heroui/react'
 import { ArrowLeft } from 'lucide-react'
 import { ChatWidget } from './ChatWidget'
 import { PromptInput } from './PromptInput'
@@ -14,7 +13,7 @@ interface NewProjectStarterProps {
   projectName: string
 }
 
-type AppState = 'initial' | 'submitted' | 'loading' | 'ready' | 'error'
+type AppState = 'initial' | 'ready' | 'error'
 
 export const NewProjectStarter = ({ projectId }: NewProjectStarterProps) => {
   const [prompt, setPrompt] = useState('')
@@ -22,6 +21,7 @@ export const NewProjectStarter = ({ projectId }: NewProjectStarterProps) => {
   const [jobStatus, setJobStatus] = useState<JobStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isGenerating, setIsGenerating] = useState(false)
   const [iframeKey, setIframeKey] = useState(0)
   const pollCleanupRef = useRef<(() => void) | null>(null)
   const navigate = useNavigate()
@@ -74,34 +74,39 @@ export const NewProjectStarter = ({ projectId }: NewProjectStarterProps) => {
         projectId,
         mediaIds.length > 0 ? mediaIds : undefined
       )
-      setAppState('submitted')
+
+      // Start generating - stay on initial screen
+      setIsGenerating(true)
 
       // Clear attached files after successful submission
       clearFiles()
-      
+
       const cleanup = await ApiService.pollJobStatus(
         response.promptId || response.jobId,
         (status) => {
           setJobStatus(status)
           if (status.status === 'READY' && status.previewUrl) {
             setAppState('ready')
+            setIsGenerating(false)
           } else if (status.status === 'FAILED' || status.errorMessage) {
             setError(status.errorMessage || 'Generation failed')
             setAppState('error')
-          } else {
-            setAppState('loading')
+            setIsGenerating(false)
           }
+          // For other statuses (QUEUED, PROCESSING, BUILDING), keep showing initial screen
         },
         (error) => {
           setError(error.message)
           setAppState('error')
+          setIsGenerating(false)
         }
       )
-      
+
       pollCleanupRef.current = cleanup
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to submit prompt')
       setAppState('error')
+      setIsGenerating(false)
     } finally {
       setIsSubmitting(false)
     }
@@ -181,6 +186,19 @@ export const NewProjectStarter = ({ projectId }: NewProjectStarterProps) => {
               How can I help you today?
             </h1>
 
+            {/* Loading Indicator - shown while generating */}
+            {isGenerating && (
+              <div className="mb-8 flex items-center gap-3 text-primary">
+                <Spinner size="sm" color="primary" />
+                <span className="text-sm font-medium">
+                  {jobStatus?.status === 'QUEUED' && 'Analyzing your idea...'}
+                  {jobStatus?.status === 'PROCESSING' && 'Generating your app...'}
+                  {jobStatus?.status === 'BUILDING' && 'Building your app...'}
+                  {!jobStatus?.status && 'Starting generation...'}
+                </span>
+              </div>
+            )}
+
             {/* Prompt Input */}
             <div className="w-full mb-6">
               <PromptInput
@@ -192,7 +210,7 @@ export const NewProjectStarter = ({ projectId }: NewProjectStarterProps) => {
                 onRemoveFile={removeFile}
                 attachedFiles={attachedImages}
                 isSubmitting={isSubmitting}
-                isDisabled={isSubmitting}
+                isDisabled={isSubmitting || isGenerating}
                 placeholder="Enter a prompt here"
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
@@ -202,62 +220,52 @@ export const NewProjectStarter = ({ projectId }: NewProjectStarterProps) => {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              <Button
-                variant="bordered"
-                className="rounded-full"
-                onPress={() => {
-                  setPrompt("Create a landing page for a SaaS product");
-                }}
-              >
-                <span className="mr-2">📝</span>
-                Create a landing page
-              </Button>
-              <Button
-                variant="bordered"
-                className="rounded-full"
-                onPress={() => {
-                  setPrompt("Build a dashboard with charts");
-                }}
-              >
-                <span className="mr-2">📊</span>
-                Build a dashboard
-              </Button>
-              <Button
-                variant="bordered"
-                className="rounded-full"
-                onPress={() => {
-                  setPrompt("Design a portfolio website");
-                }}
-              >
-                <span className="mr-2">💡</span>
-                Design portfolio
-              </Button>
-              <Button
-                variant="bordered"
-                className="rounded-full"
-                onPress={() => {
-                  setPrompt("Create a blog layout");
-                }}
-              >
-                <span className="mr-2">✍️</span>
-                Create blog
-              </Button>
-            </div>
+            {!isGenerating && (
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <Button
+                  variant="bordered"
+                  className="rounded-full"
+                  onPress={() => {
+                    setPrompt("Create a landing page for a SaaS product");
+                  }}
+                >
+                  <span className="mr-2">📝</span>
+                  Create a landing page
+                </Button>
+                <Button
+                  variant="bordered"
+                  className="rounded-full"
+                  onPress={() => {
+                    setPrompt("Build a dashboard with charts");
+                  }}
+                >
+                  <span className="mr-2">📊</span>
+                  Build a dashboard
+                </Button>
+                <Button
+                  variant="bordered"
+                  className="rounded-full"
+                  onPress={() => {
+                    setPrompt("Design a portfolio website");
+                  }}
+                >
+                  <span className="mr-2">💡</span>
+                  Design portfolio
+                </Button>
+                <Button
+                  variant="bordered"
+                  className="rounded-full"
+                  onPress={() => {
+                    setPrompt("Create a blog layout");
+                  }}
+                >
+                  <span className="mr-2">✍️</span>
+                  Create blog
+                </Button>
+              </div>
+            )}
           </div>
         </div>
-      )}
-
-      {/* Loading State */}
-      {(appState === 'submitted' || appState === 'loading') && (
-        <NewProjectLoading 
-          currentStage={
-            jobStatus?.status === 'QUEUED' ? 'analyzing' :
-            jobStatus?.status === 'PROCESSING' ? 'generating' :
-            jobStatus?.status === 'BUILDING' ? 'building' :
-            'analyzing'
-          }
-        />
       )}
 
       {/* Error State */}
@@ -274,6 +282,7 @@ export const NewProjectStarter = ({ projectId }: NewProjectStarterProps) => {
             <Button onPress={() => {
               setAppState('initial')
               setError(null)
+              setIsGenerating(false)
             }}>
               Try Again
             </Button>

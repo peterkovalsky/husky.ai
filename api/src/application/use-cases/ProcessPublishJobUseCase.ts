@@ -173,20 +173,40 @@ export class ProcessPublishJobUseCase {
 
       } else if (project.cloudflareHostnameId) {
         // REPUBLISH: Custom hostname already exists (but not pre-provisioned)
-        console.log(`[ProcessPublishJobUseCase] Republishing - reusing existing custom hostname`);
+        console.log(`[ProcessPublishJobUseCase] Republishing - checking existing custom hostname`);
         try {
           const status = await this.cloudflareSaaSService.getCustomHostnameStatus(project.cloudflareHostnameId);
           console.log(`[ProcessPublishJobUseCase] Existing hostname status: ${status.hostname} (SSL: ${status.sslStatus})`);
-          hostnameId = project.cloudflareHostnameId;
-          needsSSLWait = false;
 
-          // Quick DNS check to ensure site is still accessible (5 seconds max)
-          console.log(`[ProcessPublishJobUseCase] Quick DNS check...`);
-          try {
-            await this.cloudflareSaaSService.waitForDNSResolution(hostname, 5000, 1000);
-            console.log(`[ProcessPublishJobUseCase] Site is accessible`);
-          } catch (error) {
-            console.warn(`[ProcessPublishJobUseCase] Quick DNS check failed, site may take a moment`);
+          // If SSL is active, reuse the hostname
+          if (status.sslStatus === 'active') {
+            console.log(`[ProcessPublishJobUseCase] ✓ SSL is active, reusing hostname`);
+            hostnameId = project.cloudflareHostnameId;
+            needsSSLWait = false;
+
+            // Quick DNS check to ensure site is still accessible (5 seconds max)
+            console.log(`[ProcessPublishJobUseCase] Quick DNS check...`);
+            try {
+              await this.cloudflareSaaSService.waitForDNSResolution(hostname, 5000, 1000);
+              console.log(`[ProcessPublishJobUseCase] Site is accessible`);
+            } catch (error) {
+              console.warn(`[ProcessPublishJobUseCase] Quick DNS check failed, site may take a moment`);
+            }
+          } else {
+            // SSL is not active (pending, pending_validation, etc.) - delete and recreate
+            console.log(`[ProcessPublishJobUseCase] SSL is ${status.sslStatus}, deleting stuck hostname and creating new one`);
+            try {
+              await this.cloudflareSaaSService.deleteCustomHostname(project.cloudflareHostnameId);
+              console.log(`[ProcessPublishJobUseCase] Deleted stuck hostname ${project.cloudflareHostnameId}`);
+            } catch (deleteError) {
+              console.warn(`[ProcessPublishJobUseCase] Failed to delete hostname, continuing anyway:`, deleteError);
+            }
+
+            // Create fresh hostname
+            const result = await this.cloudflareSaaSService.createCustomHostname(project.subdomain);
+            hostnameId = result.hostnameId;
+            needsSSLWait = true;
+            console.log(`[ProcessPublishJobUseCase] Created new hostname: ${hostnameId} (SSL: ${result.sslStatus})`);
           }
         } catch (error) {
           // Hostname doesn't exist anymore, create new one

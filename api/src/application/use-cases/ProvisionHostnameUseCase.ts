@@ -46,9 +46,11 @@ export class ProvisionHostnameUseCase {
 
       // Step 4: Wait for SSL activation (3 minutes max)
       console.log(`[ProvisionHostnameUseCase] Waiting for SSL activation...`);
+      let sslActivated = false;
       try {
         await this.cloudflareSaaSService.waitForSSLActivation(hostnameId, 180000, 5000);
-        console.log(`[ProvisionHostnameUseCase] SSL activated for ${hostname}!`);
+        console.log(`[ProvisionHostnameUseCase] ✓ SSL activated for ${hostname}!`);
+        sslActivated = true;
 
         // Update SSL status
         await this.projectRepository.update(projectId, {
@@ -56,28 +58,33 @@ export class ProvisionHostnameUseCase {
         });
 
       } catch (sslError) {
-        console.warn(`[ProvisionHostnameUseCase] SSL activation timed out for ${hostname}, but continuing:`, sslError);
+        console.warn(`[ProvisionHostnameUseCase] ✗ SSL activation timed out for ${hostname}, keeping status as PROVISIONING:`, sslError);
         // Don't fail - SSL might activate later
-        // Keep status as PROVISIONING or whatever the current status is
+        // Keep status as PROVISIONING so publish knows to wait for it
       }
 
-      // Step 5: Wait for DNS resolution (45 seconds max)
-      console.log(`[ProvisionHostnameUseCase] Waiting for DNS resolution...`);
-      try {
-        await this.cloudflareSaaSService.waitForDNSResolution(hostname, 45000, 2000);
-        console.log(`[ProvisionHostnameUseCase] DNS resolved for ${hostname}!`);
-      } catch (dnsError) {
-        console.warn(`[ProvisionHostnameUseCase] DNS resolution check timed out for ${hostname}, but continuing:`, dnsError);
-        // Don't fail - DNS might resolve later
+      // Step 5: Wait for DNS resolution (45 seconds max) - only if SSL activated
+      if (sslActivated) {
+        console.log(`[ProvisionHostnameUseCase] Waiting for DNS resolution...`);
+        try {
+          await this.cloudflareSaaSService.waitForDNSResolution(hostname, 45000, 2000);
+          console.log(`[ProvisionHostnameUseCase] ✓ DNS resolved for ${hostname}!`);
+        } catch (dnsError) {
+          console.warn(`[ProvisionHostnameUseCase] DNS resolution check timed out for ${hostname}, but continuing:`, dnsError);
+          // Don't fail - DNS might resolve later
+        }
+
+        // Step 6: Update status to READY (only if SSL activated)
+        await this.projectRepository.update(projectId, {
+          hostnameStatus: HostnameStatus.READY,
+          hostnameError: null,
+        });
+
+        console.log(`[ProvisionHostnameUseCase] ✓ Successfully provisioned hostname for project ${projectId} at https://${hostname}`);
+      } else {
+        console.log(`[ProvisionHostnameUseCase] SSL not yet active for project ${projectId}, will complete during publish (status remains PROVISIONING)`);
+        // Status remains PROVISIONING - publish will wait for it to complete
       }
-
-      // Step 6: Update status to READY
-      await this.projectRepository.update(projectId, {
-        hostnameStatus: HostnameStatus.READY,
-        hostnameError: null,
-      });
-
-      console.log(`[ProvisionHostnameUseCase] Successfully provisioned hostname for project ${projectId} at https://${hostname}`);
 
     } catch (error) {
       console.error(`[ProvisionHostnameUseCase] Failed to provision hostname for project ${projectId}:`, error);
