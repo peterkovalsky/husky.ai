@@ -21,8 +21,6 @@ export class SupabaseBuildRepository implements IBuildRepository {
         version: 0,
         status: request.status || 'QUEUED',
         metrics: request.metrics || {},
-        input_tokens: request.inputTokens,
-        output_tokens: request.outputTokens,
         media_ids: request.mediaIds || []
       })
       .select()
@@ -137,6 +135,15 @@ export class SupabaseBuildRepository implements IBuildRepository {
     if (error) throw error;
   }
 
+  async updateStepStatus(id: string, stepStatus: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('builds')
+      .update({ step_status: stepStatus })
+      .eq('id', id);
+
+    if (error) throw error;
+  }
+
   async updateVersion(id: string, version: number): Promise<void> {
     const { error } = await this.supabase
       .from('builds')
@@ -150,18 +157,6 @@ export class SupabaseBuildRepository implements IBuildRepository {
     const { error } = await this.supabase
       .from('builds')
       .update({ file_tree: fileTree })
-      .eq('id', id);
-
-    if (error) throw error;
-  }
-
-  async updateTokens(id: string, inputTokens: number, outputTokens: number): Promise<void> {
-    const { error } = await this.supabase
-      .from('builds')
-      .update({
-        input_tokens: inputTokens,
-        output_tokens: outputTokens
-      })
       .eq('id', id);
 
     if (error) throw error;
@@ -267,9 +262,8 @@ export class SupabaseBuildRepository implements IBuildRepository {
       projectId: data.project_id,
       version: data.version,
       status: data.status,
+      stepStatus: data.step_status,
       metrics: data.metrics || {},
-      inputTokens: data.input_tokens,
-      outputTokens: data.output_tokens,
       mediaIds: data.media_ids || [],
       createdAt: new Date(data.created_at),
       modifiedAt: new Date(data.modified_at)
