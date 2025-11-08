@@ -13,6 +13,7 @@ export interface IBuildRepository {
   updateStepStatus(id: string, stepStatus: string): Promise<void>;
   updateVersion(id: string, version: number): Promise<void>;
   updateFileTree(id: string, fileTree: Record<string, string>): Promise<void>;
+  update(id: string, updates: Partial<Build>): Promise<void>; // Generic update for any build fields
   removeMediaIdFromProject(projectId: string, mediaId: string): Promise<void>;
   removeMediaIdFromAllBuilds(mediaId: string): Promise<void>; // Remove media from all builds that reference it
   deleteByProjectId(projectId: string): Promise<void>;

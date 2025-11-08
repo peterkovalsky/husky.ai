@@ -19,6 +19,9 @@ export interface BuildMetrics {
   versionProductionUploadTimeMs?: number; // Time to upload production build to projects bucket
   finalizationTimeMs?: number; // Time for finalization step
   totalTimeMs?: number; // Total wall-clock time (not sum of components due to parallelization)
+  autoFixTimeMs?: number; // Time spent attempting to auto-fix build errors
+  aiFixTimeMs?: number; // Time spent calling AI for fix generation
+  filesFixed?: number; // Number of files modified by auto-fix
 }
 
 export interface Build {
@@ -30,6 +33,10 @@ export interface Build {
   stepStatus?: string;
   metrics: BuildMetrics;
   mediaIds?: string[];
+  errorMessage?: string; // Human-readable error summary when build fails
+  errorOutput?: string; // Full build error output (stderr/stdout) for debugging
+  autoFixAttempted?: boolean; // Whether automatic fix was attempted for this failed build
+  autoFixSuccessful?: boolean; // Whether auto-fix successfully resolved the build error
   createdAt: Date;
   modifiedAt: Date;
 }

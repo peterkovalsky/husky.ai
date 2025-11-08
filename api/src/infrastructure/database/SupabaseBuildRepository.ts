@@ -162,6 +162,30 @@ export class SupabaseBuildRepository implements IBuildRepository {
     if (error) throw error;
   }
 
+  async update(id: string, updates: Partial<Build>): Promise<void> {
+    // Map entity field names to database column names
+    const dbUpdates: any = {};
+
+    if (updates.fileTree !== undefined) dbUpdates.file_tree = updates.fileTree;
+    if (updates.projectId !== undefined) dbUpdates.project_id = updates.projectId;
+    if (updates.version !== undefined) dbUpdates.version = updates.version;
+    if (updates.status !== undefined) dbUpdates.status = updates.status;
+    if (updates.stepStatus !== undefined) dbUpdates.step_status = updates.stepStatus;
+    if (updates.metrics !== undefined) dbUpdates.metrics = updates.metrics;
+    if (updates.mediaIds !== undefined) dbUpdates.media_ids = updates.mediaIds;
+    if (updates.errorMessage !== undefined) dbUpdates.error_message = updates.errorMessage;
+    if (updates.errorOutput !== undefined) dbUpdates.error_output = updates.errorOutput;
+    if (updates.autoFixAttempted !== undefined) dbUpdates.auto_fix_attempted = updates.autoFixAttempted;
+    if (updates.autoFixSuccessful !== undefined) dbUpdates.auto_fix_successful = updates.autoFixSuccessful;
+
+    const { error } = await this.supabase
+      .from('builds')
+      .update(dbUpdates)
+      .eq('id', id);
+
+    if (error) throw error;
+  }
+
   async updateMediaIds(id: string, mediaIds: string[]): Promise<void> {
     const { error } = await this.supabase
       .from('builds')
@@ -265,6 +289,10 @@ export class SupabaseBuildRepository implements IBuildRepository {
       stepStatus: data.step_status,
       metrics: data.metrics || {},
       mediaIds: data.media_ids || [],
+      errorMessage: data.error_message,
+      errorOutput: data.error_output,
+      autoFixAttempted: data.auto_fix_attempted,
+      autoFixSuccessful: data.auto_fix_successful,
       createdAt: new Date(data.created_at),
       modifiedAt: new Date(data.modified_at)
     };

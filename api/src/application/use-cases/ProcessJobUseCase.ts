@@ -13,6 +13,7 @@ import { InitializationStep } from '../build-steps/steps/InitializationStep';
 import { CodeGenerationStep } from '../build-steps/steps/CodeGenerationStep';
 import { FilePrepStep } from '../build-steps/steps/FilePrepStep';
 import { PreviewBuildStep } from '../build-steps/steps/PreviewBuildStep';
+import { AutoFixStep } from '../build-steps/steps/AutoFixStep';
 import { PreviewUploadStep } from '../build-steps/steps/PreviewUploadStep';
 import { ProductionBuildStep } from '../build-steps/steps/ProductionBuildStep';
 import { ProductionUploadStep } from '../build-steps/steps/ProductionUploadStep';
@@ -74,62 +75,107 @@ export class ProcessJobUseCase {
     context.setStepData('userPrompt', prompt);
     context.setStepData('jobStartTime', Date.now());
 
-    // Create build steps in execution order
-    const steps: IBuildStep[] = [
-      new InitializationStep(
-        this.promptRepository,
-        this.buildRepository
-      ),
-      new CodeGenerationStep(
-        this.promptRepository,
-        this.buildRepository,
-        this.mediaRepository,
-        this.aiService,
-        this.storageService,
-        this.prepareProjectEnvironmentUseCase
-      ),
-      new FilePrepStep(
-        this.buildRepository,
-        this.buildService
-      ),
-      new PreviewBuildStep(
-        this.buildRepository,
-        this.buildService
-      ),
-      new PreviewUploadStep(
-        this.buildRepository,
-        this.projectRepository,
-        this.storageService
-      ),
-      new ProductionBuildStep(
-        this.buildRepository,
-        this.buildService
-      ),
-      new ProductionUploadStep(
-        this.buildRepository,
-        this.storageService
-      ),
-      new FinalizationStep(
-        this.buildRepository,
-        this.projectRepository
-      )
-    ];
+    // Create build steps
+    const initStep = new InitializationStep(
+      this.promptRepository,
+      this.buildRepository
+    );
+    const codeGenStep = new CodeGenerationStep(
+      this.promptRepository,
+      this.buildRepository,
+      this.mediaRepository,
+      this.aiService,
+      this.storageService,
+      this.prepareProjectEnvironmentUseCase
+    );
+    const filePrepStep = new FilePrepStep(
+      this.buildRepository,
+      this.buildService
+    );
+    const previewBuildStep = new PreviewBuildStep(
+      this.buildRepository,
+      this.buildService
+    );
+    const autoFixStep = new AutoFixStep(
+      this.buildRepository,
+      this.aiService
+    );
+    const previewUploadStep = new PreviewUploadStep(
+      this.buildRepository,
+      this.projectRepository,
+      this.storageService
+    );
+    const productionBuildStep = new ProductionBuildStep(
+      this.buildRepository,
+      this.buildService
+    );
+    const productionUploadStep = new ProductionUploadStep(
+      this.buildRepository,
+      this.storageService
+    );
+    const finalizationStep = new FinalizationStep(
+      this.buildRepository,
+      this.projectRepository
+    );
 
     // Execute build steps sequentially
     try {
-      for (const step of steps) {
-        console.log(`\n--- Executing: ${step.stepName} ---`);
-        const result = await step.execute(context);
+      // Step 1: Initialization
+      await this.executeStep(context, initStep);
 
-        if (!result.success) {
-          throw result.error || new Error(`${step.stepName} failed without error details`);
+      // Step 2: Code Generation
+      await this.executeStep(context, codeGenStep);
+
+      // Step 3: File Preparation
+      await this.executeStep(context, filePrepStep);
+
+      // Step 4: Preview Build (with auto-fix retry)
+      try {
+        await this.executeStep(context, previewBuildStep);
+      } catch (buildError) {
+        // Build failed - attempt auto-fix
+        console.log(`\n⚠️  Preview build failed, attempting auto-fix...`);
+
+        // Store build error in context for AutoFixStep
+        const errorMessage = buildError instanceof Error ? buildError.message : String(buildError);
+        context.setStepData('buildError', errorMessage);
+
+        try {
+          // Run auto-fix step
+          await this.executeStep(context, autoFixStep);
+
+          // Re-run file prep and build with fixed code
+          console.log(`\n🔄 Retrying build with auto-fixed code...`);
+          await this.executeStep(context, filePrepStep);
+          await this.executeStep(context, previewBuildStep);
+
+          // Success! Mark auto-fix as successful
+          await this.buildRepository.update(context.buildId!, {
+            autoFixSuccessful: true
+          });
+          console.log(`\n✅ Auto-fix successful! Build completed after fix.`);
+
+        } catch (fixError) {
+          // Auto-fix failed
+          await this.buildRepository.update(context.buildId!, {
+            autoFixSuccessful: false,
+            errorMessage: fixError instanceof Error ? fixError.message : String(fixError)
+          });
+          throw fixError;
         }
-
-        // Aggregate metrics from step
-        context.addMetrics(result.metrics);
-
-        console.log(`✓ ${step.stepName} completed successfully`);
       }
+
+      // Step 5: Preview Upload
+      await this.executeStep(context, previewUploadStep);
+
+      // Step 6: Production Build
+      await this.executeStep(context, productionBuildStep);
+
+      // Step 7: Production Upload
+      await this.executeStep(context, productionUploadStep);
+
+      // Step 8: Finalization
+      await this.executeStep(context, finalizationStep);
 
       console.log(`\n========================================`);
       console.log(`Build completed successfully!`);
@@ -140,6 +186,23 @@ export class ProcessJobUseCase {
     } catch (error) {
       await this.handleBuildFailure(context, error);
     }
+  }
+
+  /**
+   * Execute a single build step and aggregate metrics
+   */
+  private async executeStep(context: BuildStepContext, step: IBuildStep): Promise<void> {
+    console.log(`\n--- Executing: ${step.stepName} ---`);
+    const result = await step.execute(context);
+
+    if (!result.success) {
+      throw result.error || new Error(`${step.stepName} failed without error details`);
+    }
+
+    // Aggregate metrics from step
+    context.addMetrics(result.metrics);
+
+    console.log(`✓ ${step.stepName} completed successfully`);
   }
 
   /**
