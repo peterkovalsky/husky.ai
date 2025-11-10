@@ -1,5 +1,5 @@
 import { useProject } from '../contexts/ProjectContext'
-import { Card, CardBody, CardHeader, Button, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Divider, Chip, useDisclosure } from '@heroui/react'
+import { Card, CardBody, CardHeader, Button, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Divider, Chip } from '@heroui/react'
 import { CreateProjectDialog } from './CreateProjectDialog'
 import { EditProjectDialog } from './EditProjectDialog'
 import { DeleteProjectDialog } from './DeleteProjectDialog'
