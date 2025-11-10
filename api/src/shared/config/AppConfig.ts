@@ -26,7 +26,7 @@ export function loadAppConfig(): AppConfig {
       'http://localhost:5174',
       'http://localhost:3000',
       'https://huskystudio.co',
-      'https://app.huskystudio.co'
+      'https://app.huskystudio.ai'
     ],
     timeouts: {
       request: 300000, // 5 minutes
