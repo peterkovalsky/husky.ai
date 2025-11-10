@@ -62,9 +62,15 @@ export function createApiRoutes(deps: ApiRoutesDependencies): Router {
     deps.projectController.createProject
   );
 
-  router.get('/project/:projectId', 
-    deps.authMiddleware.authenticate, 
-    deps.workspaceAccessMiddleware.checkProjectAccess('projectId'), 
+  router.patch('/projects/:projectId',
+    deps.authMiddleware.authenticate,
+    deps.workspaceAccessMiddleware.checkProjectAccess('projectId'),
+    deps.projectController.updateProject
+  );
+
+  router.get('/project/:projectId',
+    deps.authMiddleware.authenticate,
+    deps.workspaceAccessMiddleware.checkProjectAccess('projectId'),
     deps.projectController.getProjectDetails
   );
 

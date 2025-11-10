@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/AuthMiddleware';
 import { CreateProjectUseCase } from '../../application/use-cases/CreateProjectUseCase';
 import { GetProjectDetailsUseCase } from '../../application/use-cases/GetProjectDetailsUseCase';
+import { UpdateProjectUseCase } from '../../application/use-cases/UpdateProjectUseCase';
 import { UndoVersionUseCase } from '../../application/use-cases/UndoVersionUseCase';
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
 import { IPromptRepository } from '../../domain/repositories/IPromptRepository';
@@ -11,6 +12,7 @@ export class ProjectController {
   constructor(
     private createProjectUseCase: CreateProjectUseCase,
     private getProjectDetailsUseCase: GetProjectDetailsUseCase,
+    private updateProjectUseCase: UpdateProjectUseCase,
     private undoVersionUseCase: UndoVersionUseCase,
     private projectRepository: IProjectRepository,
     private promptRepository: IPromptRepository,
@@ -20,7 +22,7 @@ export class ProjectController {
   createProject = async (req: AuthRequest, res: Response) => {
     try {
       const { name, description, workspaceId } = req.body;
-      
+
       if (!req.user) {
         return res.status(401).json({ error: 'User not authenticated' });
       }
@@ -35,8 +37,51 @@ export class ProjectController {
     } catch (error) {
       console.error('Error creating project:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      res.status(500).json({ 
+      res.status(500).json({
         error: 'Failed to create project',
+        details: errorMessage
+      });
+    }
+  };
+
+  updateProject = async (req: AuthRequest, res: Response) => {
+    try {
+      const { projectId } = req.params;
+      const { name, description } = req.body;
+
+      if (!req.user) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+
+      console.log(`PATCH /api/projects/${projectId} - User: ${req.user.id}, Name: ${name}`);
+
+      const project = await this.updateProjectUseCase.execute(
+        projectId,
+        { name, description },
+        req.user
+      );
+
+      console.log(`Updated project ${project.id} for user ${req.user.id}`);
+      res.json(project);
+    } catch (error) {
+      console.error('Error updating project:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+      // Handle specific error types
+      if (errorMessage === 'Project not found') {
+        return res.status(404).json({ error: errorMessage });
+      }
+
+      if (errorMessage.includes('Access denied')) {
+        return res.status(403).json({ error: errorMessage });
+      }
+
+      if (errorMessage.includes('required') || errorMessage.includes('characters')) {
+        return res.status(400).json({ error: errorMessage });
+      }
+
+      res.status(500).json({
+        error: 'Failed to update project',
         details: errorMessage
       });
     }

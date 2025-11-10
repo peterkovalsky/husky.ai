@@ -45,6 +45,7 @@ import { CreatePromptUseCase } from '../../application/use-cases/CreatePromptUse
 import { GetPromptStatusUseCase } from '../../application/use-cases/GetPromptStatusUseCase';
 import { CreateProjectUseCase } from '../../application/use-cases/CreateProjectUseCase';
 import { GetProjectDetailsUseCase } from '../../application/use-cases/GetProjectDetailsUseCase';
+import { UpdateProjectUseCase } from '../../application/use-cases/UpdateProjectUseCase';
 import { ProcessJobUseCase } from '../../application/use-cases/ProcessJobUseCase';
 import { PrepareProjectEnvironmentUseCase } from '../../application/use-cases/PrepareProjectEnvironmentUseCase';
 import { DeleteProjectUseCase } from '../../application/use-cases/DeleteProjectUseCase';
@@ -159,6 +160,10 @@ export function setupContainer(): DIContainer {
     container.get<IBuildRepository>('buildRepository')
   ));
 
+  container.registerFactory<UpdateProjectUseCase>('updateProjectUseCase', () => new UpdateProjectUseCase(
+    container.get<IProjectRepository>('projectRepository')
+  ));
+
   container.registerFactory<UndoVersionUseCase>('undoVersionUseCase', () => new UndoVersionUseCase(
     container.get<IBuildRepository>('buildRepository'),
     container.get<IProjectRepository>('projectRepository'),
@@ -215,6 +220,7 @@ export function setupContainer(): DIContainer {
   container.registerFactory<ProjectController>('projectController', () => new ProjectController(
     container.get<CreateProjectUseCase>('createProjectUseCase'),
     container.get<GetProjectDetailsUseCase>('getProjectDetailsUseCase'),
+    container.get<UpdateProjectUseCase>('updateProjectUseCase'),
     container.get<UndoVersionUseCase>('undoVersionUseCase'),
     container.get<IProjectRepository>('projectRepository'),
     container.get<IPromptRepository>('promptRepository'),

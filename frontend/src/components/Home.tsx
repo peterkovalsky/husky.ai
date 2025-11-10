@@ -1,11 +1,12 @@
 import { useProject } from '../contexts/ProjectContext'
-import { Card, CardBody, CardHeader, Button, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Divider, Chip } from '@heroui/react'
+import { Card, CardBody, CardHeader, Button, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Divider, Chip, useDisclosure } from '@heroui/react'
 import { CreateProjectDialog } from './CreateProjectDialog'
+import { EditProjectDialog } from './EditProjectDialog'
 import { DeleteProjectDialog } from './DeleteProjectDialog'
 import { PublishDialog } from './PublishDialog'
-import { Code2, Calendar, FolderOpen, MoreVertical, Trash2, Globe, Loader2, AlertCircle } from 'lucide-react'
+import { Code2, Calendar, FolderOpen, MoreVertical, Trash2, Globe, Loader2, AlertCircle, Edit } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { PublishingStatus, type Project } from '../services/api'
 
 export const Home = () => {
@@ -13,7 +14,17 @@ export const Home = () => {
   const navigate = useNavigate()
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [publishDialogOpen, setPublishDialogOpen] = useState(false)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
+
+  // Sort projects by creation date ascending (oldest first)
+  const sortedProjects = useMemo(() => {
+    return [...projects].sort((a, b) => {
+      const dateA = new Date(a.createdAt).getTime()
+      const dateB = new Date(b.createdAt).getTime()
+      return dateA - dateB // Ascending order
+    })
+  }, [projects])
 
   // Refresh projects when component mounts or becomes visible
   useEffect(() => {
@@ -42,6 +53,11 @@ export const Home = () => {
     if (deleteProject) {
       await deleteProject(projectId)
     }
+  }
+
+  const handleEditProject = (project: Project) => {
+    setSelectedProject(project)
+    setEditDialogOpen(true)
   }
 
   const handlePublishClick = (project: Project) => {
@@ -103,12 +119,12 @@ export const Home = () => {
             <h2 className="text-3xl font-bold mb-2">Your Projects</h2>
             <p className="text-default-500">Select a project to continue building your app</p>
           </div>
-          {projects.length > 0 && (
+          {sortedProjects.length > 0 && (
             <CreateProjectDialog />
           )}
         </div>
 
-        {!loading && projects.length === 0 ? (
+        {!loading && sortedProjects.length === 0 ? (
           <div className="text-center py-16">
             <div className="w-16 h-16 bg-default-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
               <FolderOpen className="w-8 h-8 text-default-500" />
@@ -119,7 +135,7 @@ export const Home = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {projects.map((project) => (
+            {sortedProjects.map((project) => (
               <Card 
                 key={project.id} 
                 isPressable
@@ -145,6 +161,16 @@ export const Home = () => {
                       </Button>
                     </DropdownTrigger>
                     <DropdownMenu aria-label="Project actions">
+                      <DropdownItem
+                        key="edit"
+                        textValue="Edit Project"
+                        onClick={() => handleEditProject(project)}
+                      >
+                        <div className="flex items-center">
+                          <Edit className="mr-2 h-4 w-4" />
+                          Edit Project
+                        </div>
+                      </DropdownItem>
                       {(project.publishedStatus === PublishingStatus.UNPUBLISHED || project.publishedStatus === PublishingStatus.FAILED) ? (
                         <DropdownItem
                           key="publish"
@@ -217,9 +243,17 @@ export const Home = () => {
         )}
       </div>
 
-      {/* Delete Project Dialog */}
+      {/* Dialogs */}
       {selectedProject && (
         <>
+          <EditProjectDialog
+            projectId={selectedProject.id}
+            currentName={selectedProject.name}
+            currentDescription={undefined}
+            isOpen={editDialogOpen}
+            onOpenChange={() => setEditDialogOpen(!editDialogOpen)}
+            onProjectUpdated={refreshProjects}
+          />
           <DeleteProjectDialog
             isOpen={deleteDialogOpen}
             onOpenChange={setDeleteDialogOpen}

@@ -115,6 +115,11 @@ export interface CreateProjectRequest {
   workspaceId?: string;
 }
 
+export interface UpdateProjectRequest {
+  name: string;
+  description?: string;
+}
+
 export interface GeneratePresignedUploadResponse {
   mediaId: string;
   uploadUrl: string;
@@ -308,6 +313,13 @@ export class ApiService {
   static async createProject(request: CreateProjectRequest): Promise<Project> {
     return this.request<Project>('/api/projects', {
       method: 'POST',
+      body: JSON.stringify(request),
+    });
+  }
+
+  static async updateProject(projectId: string, request: UpdateProjectRequest): Promise<Project> {
+    return this.request<Project>(`/api/projects/${projectId}`, {
+      method: 'PATCH',
       body: JSON.stringify(request),
     });
   }
