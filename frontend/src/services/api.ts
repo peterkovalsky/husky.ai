@@ -156,19 +156,12 @@ export interface DNSInstructions {
   value: string;
 }
 
-export interface TXTValidationRecord {
-  txt_name: string;
-  txt_value: string;
-}
-
 export interface CustomDomainInfo {
   domain: string;
   status: CustomDomainStatus;
   url?: string;
   error?: string;
   dnsInstructions?: DNSInstructions;
-  validationRecords?: TXTValidationRecord[];
-  validationMessage?: string;
 }
 
 export interface PublishStatusResponse {
@@ -437,7 +430,6 @@ export class ApiService {
   static async verifyCustomDomainDNS(projectId: string): Promise<{
     verified: boolean;
     error?: string;
-    validationRecords?: TXTValidationRecord[];
     message?: string;
   }> {
     return this.request(`/api/projects/${projectId}/custom-domain/verify`, {

@@ -5,15 +5,9 @@ import { CustomDomainStatus } from '../../domain/entities/Project';
 import { CloudflareSaaSService } from '../../infrastructure/cdn/CloudflareSaaSService';
 import { CloudflareKVService } from '../../infrastructure/storage/CloudflareKVService';
 
-export interface TXTValidationRecord {
-  txt_name: string;
-  txt_value: string;
-}
-
 export interface VerifyDNSResult {
   verified: boolean;
   error?: string;
-  validationRecords?: TXTValidationRecord[];
   message?: string;
 }
 
@@ -52,9 +46,9 @@ export class VerifyCustomDomainDNSUseCase {
       throw new Error('Project does not have a subdomain. Please contact support.');
     }
 
-    // Build expected CNAME target
+    // Build expected CNAME target - should point to fallback origin
     const publishDomain = process.env.PUBLISH_DOMAIN || 'huskystudio.ai';
-    const expectedTarget = `${project.subdomain}.${publishDomain}`;
+    const expectedTarget = `fallback.${publishDomain}`;
 
     // Verify DNS
     const verificationResult = await this.dnsVerificationService.verifyCNAME(
@@ -110,11 +104,9 @@ export class VerifyCustomDomainDNSUseCase {
 
   /**
    * Provision SSL certificate for custom domain
-   * Returns validation records if user needs to add them to their DNS
-   * Returns success message if SSL provisioning completed automatically
+   * With HTTP validation, SSL is automatically provisioned by Cloudflare
    */
   private async provisionSSL(projectId: string, customDomain: string): Promise<{
-    validationRecords?: TXTValidationRecord[];
     message?: string;
   }> {
     console.log(`[VerifyCustomDomainDNSUseCase] Starting SSL provisioning for ${customDomain}`);
@@ -128,37 +120,17 @@ export class VerifyCustomDomainDNSUseCase {
 
       // Create or reuse Cloudflare custom hostname
       let hostnameId = project.customDomainCloudflareId;
-      let validationRecords: TXTValidationRecord[] | undefined;
 
       if (!hostnameId) {
         console.log(`[VerifyCustomDomainDNSUseCase] Creating Cloudflare custom hostname for ${customDomain}`);
         const result = await this.cloudflareSaaSService.createCustomHostname(customDomain);
         hostnameId = result.hostnameId;
-        validationRecords = result.validationRecords;
 
         await this.projectRepository.update(projectId, {
           customDomainCloudflareId: hostnameId
         });
 
         console.log(`[VerifyCustomDomainDNSUseCase] Custom hostname created: ${hostnameId}, SSL status: ${result.sslStatus}`);
-
-        // If validation records are present, user needs to add them to their DNS
-        if (validationRecords && validationRecords.length > 0) {
-          console.log(`[VerifyCustomDomainDNSUseCase] Validation records returned - user must add TXT records to their DNS`);
-          console.log(`[VerifyCustomDomainDNSUseCase] Validation records:`, validationRecords);
-
-          // Keep status as PENDING_SSL - user needs to add TXT records
-          await this.projectRepository.updateCustomDomainStatus(
-            projectId,
-            CustomDomainStatus.PENDING_SSL,
-            'Waiting for DNS TXT validation records to be added'
-          );
-
-          return {
-            validationRecords,
-            message: 'Please add the following TXT records to your DNS to complete SSL validation'
-          };
-        }
       } else {
         console.log(`[VerifyCustomDomainDNSUseCase] Reusing existing custom hostname: ${hostnameId}`);
 
@@ -182,24 +154,11 @@ export class VerifyCustomDomainDNSUseCase {
           return {
             message: 'SSL certificate is now active!'
           };
-        } else if (currentStatus.sslStatus === 'pending_validation') {
-          // Still waiting for user to add TXT records
-          console.log(`[VerifyCustomDomainDNSUseCase] SSL still pending validation - user needs to add TXT records`);
-
-          // Get validation records from Cloudflare
-          const records = await this.cloudflareSaaSService.getValidationRecords(hostnameId);
-
-          if (records.length > 0) {
-            return {
-              validationRecords: records,
-              message: 'Please add the following TXT records to your DNS. SSL validation is still pending.'
-            };
-          }
         }
       }
 
-      // No validation records - wait for SSL activation (for subdomains)
-      console.log(`[VerifyCustomDomainDNSUseCase] Waiting for SSL activation...`);
+      // Wait for SSL activation (automatic with HTTP validation method)
+      console.log(`[VerifyCustomDomainDNSUseCase] Waiting for automatic SSL activation via HTTP validation...`);
       try {
         await this.cloudflareSaaSService.waitForSSLActivation(hostnameId, 180000, 5000);
         console.log(`[VerifyCustomDomainDNSUseCase] SSL activated for ${customDomain}!`);
@@ -222,7 +181,7 @@ export class VerifyCustomDomainDNSUseCase {
       console.log(`[VerifyCustomDomainDNSUseCase] SSL provisioning completed for ${customDomain}`);
 
       return {
-        message: 'SSL certificate provisioned successfully'
+        message: 'SSL certificate provisioned automatically via HTTP validation'
       };
     } catch (error) {
       console.error(`[VerifyCustomDomainDNSUseCase] SSL provisioning failed:`, error);

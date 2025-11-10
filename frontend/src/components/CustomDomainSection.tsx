@@ -1,6 +1,6 @@
 import { Card, CardBody, Input, Button, Code, Alert, Chip, Divider, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Accordion, AccordionItem } from '@heroui/react'
-import { ApiService, type CustomDomainInfo, type TXTValidationRecord, CustomDomainStatus } from '../services/api'
-import { useState, useEffect } from 'react'
+import { ApiService, type CustomDomainInfo, CustomDomainStatus } from '../services/api'
+import { useState } from 'react'
 import { Globe, Check, AlertCircle, Loader2, X, ExternalLink, Copy, CheckCheck, Info } from 'lucide-react'
 
 interface CustomDomainSectionProps {
@@ -16,19 +16,6 @@ export const CustomDomainSection = ({ projectId, customDomain, onUpdate }: Custo
   const [error, setError] = useState<string | null>(null)
   const [copiedValue, setCopiedValue] = useState(false)
   const [showInstructions, setShowInstructions] = useState(false)
-  const [validationRecords, setValidationRecords] = useState<TXTValidationRecord[]>([])
-  const [validationMessage, setValidationMessage] = useState<string | null>(null)
-
-  // Sync validation records from prop when customDomain changes
-  useEffect(() => {
-    if (customDomain?.validationRecords && customDomain.validationRecords.length > 0) {
-      setValidationRecords(customDomain.validationRecords)
-      setValidationMessage(customDomain.validationMessage || null)
-    } else {
-      setValidationRecords([])
-      setValidationMessage(null)
-    }
-  }, [customDomain])
 
   const handleSetCustomDomain = async () => {
     if (!domainInput.trim()) {
@@ -58,14 +45,6 @@ export const CustomDomainSection = ({ projectId, customDomain, onUpdate }: Custo
       const result = await ApiService.verifyCustomDomainDNS(projectId)
 
       if (result.verified) {
-        // Store validation records if present
-        if (result.validationRecords && result.validationRecords.length > 0) {
-          setValidationRecords(result.validationRecords)
-          setValidationMessage(result.message || null)
-        } else {
-          setValidationRecords([])
-          setValidationMessage(null)
-        }
         onUpdate()
       } else {
         setError(result.error || 'DNS verification failed')
@@ -134,6 +113,10 @@ export const CustomDomainSection = ({ projectId, customDomain, onUpdate }: Custo
         <div className="text-xs text-default-500">
           Use your own domain for this project
         </div>
+
+        <Alert color="warning" variant="flat" className="text-xs">
+          ⚠️ Only subdomains are supported (www.example.com, app.example.com). Apex domains (example.com) require Cloudflare Enterprise.
+        </Alert>
 
         <div className="flex gap-2">
           <Input
@@ -277,95 +260,13 @@ export const CustomDomainSection = ({ projectId, customDomain, onUpdate }: Custo
       )}
 
       {customDomain.status === CustomDomainStatus.PENDING_SSL && (
-        <>
-          {validationRecords.length > 0 ? (
-            <Card shadow="none" className="bg-primary-50 border border-primary-200">
-              <CardBody className="p-3 space-y-3">
-                <div className="flex items-start gap-2">
-                  <Info className="w-4 h-4 text-primary-600 mt-0.5 flex-shrink-0" />
-                  <div className="space-y-2 flex-1">
-                    <div className="text-xs font-medium text-primary-900">
-                      TXT Records Required for SSL Validation
-                    </div>
-                    {validationMessage && (
-                      <div className="text-xs text-primary-700">
-                        {validationMessage}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {validationRecords.map((record, index) => (
-                  <div key={index} className="space-y-1.5 text-xs bg-white rounded p-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-default-500 font-medium">Type:</span>
-                      <Code size="sm" className="text-xs">TXT</Code>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-default-500 font-medium">Name:</span>
-                      <div className="flex items-center gap-1.5">
-                        <Code size="sm" className="text-xs break-all">{record.txt_name}</Code>
-                        <button
-                          onClick={() => handleCopyValue(record.txt_name)}
-                          className="p-1 hover:bg-default-200 rounded transition-colors"
-                          title="Copy to clipboard"
-                        >
-                          {copiedValue ? (
-                            <CheckCheck className="w-3.5 h-3.5 text-success" />
-                          ) : (
-                            <Copy className="w-3.5 h-3.5 text-default-600" />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                    <div className="flex justify-between items-center gap-2">
-                      <span className="text-default-500 font-medium">Value:</span>
-                      <div className="flex items-center gap-1.5">
-                        <Code size="sm" className="text-xs break-all max-w-[400px]">{record.txt_value}</Code>
-                        <button
-                          onClick={() => handleCopyValue(record.txt_value)}
-                          className="p-1 hover:bg-default-200 rounded transition-colors"
-                          title="Copy to clipboard"
-                        >
-                          {copiedValue ? (
-                            <CheckCheck className="w-3.5 h-3.5 text-success" />
-                          ) : (
-                            <Copy className="w-3.5 h-3.5 text-default-600" />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-
-                <Alert color="warning" variant="flat" className="text-xs">
-                  Add these TXT records to your domain's DNS settings to complete SSL certificate validation. After adding, click "Check DNS" again to verify.
-                </Alert>
-
-                <div className="mt-2">
-                  <Button
-                    size="sm"
-                    color="primary"
-                    variant="flat"
-                    onPress={handleVerifyDNS}
-                    isLoading={isVerifying}
-                    startContent={!isVerifying ? <Check className="w-3 h-3" /> : undefined}
-                  >
-                    Check DNS
-                  </Button>
-                </div>
-              </CardBody>
-            </Card>
-          ) : (
-            <Alert
-              color="primary"
-              variant="flat"
-              title="SSL Provisioning"
-              description="SSL certificate is being provisioned (30s - 2min)"
-              className="text-xs"
-            />
-          )}
-        </>
+        <Alert
+          color="primary"
+          variant="flat"
+          title="SSL Certificate Provisioning"
+          description="SSL is being provisioned automatically by Cloudflare (30 seconds - 2 minutes). No action needed!"
+          className="text-xs"
+        />
       )}
 
       {customDomain.status === CustomDomainStatus.FAILED && customDomain.error && (

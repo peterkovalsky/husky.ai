@@ -2,16 +2,18 @@ name = "husky-published-sites"
 main = "src/index.ts"
 compatibility_date = "2025-01-15"
 
-# R2 Bucket binding
+# R2 Bucket binding (production)
 [[r2_buckets]]
 binding = "R2_BUCKET"
-bucket_name = "dev-husky-published-apps"
+bucket_name = "prod-husky-published-apps"
 
 # KV Namespace binding (required for domain-to-project mapping)
 [[kv_namespaces]]
 binding = "SUBDOMAIN_MAPPING"
 id = "ffafafa93adf4e3fb68d190bcb905eb2"
 
-# Routes (configure after deployment)
-# Add custom domain routes via Cloudflare dashboard:
-# - *.huskystudio.ai/*
+# Routes (configure after deployment via Cloudflare dashboard)
+# Recommended route pattern for Cloudflare for SaaS:
+# - Pattern: */*
+#   This wildcard route catches ALL traffic (subdomains + custom domains)
+#   and works regardless of customer DNS proxy settings (orange/grey cloud)

@@ -82,7 +82,8 @@ export class ProcessPublishJobUseCase {
             console.log(`[ProcessPublishJobUseCase] Custom domain KV mapping updated`);
           } else {
             // Verify DNS one more time before publishing
-            const expectedTarget = `${project.subdomain}.${this.publishDomain}`;
+            // Custom domains should point to fallback origin
+            const expectedTarget = `fallback.${this.publishDomain}`;
             const dnsCheck = await this.dnsVerificationService.verifyCNAME(
               project.customDomain,
               expectedTarget

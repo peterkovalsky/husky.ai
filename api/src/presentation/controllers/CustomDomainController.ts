@@ -69,7 +69,6 @@ export class CustomDomainController {
       res.status(200).json({
         verified: result.verified,
         error: result.error,
-        validationRecords: result.validationRecords,
         message: result.message
       });
     } catch (error) {

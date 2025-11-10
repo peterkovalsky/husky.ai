@@ -5,7 +5,7 @@ import { CustomDomainStatus } from '../../domain/entities/Project';
 export interface DNSInstructions {
   type: 'CNAME';
   name: string;  // Part before the domain (e.g., "www" for "www.example.com")
-  value: string; // CNAME target (e.g., "happy-cloud-42.huskystudio.ai")
+  value: string; // CNAME target - fallback origin (e.g., "fallback.huskystudio.app")
 }
 
 export interface SetCustomDomainResult {
@@ -57,7 +57,8 @@ export class SetCustomDomainUseCase {
     // Extract the DNS record name from the domain
     const dnsRecordName = this.extractDNSRecordName(normalizedDomain);
     const publishDomain = process.env.PUBLISH_DOMAIN || 'huskystudio.ai';
-    const cnameTarget = `${project.subdomain}.${publishDomain}`;
+    // Point to fallback origin for Cloudflare for SaaS
+    const cnameTarget = `fallback.${publishDomain}`;
 
     // Save custom domain with PENDING_DNS status
     await this.projectRepository.update(projectId, {

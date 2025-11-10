@@ -6,7 +6,7 @@ import { CloudflareSaaSService } from '../../infrastructure/cdn/CloudflareSaaSSe
 export interface DNSInstructions {
   type: 'CNAME';
   name: string;  // Part before the domain (e.g., "www" for "www.example.com")
-  value: string; // CNAME target (e.g., "happy-cloud-42.huskystudio.ai")
+  value: string; // CNAME target - fallback origin (e.g., "fallback.huskystudio.app")
 }
 
 export interface TXTValidationRecord {
@@ -138,7 +138,7 @@ export class GetPublishStatusUseCase {
         dnsInstructions: {
           type: 'CNAME',
           name: dnsRecordName,
-          value: `${subdomain}.${publishDomain}`
+          value: `fallback.${publishDomain}`
         }
       };
 
