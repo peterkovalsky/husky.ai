@@ -6,6 +6,7 @@ import { ChatWidget } from './ChatWidget'
 import { NewProjectStarter } from './NewProjectStarter'
 import { Button } from '@heroui/react'
 import { Code2, ArrowLeft, Loader2 } from 'lucide-react'
+import { useLocalStorage } from '../hooks/useLocalStorage'
 
 export const ProjectPage = () => {
   const { project_id } = useParams<{ project_id: string }>()
@@ -17,6 +18,12 @@ export const ProjectPage = () => {
   const [error, setError] = useState<string | null>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [currentPreviewUrl, setCurrentPreviewUrl] = useState<string>('')
+
+  // Sidebar state with localStorage persistence
+  const [isSidebarLocked, setIsSidebarLocked] = useLocalStorage('husky_sidebar_locked', true)
+  const [isSidebarOpen, setIsSidebarOpen] = useLocalStorage('husky_sidebar_open', true)
+  const [isHoveringLeftEdge, setIsHoveringLeftEdge] = useState(false)
+  const [isHoveringSidebar, setIsHoveringSidebar] = useState(false)
 
   // Reset state when project_id changes
   useEffect(() => {
@@ -162,8 +169,16 @@ export const ProjectPage = () => {
   const isFullyLoaded = projectDetails && hasReadyPreview && iframeLoaded
   const shouldShowLoading = !isFullyLoaded
 
+  // Determine if sidebar should be visible
+  // When locked: show if open OR if hovering (to allow reopening)
+  // When unlocked: show ONLY when hovering (ignore isSidebarOpen)
+  const shouldShowSidebar = isSidebarLocked
+    ? (isSidebarOpen || isHoveringLeftEdge || isHoveringSidebar)
+    : (isHoveringLeftEdge || isHoveringSidebar)
+  const sidebarWidth = 400 // Fixed width in pixels
+
   return (
-    <div className="h-screen flex flex-col relative bg-background">
+    <div className="h-screen flex relative bg-background">
       {/* Loading overlay - covers everything until fully ready */}
       {shouldShowLoading && (
         <div className="absolute inset-0 bg-background flex items-center justify-center z-50">
@@ -174,38 +189,81 @@ export const ProjectPage = () => {
         </div>
       )}
 
-      {/* Iframe - ALWAYS rendered from the start, NEVER unmounts or remounts */}
-      {/* No key prop = stable element, only src updates */}
-      <iframe
-        ref={iframeRef}
-        src={currentPreviewUrl}
-        className="w-full h-full border-0"
-        title="Project Preview"
-        sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-        onLoad={() => {
-          // Only mark as loaded if we actually have content
-          if (currentPreviewUrl) {
-            setIframeLoaded(true)
-          }
-        }}
-        onError={() => {
-          if (currentPreviewUrl) {
-            setIframeLoaded(true)
-          }
-        }}
-      />
-
-      {/* Chat widget - only show when fully loaded */}
-      {isFullyLoaded && (
-        <ChatWidget
-          projectId={projectDetails.project.id}
+      {/* Left edge hover zone - active when sidebar is not visible */}
+      {!shouldShowSidebar && isFullyLoaded && (
+        <div
+          className="absolute left-0 top-0 h-full w-5 z-40"
+          onMouseEnter={() => setIsHoveringLeftEdge(true)}
+          onMouseLeave={() => setIsHoveringLeftEdge(false)}
         />
       )}
+
+      {/* Chat Sidebar - only show when fully loaded */}
+      {isFullyLoaded && (
+        <div
+          className={`
+            ${(isSidebarLocked && isSidebarOpen) ? 'relative' : 'absolute left-0 top-0 h-full z-30'}
+            transition-transform duration-300 ease-in-out
+            ${shouldShowSidebar ? 'translate-x-0' : '-translate-x-full'}
+            ${!shouldShowSidebar ? 'pointer-events-none' : ''}
+          `}
+          style={{ width: `${sidebarWidth}px` }}
+          onMouseEnter={() => {
+            setIsHoveringSidebar(true)
+          }}
+          onMouseLeave={() => {
+            setIsHoveringSidebar(false)
+            setIsHoveringLeftEdge(false)
+          }}
+        >
+          <ChatWidget
+            projectId={projectDetails.project.id}
+            isSidebarLocked={isSidebarLocked}
+            onToggleLock={() => setIsSidebarLocked(!isSidebarLocked)}
+            isSidebarOpen={isSidebarOpen}
+            onToggleOpen={() => {
+              setIsSidebarOpen(!isSidebarOpen)
+              // Clear hover states when explicitly closing
+              if (isSidebarOpen) {
+                setIsHoveringLeftEdge(false)
+                setIsHoveringSidebar(false)
+              }
+            }}
+          />
+        </div>
+      )}
+
+      {/* Iframe container */}
+      <div
+        className={`
+          flex-1 h-full relative
+          transition-all duration-300 ease-in-out
+        `}
+        style={{
+          marginLeft: isSidebarLocked && isSidebarOpen && isFullyLoaded ? `0px` : '0px'
+        }}
+      >
+        {/* Iframe - ALWAYS rendered from the start, NEVER unmounts or remounts */}
+        {/* No key prop = stable element, only src updates */}
+        <iframe
+          ref={iframeRef}
+          src={currentPreviewUrl}
+          className="w-full h-full border-0"
+          title="Project Preview"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+          onLoad={() => {
+            // Only mark as loaded if we actually have content
+            if (currentPreviewUrl) {
+              setIframeLoaded(true)
+            }
+          }}
+          onError={() => {
+            if (currentPreviewUrl) {
+              setIframeLoaded(true)
+            }
+          }}
+        />
+      </div>
     </div>
   )
-
-  // This case is now handled by the hasNoBuilds check above and the redirect useEffect
-  // If no prompts exist, totalBuilds will be 0 and hasNoBuilds will be true
-
-  return null
 }

@@ -2,8 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ApiService, type JobStatus } from '../services/api'
 import { useProject } from '../contexts/ProjectContext'
-import { Button, Card, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Alert } from '@heroui/react'
-import { MessageCircle, Loader2, CheckCircle, AlertCircle, ChevronDown, ChevronUp, ArrowLeft, RotateCcw } from 'lucide-react'
+import { Button, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Alert, Divider } from '@heroui/react'
+import { MessageCircle, Loader2, CheckCircle, AlertCircle, RotateCcw, ArrowLeft, CircleChevronLeft, PanelLeft } from 'lucide-react'
 import { PromptInput } from './PromptInput'
 import { useMediaUpload } from '../hooks/useMediaUpload'
 
@@ -20,12 +20,21 @@ interface ChatMessage {
 interface ChatWidgetProps {
   projectId?: string;
   projectName?: string;
+  isSidebarLocked?: boolean;
+  onToggleLock?: () => void;
+  isSidebarOpen?: boolean;
+  onToggleOpen?: () => void;
 }
 
-export const ChatWidget = ({ projectId }: ChatWidgetProps = {}) => {
-  const [isOpen, setIsOpen] = useState(true)
-  const [isExpanded, setIsExpanded] = useState(false)
+export const ChatWidget = ({
+  projectId,
+  isSidebarLocked = true,
+  onToggleLock,
+  isSidebarOpen = true,
+  onToggleOpen
+}: ChatWidgetProps = {}) => {
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [conversationHistory, setConversationHistory] = useState<ChatMessage[]>([])
   const [currentPrompt, setCurrentPrompt] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
@@ -103,6 +112,40 @@ export const ChatWidget = ({ projectId }: ChatWidgetProps = {}) => {
     }
 
     fetchProjectDetails()
+  }, [activeProjectId])
+
+  // Fetch conversation history from all prompts
+  useEffect(() => {
+    const fetchConversationHistory = async () => {
+      if (!activeProjectId) {
+        setConversationHistory([])
+        return
+      }
+
+      try {
+        const details = await ApiService.getProjectDetails(activeProjectId)
+
+        // Convert all prompts to chat messages
+        const historyMessages: ChatMessage[] = details.recentPrompts.map((prompt) => ({
+          id: prompt.id,
+          type: 'user',
+          content: prompt.prompt,
+          timestamp: new Date(prompt.createdAt),
+          status: prompt.status === 'READY' ? 'completed' : prompt.status === 'FAILED' ? 'failed' : 'processing',
+          jobId: prompt.id
+        }))
+
+        // Sort by timestamp ascending (oldest first)
+        historyMessages.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
+
+        setConversationHistory(historyMessages)
+      } catch (error) {
+        console.error('Failed to fetch conversation history:', error)
+        setConversationHistory([])
+      }
+    }
+
+    fetchConversationHistory()
   }, [activeProjectId])
 
   const updateMessageStatus = (messageId: string, status: ChatMessage['status'], jobId?: string) => {
@@ -327,176 +370,193 @@ export const ChatWidget = ({ projectId }: ChatWidgetProps = {}) => {
     })
   }
 
-  // Always show the widget, but handle no project case in the UI
-
   return (
     <>
-      {/* Chat Bubble */}
-      <div className="fixed bottom-6 right-6 z-50">
-        {!isOpen && (
+      {/* Full-height sidebar */}
+      <div className="h-full flex flex-col bg-background border-r border-divider">
+        {/* Header with controls */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-divider">
+          {/* Left side: Back to Projects button */}
           <Button
-            onPress={() => setIsOpen(true)}
-            size="lg"
-            className="rounded-full shadow-lg"
-            color="primary"
-            isIconOnly            
+            variant="light"
+            size="sm"
+            onPress={() => navigate('/dashboard')}
+            startContent={<ArrowLeft className="h-4 w-4" />}
           >
-            <MessageCircle className="h-6 w-6" />
+            Projects
           </Button>
-        )}
 
-        {/* Chat Window */}
-        {isOpen && (
-          <Card className={`w-80 flex flex-col shadow-2xl transition-all ${isExpanded ? 'h-[576px]' : 'h-auto'}`} isBlurred={true}>
-            {/* Header */}
-            <div className="flex items-center justify-between px-4 pt-4">
+          {/* Right side: Control buttons */}
+          <div className="flex items-center gap-1">
+            {successfulBuildsCount >= 2 && (
               <Button
                 variant="light"
                 size="sm"
-                onPress={() => navigate('/dashboard')}
-                startContent={<ArrowLeft className="h-4 w-4" />}
+                onPress={() => setIsUndoModalOpen(true)}
+                title="Undo last version"
+                isIconOnly
+                isDisabled={isProcessing || isSubmitting}
               >
-                Back to projects
+                <RotateCcw className="h-4 w-4" />
               </Button>
-              <div className="flex items-center gap-1">
-                {successfulBuildsCount >= 2 && (
-                  <Button
-                    variant="light"
-                    size="sm"
-                    onPress={() => setIsUndoModalOpen(true)}
-                    title="Undo last version"
-                    isIconOnly
-                    isDisabled={isProcessing || isSubmitting}
-                  >
-                    <RotateCcw className="h-4 w-4" />
-                  </Button>
-                )}
-                <Button
-                  variant="light"
-                  size="sm"
-                  onPress={() => setIsExpanded(!isExpanded)}
-                  title={isExpanded ? "Collapse" : "Expand"}
-                  isIconOnly
-                >
-                  {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                </Button>
-              </div>
-            </div>
-
-            {/* Messages */}
-            {isExpanded && (
-              <div className="flex-1 overflow-y-auto px-4 space-y-3 py-4">
-                {messages.filter(msg => msg.type === 'user').length === 0 && (
-                  <div className="text-center py-12">
-                    <div className="bg-content2 rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                      <MessageCircle className="h-8 w-8 opacity-60" />
-                    </div>
-                    <p className="opacity-70 leading-relaxed">
-                      {activeProjectId
-                        ? "No prompts yet"
-                        : "Select a project to start building!"
-                      }
-                    </p>
-                  </div>
-                )}
-
-                {messages.filter(msg => msg.type === 'user').map((message) => (
-                  <div
-                    key={message.id}
-                    className="flex justify-end"
-                  >
-                    <div className="max-w-[80%] rounded-2xl px-4 py-3 backdrop-blur-sm bg-primary text-primary-foreground shadow-sm">
-                      <div className="flex items-start gap-2">
-                        <span className="flex-1 leading-relaxed">{message.content}</span>
-                        {getStatusIcon(message.status)}
-                      </div>
-                      <div className="opacity-60 mt-2 text-xs">
-                        {formatTime(message.timestamp)}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-
-                <div ref={messagesEndRef} />
-              </div>
             )}
-
-            {/* Input */}
-            <div className="p-4">
-              <PromptInput
-                value={currentPrompt}
-                onChange={setCurrentPrompt}
-                onSubmit={handleSubmit}
-                onKeyDown={handleKeyDown}
-                onFileSelect={handleFileSelect}
-                onRemoveFile={removeFile}
-                attachedFiles={attachedImages}
-                isSubmitting={isSubmitting || isProcessing}
-                isDisabled={!activeProjectId || isSubmitting || isProcessing}
-                placeholder={activeProjectId ? "Describe your changes..." : "Select a project first..."}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                isDragging={isDragging}
-                loadingStatus={currentLoadingStatus}
-              />
-            </div>
-          </Card>
-        )}
-
-        {/* Undo Confirmation Modal */}
-        <Modal
-          isOpen={isUndoModalOpen}
-          onClose={() => {
-            if (!isUndoing) {
-              setIsUndoModalOpen(false)
-              setUndoError(null)
-            }
-          }}
-          size="md"
-        >
-          <ModalContent>
-            <ModalHeader>Undo Last Version?</ModalHeader>
-            <ModalBody>
-              {undoError && (
-                <Alert
-                  color="danger"
-                  variant="flat"
-                  title="Error"
-                  description={undoError}
-                  className="mb-4"
-                />
-              )}
-              <p>
-                This will permanently delete the latest version (v{currentVersion}) and restore the previous version. This action cannot be undone.
-              </p>
-              <p className="text-sm opacity-70 mt-2">
-                Are you sure you want to continue?
-              </p>
-            </ModalBody>
-            <ModalFooter>
+            {isSidebarLocked && isSidebarOpen ? (
+              /* Locked and open: Show circle-chevron-left to collapse */
               <Button
                 variant="light"
-                onPress={() => {
-                  setIsUndoModalOpen(false)
-                  setUndoError(null)
-                }}
-                isDisabled={isUndoing}
+                size="sm"
+                onPress={onToggleOpen}
+                title="Collapse sidebar"
+                isIconOnly
               >
-                Cancel
+                <CircleChevronLeft className="h-4 w-4" />
               </Button>
+            ) : (
+              /* Unlocked or closed: Show panel-left to lock/open sidebar */
               <Button
-                color="danger"
-                onPress={handleUndo}
-                isLoading={isUndoing}
-                isDisabled={isUndoing}
+                variant="light"
+                size="sm"
+                onPress={isSidebarLocked ? onToggleOpen : onToggleLock}
+                title={isSidebarLocked ? "Open sidebar" : "Lock sidebar"}
+                isIconOnly
               >
-                {isUndoing ? 'Undoing...' : 'Undo Version'}
+                <PanelLeft className="h-4 w-4" />
               </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
+            )}
+          </div>
+        </div>
+
+        {/* Conversation history */}
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+          {conversationHistory.length === 0 && messages.filter(msg => msg.type === 'user').length === 0 && (
+            <div className="text-center py-12">
+              <div className="bg-content2 rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                <MessageCircle className="h-8 w-8 opacity-60" />
+              </div>
+              <p className="opacity-70 leading-relaxed">
+                {activeProjectId
+                  ? "No prompts yet. Start building your app!"
+                  : "Select a project to start building!"
+                }
+              </p>
+            </div>
+          )}
+
+          {/* Display conversation history */}
+          {conversationHistory.map((message) => (
+            <div
+              key={message.id}
+              className="flex justify-end"
+            >
+              <div className="max-w-[85%] rounded-2xl px-4 py-3 backdrop-blur-sm bg-primary text-primary-foreground shadow-sm">
+                <div className="flex items-start gap-2">
+                  <span className="flex-1 leading-relaxed break-words">{message.content}</span>
+                  {getStatusIcon(message.status)}
+                </div>
+                <div className="opacity-60 mt-2 text-xs">
+                  {formatTime(message.timestamp)}
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {/* Display current session messages */}
+          {messages.filter(msg => msg.type === 'user').map((message) => (
+            <div
+              key={message.id}
+              className="flex justify-end"
+            >
+              <div className="max-w-[85%] rounded-2xl px-4 py-3 backdrop-blur-sm bg-primary text-primary-foreground shadow-sm">
+                <div className="flex items-start gap-2">
+                  <span className="flex-1 leading-relaxed break-words">{message.content}</span>
+                  {getStatusIcon(message.status)}
+                </div>
+                <div className="opacity-60 mt-2 text-xs">
+                  {formatTime(message.timestamp)}
+                </div>
+              </div>
+            </div>
+          ))}
+
+          <div ref={messagesEndRef} />
+        </div>
+
+        <Divider />
+
+        {/* Input area at bottom */}
+        <div className="p-4 bg-background">
+          <PromptInput
+            value={currentPrompt}
+            onChange={setCurrentPrompt}
+            onSubmit={handleSubmit}
+            onKeyDown={handleKeyDown}
+            onFileSelect={handleFileSelect}
+            onRemoveFile={removeFile}
+            attachedFiles={attachedImages}
+            isSubmitting={isSubmitting || isProcessing}
+            isDisabled={!activeProjectId || isSubmitting || isProcessing}
+            placeholder={activeProjectId ? "Describe your changes..." : "Select a project first..."}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            isDragging={isDragging}
+            loadingStatus={currentLoadingStatus}
+          />
+        </div>
       </div>
+
+      {/* Undo Confirmation Modal */}
+      <Modal
+        isOpen={isUndoModalOpen}
+        onClose={() => {
+          if (!isUndoing) {
+            setIsUndoModalOpen(false)
+            setUndoError(null)
+          }
+        }}
+        size="md"
+      >
+        <ModalContent>
+          <ModalHeader>Undo Last Version?</ModalHeader>
+          <ModalBody>
+            {undoError && (
+              <Alert
+                color="danger"
+                variant="flat"
+                title="Error"
+                description={undoError}
+                className="mb-4"
+              />
+            )}
+            <p>
+              This will permanently delete the latest version (v{currentVersion}) and restore the previous version. This action cannot be undone.
+            </p>
+            <p className="text-sm opacity-70 mt-2">
+              Are you sure you want to continue?
+            </p>
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              variant="light"
+              onPress={() => {
+                setIsUndoModalOpen(false)
+                setUndoError(null)
+              }}
+              isDisabled={isUndoing}
+            >
+              Cancel
+            </Button>
+            <Button
+              color="danger"
+              onPress={handleUndo}
+              isLoading={isUndoing}
+              isDisabled={isUndoing}
+            >
+              {isUndoing ? 'Undoing...' : 'Undo Version'}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </>
   )
 }
