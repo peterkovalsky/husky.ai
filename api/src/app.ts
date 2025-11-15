@@ -33,6 +33,10 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
+// Stripe webhook needs raw body for signature verification
+// Must be BEFORE the JSON body parser
+app.use('/api/billing/webhook', express.raw({ type: 'application/json' }));
+
 // Increase request size limit for large prompts and project data
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
@@ -72,6 +76,8 @@ const apiRoutes = createApiRoutes({
   mediaController: container.get('mediaController'),
   publishingController: container.get('publishingController'),
   customDomainController: container.get('customDomainController'),
+  billingController: container.get('billingController'),
+  stripeWebhookController: container.get('stripeWebhookController'),
 });
 
 app.use('/api', apiRoutes);

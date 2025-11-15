@@ -5,6 +5,8 @@ import { SignUp } from './components/auth/SignUp'
 import { ForgotPassword } from './components/auth/ForgotPassword'
 import { Home } from './components/Home'
 import { ProjectPage } from './components/ProjectPage'
+import { SubscriptionPage } from './components/SubscriptionPage'
+import { TransactionsPage } from './components/TransactionsPage'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { ConfigurationNotice } from './components/ConfigurationNotice'
 import { AppLayout } from './components/AppLayout'
@@ -86,6 +88,34 @@ function App() {
           <ProtectedRoute>
             <ProjectProvider>
               <ProjectPage />
+            </ProjectProvider>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/billing"
+        element={<Navigate to="/subscription" replace />}
+      />
+      <Route
+        path="/subscription"
+        element={
+          <ProtectedRoute>
+            <ProjectProvider>
+              <AppLayout>
+                <SubscriptionPage />
+              </AppLayout>
+            </ProjectProvider>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/transactions"
+        element={
+          <ProtectedRoute>
+            <ProjectProvider>
+              <AppLayout>
+                <TransactionsPage />
+              </AppLayout>
             </ProjectProvider>
           </ProtectedRoute>
         }

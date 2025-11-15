@@ -24,6 +24,10 @@ export interface Workspace {
   name: string;
   createdAt: string;
   modifiedAt: string;
+  subscriptionTier?: 'free' | 'basic' | 'pro';
+  creditsMonthlyRemaining?: number;
+  creditsPurchased?: number;
+  creditsMonthlyAllocated?: number;
 }
 
 export interface Project {
@@ -183,6 +187,44 @@ export interface PublishStatusResponse {
 export interface PublishResponse {
   message: string;
   projectId: string;
+}
+
+export interface CreditBalanceResponse {
+  totalCredits: number;
+  monthlyRemaining: number;
+  purchased: number;
+  purchasedUsed: number;
+  purchasedTotal: number;
+  monthlyAllocated: number;
+  isLow: boolean;
+  isOut: boolean;
+  threshold: number;
+  tier: string;
+  billingPeriodEnd: string;
+}
+
+export interface PurchaseCreditsResponse {
+  checkoutUrl?: string;
+  clientSecret?: string;
+  amount: number;
+  credits: number;
+}
+
+export interface SubscriptionResponse {
+  message?: string;
+  checkoutUrl?: string;
+  subscriptionId?: string;
+  tier: string;
+  creditsAllocated: number;
+}
+
+export interface PurchaseHistoryResponse {
+  purchases: {
+    id: string;
+    credits: number;
+    amount: number;
+    date: string;
+  }[];
 }
 
 
@@ -483,5 +525,57 @@ export class ApiService {
 
     // Return cleanup function
     return () => clearInterval(intervalId);
+  }
+
+  // Billing methods
+  static async getCredits(workspaceId: string): Promise<CreditBalanceResponse> {
+    return this.request<CreditBalanceResponse>(`/api/billing/credits?workspaceId=${workspaceId}`);
+  }
+
+  static async purchaseCredits(
+    workspaceId: string,
+    credits: number,
+    successUrl?: string,
+    cancelUrl?: string
+  ): Promise<PurchaseCreditsResponse> {
+    return this.request<PurchaseCreditsResponse>('/api/billing/purchase-credits', {
+      method: 'POST',
+      body: JSON.stringify({ workspaceId, credits, successUrl, cancelUrl }),
+    });
+  }
+
+  static async subscribe(
+    workspaceId: string,
+    tier: 'basic' | 'pro',
+    successUrl?: string,
+    cancelUrl?: string
+  ): Promise<SubscriptionResponse> {
+    return this.request<SubscriptionResponse>('/api/billing/subscribe', {
+      method: 'POST',
+      body: JSON.stringify({ workspaceId, tier, successUrl, cancelUrl }),
+    });
+  }
+
+  static async upgradeSubscription(
+    workspaceId: string,
+    tier: 'basic' | 'pro',
+    successUrl?: string,
+    cancelUrl?: string
+  ): Promise<SubscriptionResponse> {
+    return this.request<SubscriptionResponse>('/api/billing/upgrade', {
+      method: 'POST',
+      body: JSON.stringify({ workspaceId, tier, successUrl, cancelUrl }),
+    });
+  }
+
+  static async cancelSubscription(workspaceId: string): Promise<{ message: string }> {
+    return this.request<{ message: string }>('/api/billing/cancel', {
+      method: 'POST',
+      body: JSON.stringify({ workspaceId }),
+    });
+  }
+
+  static async getPurchaseHistory(workspaceId: string): Promise<PurchaseHistoryResponse> {
+    return this.request<PurchaseHistoryResponse>(`/api/billing/history?workspaceId=${workspaceId}`);
   }
 }

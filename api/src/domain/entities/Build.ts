@@ -1,9 +1,10 @@
-export type BuildStatus = 'QUEUED' | 'PROCESSING' | 'BUILDING' | 'READY' | 'FAILED';
+export type BuildStatus = 'QUEUED' | 'PROCESSING_PROMPT' | 'PROCESSING' | 'BUILDING' | 'READY' | 'FAILED';
 
 export type FileTree = Record<string, string>;
 
 export interface BuildMetrics {
   initializationTimeMs?: number; // Time for initialization step
+  promptProcessingTimeMs?: number; // Time for prompt processing step (image resizing)
   aiGenerationTimeMs?: number;
   environmentPrepTimeMs?: number; // Time to prepare environment (node_modules + package-lock) - runs in parallel with AI
   nodeModulesCopyTimeMs?: number; // Time to copy node_modules from template (part of environmentPrepTimeMs)

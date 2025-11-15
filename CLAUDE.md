@@ -206,6 +206,47 @@ dev-husky-projects/
 - Key tables: projects, builds, prompts, users, workspaces
 - Recent migrations added version tracking and project descriptions
 
+### Database Troubleshooting
+**ALWAYS use Supabase MCP tools for database operations, troubleshooting, and checking data**
+
+When you need to inspect, troubleshoot, or fix database issues:
+- ✅ DO: Use `mcp__supabase__execute_sql` for querying and checking data
+- ✅ DO: Use `mcp__supabase__list_tables` to explore the database schema
+- ✅ DO: Use `mcp__supabase__apply_migration` for DDL changes (schema modifications)
+- ✅ DO: Use `mcp__supabase__get_advisors` to check for security/performance issues
+- ❌ DON'T: Write custom scripts to query the database unless absolutely necessary
+- ❌ DON'T: Hardcode database credentials in scripts
+
+**Common database operations:**
+```sql
+-- Check workspace credits
+SELECT id, name, credits_purchased, credits_total_purchased
+FROM workspaces WHERE id = 'workspace-id';
+
+-- View recent prompts
+SELECT id, prompt, status, created_at
+FROM prompts
+ORDER BY created_at DESC LIMIT 10;
+
+-- Check credit purchase history
+SELECT workspace_id, credits_purchased, amount_paid, created_at
+FROM credit_purchases
+WHERE workspace_id = 'workspace-id'
+ORDER BY created_at;
+```
+
+**Example - Using MCP for troubleshooting:**
+```typescript
+// User reports incorrect credit balance
+// ✅ GOOD: Use Supabase MCP to investigate
+mcp__supabase__execute_sql({
+  query: "SELECT credits_purchased, credits_total_purchased FROM workspaces WHERE id = 'workspace-id'"
+})
+
+// ❌ BAD: Writing a custom TypeScript script to query
+// Don't create src/scripts/check-credits.ts - use MCP instead
+```
+
 ## Testing
 - API uses Jest with TypeScript support
 - Test files: `/api/tests/`

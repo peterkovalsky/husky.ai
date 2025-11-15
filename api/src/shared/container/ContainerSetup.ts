@@ -9,6 +9,7 @@ import { IProjectRepository } from '../../domain/repositories/IProjectRepository
 import { IPromptRepository } from '../../domain/repositories/IPromptRepository';
 import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
 import { IMediaRepository } from '../../domain/repositories/IMediaRepository';
+import { ICreditPurchaseRepository } from '../../domain/repositories/ICreditPurchaseRepository';
 
 // Domain Services
 import { IAIService } from '../../domain/services/IAIService';
@@ -19,6 +20,8 @@ import { IProjectEnvironmentService } from '../../domain/services/IProjectEnviro
 import { ISubdomainService } from '../../domain/services/ISubdomainService';
 import { ICloudFrontService } from '../../domain/services/ICloudFrontService';
 import { IRoute53Service } from '../../domain/services/IRoute53Service';
+import { IStripeService } from '../../domain/services/IStripeService';
+import { IImageProcessingService } from '../../domain/services/IImageProcessingService';
 
 // Infrastructure Implementations
 import { SupabaseWorkspaceRepository } from '../../infrastructure/database/SupabaseWorkspaceRepository';
@@ -26,6 +29,7 @@ import { SupabaseProjectRepository } from '../../infrastructure/database/Supabas
 import { SupabasePromptRepository } from '../../infrastructure/database/SupabasePromptRepository';
 import { SupabaseBuildRepository } from '../../infrastructure/database/SupabaseBuildRepository';
 import { SupabaseMediaRepository } from '../../infrastructure/database/SupabaseMediaRepository';
+import { SupabaseCreditPurchaseRepository } from '../../infrastructure/database/SupabaseCreditPurchaseRepository';
 import { AnthropicAIService } from '../../infrastructure/ai/AnthropicAIService';
 import { S3StorageService } from '../../infrastructure/storage/S3StorageService';
 import { SQSQueueService } from '../../infrastructure/queue/SQSQueueService';
@@ -39,6 +43,8 @@ import { R2PublishedAppsService } from '../../infrastructure/storage/R2Published
 import { CloudflareSaaSService } from '../../infrastructure/cdn/CloudflareSaaSService';
 import { CloudflareKVService } from '../../infrastructure/storage/CloudflareKVService';
 import { DNSVerificationService, IDNSVerificationService } from '../../infrastructure/dns/DNSVerificationService';
+import { StripeService } from '../../infrastructure/payment/StripeService';
+import { ImageProcessingService } from '../../infrastructure/services/ImageProcessingService';
 
 // Application Use Cases
 import { CreatePromptUseCase } from '../../application/use-cases/CreatePromptUseCase';
@@ -65,6 +71,14 @@ import { VerifyCustomDomainDNSUseCase } from '../../application/use-cases/Verify
 import { RemoveCustomDomainUseCase } from '../../application/use-cases/RemoveCustomDomainUseCase';
 import { UndoVersionUseCase } from '../../application/use-cases/UndoVersionUseCase';
 
+// Billing Use Cases
+import { CheckWorkspaceCreditsUseCase } from '../../application/use-cases/billing/CheckWorkspaceCreditsUseCase';
+import { ConsumeCreditsUseCase } from '../../application/use-cases/billing/ConsumeCreditsUseCase';
+import { PurchaseCreditsUseCase } from '../../application/use-cases/billing/PurchaseCreditsUseCase';
+import { UpgradeSubscriptionUseCase } from '../../application/use-cases/billing/UpgradeSubscriptionUseCase';
+import { CancelSubscriptionUseCase } from '../../application/use-cases/billing/CancelSubscriptionUseCase';
+import { ResetMonthlyCreditsUseCase } from '../../application/use-cases/billing/ResetMonthlyCreditsUseCase';
+
 // Presentation Layer
 import { AuthMiddleware } from '../../presentation/middleware/AuthMiddleware';
 import { WorkspaceAccessMiddleware } from '../../presentation/middleware/WorkspaceAccessMiddleware';
@@ -75,6 +89,8 @@ import { UserController } from '../../presentation/controllers/UserController';
 import { MediaController } from '../../presentation/controllers/MediaController';
 import { PublishingController } from '../../presentation/controllers/PublishingController';
 import { CustomDomainController } from '../../presentation/controllers/CustomDomainController';
+import { BillingController } from '../../presentation/controllers/BillingController';
+import { StripeWebhookController } from '../../presentation/controllers/StripeWebhookController';
 
 export function setupContainer(): DIContainer {
   const container = new DIContainer();
@@ -100,6 +116,7 @@ export function setupContainer(): DIContainer {
   container.registerFactory<IPromptRepository>('promptRepository', () => new SupabasePromptRepository());
   container.registerFactory<IBuildRepository>('buildRepository', () => new SupabaseBuildRepository());
   container.registerFactory<IMediaRepository>('mediaRepository', () => new SupabaseMediaRepository());
+  container.registerFactory<ICreditPurchaseRepository>('creditPurchaseRepository', () => new SupabaseCreditPurchaseRepository());
 
   // Register Infrastructure Services
   container.registerFactory<IAIService>('aiService', () => {
@@ -130,6 +147,23 @@ export function setupContainer(): DIContainer {
   // Keep AWS services for backward compatibility (not used for new publishes)
   container.registerFactory<ICloudFrontService>('cloudFrontService', () => new CloudFrontService());
   container.registerFactory<IRoute53Service>('route53Service', () => new Route53Service());
+
+  // Stripe payment service
+  container.registerFactory<IStripeService>('stripeService', () => new StripeService());
+
+  // Image processing service
+  container.registerFactory<IImageProcessingService>('imageProcessingService', () => {
+    const { S3Client } = require('@aws-sdk/client-s3');
+    const s3Client = new S3Client({
+      region: process.env.AWS_REGION,
+      credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+      },
+    });
+    const logger = container.get<ILogger>('logger');
+    return new ImageProcessingService(s3Client, logger);
+  });
 
   // Register Use Cases
   container.registerFactory<CreatePromptUseCase>('createPromptUseCase', () => new CreatePromptUseCase(
@@ -182,7 +216,8 @@ export function setupContainer(): DIContainer {
     container.get<IBuildService>('buildService'),
     container.get<IStorageService>('storageService'),
     container.get<PrepareProjectEnvironmentUseCase>('prepareProjectEnvironmentUseCase'),
-    container.get<IMediaRepository>('mediaRepository')
+    container.get<IMediaRepository>('mediaRepository'),
+    container.get<IImageProcessingService>('imageProcessingService')
   ));
 
   container.registerFactory<DeleteProjectUseCase>('deleteProjectUseCase', () => new DeleteProjectUseCase(
@@ -324,6 +359,36 @@ export function setupContainer(): DIContainer {
     container.get<CloudflareKVService>('cloudflareKVService')
   ));
 
+  // Register Billing Use Cases
+  container.registerFactory<CheckWorkspaceCreditsUseCase>('checkWorkspaceCreditsUseCase', () => new CheckWorkspaceCreditsUseCase(
+    container.get<IWorkspaceRepository>('workspaceRepository')
+  ));
+
+  container.registerFactory<ConsumeCreditsUseCase>('consumeCreditsUseCase', () => new ConsumeCreditsUseCase(
+    container.get<IWorkspaceRepository>('workspaceRepository')
+  ));
+
+  container.registerFactory<PurchaseCreditsUseCase>('purchaseCreditsUseCase', () => new PurchaseCreditsUseCase(
+    container.get<IWorkspaceRepository>('workspaceRepository'),
+    container.get<ICreditPurchaseRepository>('creditPurchaseRepository'),
+    container.get<IStripeService>('stripeService')
+  ));
+
+  container.registerFactory<UpgradeSubscriptionUseCase>('upgradeSubscriptionUseCase', () => new UpgradeSubscriptionUseCase(
+    container.get<IWorkspaceRepository>('workspaceRepository'),
+    container.get<IStripeService>('stripeService')
+  ));
+
+  container.registerFactory<CancelSubscriptionUseCase>('cancelSubscriptionUseCase', () => new CancelSubscriptionUseCase(
+    container.get<IWorkspaceRepository>('workspaceRepository'),
+    container.get<IStripeService>('stripeService')
+  ));
+
+  container.registerFactory<ResetMonthlyCreditsUseCase>('resetMonthlyCreditsUseCase', () => new ResetMonthlyCreditsUseCase(
+    container.get<IWorkspaceRepository>('workspaceRepository'),
+    container.get<ILogger>('logger')
+  ));
+
   // Register Publishing Controller
   container.registerFactory<PublishingController>('publishingController', () => new PublishingController(
     container.get<InitiatePublishingUseCase>('initiatePublishingUseCase'),
@@ -336,6 +401,22 @@ export function setupContainer(): DIContainer {
     container.get<SetCustomDomainUseCase>('setCustomDomainUseCase'),
     container.get<VerifyCustomDomainDNSUseCase>('verifyCustomDomainDNSUseCase'),
     container.get<RemoveCustomDomainUseCase>('removeCustomDomainUseCase')
+  ));
+
+  // Register Billing Controller
+  container.registerFactory<BillingController>('billingController', () => new BillingController(
+    container.get<CheckWorkspaceCreditsUseCase>('checkWorkspaceCreditsUseCase'),
+    container.get<PurchaseCreditsUseCase>('purchaseCreditsUseCase'),
+    container.get<UpgradeSubscriptionUseCase>('upgradeSubscriptionUseCase'),
+    container.get<CancelSubscriptionUseCase>('cancelSubscriptionUseCase'),
+    container.get<ICreditPurchaseRepository>('creditPurchaseRepository')
+  ));
+
+  // Register Stripe Webhook Controller
+  container.registerFactory<StripeWebhookController>('stripeWebhookController', () => new StripeWebhookController(
+    container.get<IStripeService>('stripeService'),
+    container.get<IWorkspaceRepository>('workspaceRepository'),
+    container.get<PurchaseCreditsUseCase>('purchaseCreditsUseCase')
   ));
 
   return container;

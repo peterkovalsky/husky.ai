@@ -33,6 +33,23 @@ export class CreatePromptUseCase {
       throw new Error('Access denied to project');
     }
 
+    // Get project to find workspace ID
+    const project = await this.projectRepository.findById(projectId);
+    if (!project) {
+      throw new Error('Project not found');
+    }
+
+    // Check if workspace has sufficient credits
+    const workspace = await this.workspaceRepository.findById(project.workspaceId);
+    if (!workspace) {
+      throw new Error('Workspace not found');
+    }
+
+    const totalCredits = workspace.creditsMonthlyRemaining + workspace.creditsPurchased;
+    if (totalCredits <= 0) {
+      throw new Error('INSUFFICIENT_CREDITS: You have run out of credits. Please purchase more credits or upgrade your plan.');
+    }
+
     // Validate media IDs if provided
     if (dto.mediaIds && dto.mediaIds.length > 0) {
       const medias = await this.mediaRepository.findByIds(dto.mediaIds);
@@ -70,6 +87,10 @@ export class CreatePromptUseCase {
     console.log(`[CreatePromptUseCase] Sending message to queue with mediaIds:`, message.mediaIds);
     await this.queueService.sendMessage(message);
     console.log(`[CreatePromptUseCase] Message sent to queue successfully`);
+
+    // Consume one credit after successful queue
+    await this.workspaceRepository.consumeCredit(project.workspaceId);
+    console.log(`[CreatePromptUseCase] Consumed 1 credit from workspace ${project.workspaceId}`);
 
     return {
       promptId: prompt.id,

@@ -5,11 +5,13 @@ import { IMediaRepository } from '../../domain/repositories/IMediaRepository';
 import { IAIService } from '../../domain/services/IAIService';
 import { IBuildService } from '../../domain/services/IBuildService';
 import { IStorageService } from '../../domain/services/IStorageService';
+import { IImageProcessingService } from '../../domain/services/IImageProcessingService';
 import { JobMessage } from '../../domain/services/IQueueService';
 import { PrepareProjectEnvironmentUseCase } from './PrepareProjectEnvironmentUseCase';
 import { BuildStepContext } from '../build-steps/BuildStepContext';
 import { IBuildStep, BuildStepStatus } from '../build-steps/IBuildStep';
 import { InitializationStep } from '../build-steps/steps/InitializationStep';
+import { UserPromptProcessingStep } from '../build-steps/steps/UserPromptProcessingStep';
 import { CodeGenerationStep } from '../build-steps/steps/CodeGenerationStep';
 import { FilePrepStep } from '../build-steps/steps/FilePrepStep';
 import { PreviewBuildStep } from '../build-steps/steps/PreviewBuildStep';
@@ -44,7 +46,8 @@ export class ProcessJobUseCase {
     private buildService: IBuildService,
     private storageService: IStorageService,
     private prepareProjectEnvironmentUseCase: PrepareProjectEnvironmentUseCase,
-    private mediaRepository: IMediaRepository
+    private mediaRepository: IMediaRepository,
+    private imageProcessingService: IImageProcessingService
   ) {}
 
   async execute(jobMessage: JobMessage): Promise<void> {
@@ -79,6 +82,11 @@ export class ProcessJobUseCase {
     const initStep = new InitializationStep(
       this.promptRepository,
       this.buildRepository
+    );
+    const promptProcessingStep = new UserPromptProcessingStep(
+      this.buildRepository,
+      this.mediaRepository,
+      this.imageProcessingService
     );
     const codeGenStep = new CodeGenerationStep(
       this.promptRepository,
@@ -123,13 +131,16 @@ export class ProcessJobUseCase {
       // Step 1: Initialization
       await this.executeStep(context, initStep);
 
-      // Step 2: Code Generation
+      // Step 2: User Prompt Processing (resize images if needed)
+      await this.executeStep(context, promptProcessingStep);
+
+      // Step 3: Code Generation
       await this.executeStep(context, codeGenStep);
 
-      // Step 3: File Preparation
+      // Step 4: File Preparation
       await this.executeStep(context, filePrepStep);
 
-      // Step 4: Preview Build (with auto-fix retry)
+      // Step 5: Preview Build (with auto-fix retry)
       try {
         await this.executeStep(context, previewBuildStep);
       } catch (buildError) {
@@ -165,16 +176,16 @@ export class ProcessJobUseCase {
         }
       }
 
-      // Step 5: Preview Upload
+      // Step 6: Preview Upload
       await this.executeStep(context, previewUploadStep);
 
-      // Step 6: Production Build
+      // Step 7: Production Build
       await this.executeStep(context, productionBuildStep);
 
-      // Step 7: Production Upload
+      // Step 8: Production Upload
       await this.executeStep(context, productionUploadStep);
 
-      // Step 8: Finalization
+      // Step 9: Finalization
       await this.executeStep(context, finalizationStep);
 
       console.log(`\n========================================`);

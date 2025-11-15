@@ -8,6 +8,8 @@ import { UserController } from '../controllers/UserController';
 import { MediaController } from '../controllers/MediaController';
 import { PublishingController } from '../controllers/PublishingController';
 import { CustomDomainController } from '../controllers/CustomDomainController';
+import { BillingController } from '../controllers/BillingController';
+import { StripeWebhookController } from '../controllers/StripeWebhookController';
 
 interface ApiRoutesDependencies {
   authMiddleware: AuthMiddleware;
@@ -19,6 +21,8 @@ interface ApiRoutesDependencies {
   mediaController: MediaController;
   publishingController: PublishingController;
   customDomainController: CustomDomainController;
+  billingController: BillingController;
+  stripeWebhookController: StripeWebhookController;
 }
 
 export function createApiRoutes(deps: ApiRoutesDependencies): Router {
@@ -149,6 +153,42 @@ export function createApiRoutes(deps: ApiRoutesDependencies): Router {
     deps.authMiddleware.authenticate,
     deps.workspaceAccessMiddleware.checkProjectAccess('projectId'),
     deps.customDomainController.removeCustomDomain
+  );
+
+  // Billing routes
+  router.get('/billing/credits',
+    deps.authMiddleware.authenticate,
+    deps.billingController.getCredits
+  );
+
+  router.post('/billing/purchase-credits',
+    deps.authMiddleware.authenticate,
+    deps.billingController.purchaseCredits
+  );
+
+  router.post('/billing/subscribe',
+    deps.authMiddleware.authenticate,
+    deps.billingController.subscribe
+  );
+
+  router.post('/billing/upgrade',
+    deps.authMiddleware.authenticate,
+    deps.billingController.upgrade
+  );
+
+  router.post('/billing/cancel',
+    deps.authMiddleware.authenticate,
+    deps.billingController.cancel
+  );
+
+  router.get('/billing/history',
+    deps.authMiddleware.authenticate,
+    deps.billingController.getHistory
+  );
+
+  // Stripe webhook (no auth middleware - webhook signature verification in controller)
+  router.post('/billing/webhook',
+    deps.stripeWebhookController.handleWebhook
   );
 
   // Test error routes (DEVELOPMENT ONLY)

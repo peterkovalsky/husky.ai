@@ -13,7 +13,6 @@ export const ProjectPage = () => {
   const { setCurrentProject } = useProject()
   const [projectDetails, setProjectDetails] = useState<ProjectDetails | null>(null)
   const [latestJobStatus, setLatestJobStatus] = useState<JobStatus | null>(null)
-  const [loading, setLoading] = useState(true)
   const [iframeLoaded, setIframeLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
@@ -23,7 +22,6 @@ export const ProjectPage = () => {
   useEffect(() => {
     setProjectDetails(null)
     setLatestJobStatus(null)
-    setLoading(true)
     setIframeLoaded(false)
     setCurrentPreviewUrl('')
     setError(null)
@@ -56,11 +54,9 @@ export const ProjectPage = () => {
         }
 
         // Project data loaded
-        setLoading(false)
       } catch (err) {
         console.error('Failed to load project:', err)
         setError(err instanceof Error ? err.message : 'Failed to load project')
-        setLoading(false)
       }
     }
 
@@ -147,9 +143,9 @@ export const ProjectPage = () => {
 
   // Determine content type early (even before projectDetails loads)
   const hasNoBuilds = projectDetails?.stats.totalBuilds === 0
-  const allBuildsFailed = projectDetails?.recentPrompts.length > 0 &&
-    projectDetails?.recentPrompts.every(p => p.status === 'FAILED')
-  const latestReadyPrompt = projectDetails?.recentPrompts.find(p => p.status === 'READY')
+  const allBuildsFailed = (projectDetails?.recentPrompts?.length ?? 0) > 0 &&
+    projectDetails?.recentPrompts?.every(p => p.status === 'FAILED')
+  const latestReadyPrompt = projectDetails?.recentPrompts?.find(p => p.status === 'READY')
   const hasReadyPreview = latestReadyPrompt && latestJobStatus?.previewUrl
 
   // Special case: NewProjectStarter is completely different UI

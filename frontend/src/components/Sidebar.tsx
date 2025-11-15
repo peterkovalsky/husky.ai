@@ -1,14 +1,23 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Button, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem } from '@heroui/react'
-import { Home, LogOut, Menu, X } from 'lucide-react'
+import { Home, LogOut, Menu, X, CreditCard, Receipt, ChevronDown, ChevronRight } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
-import { useState } from 'react'
+import { CreditBalanceWidget } from './CreditBalanceWidget'
+import { useState, useEffect } from 'react'
 
 export const Sidebar = () => {
   const location = useLocation()
   const navigate = useNavigate()
   const { user, signOut } = useAuth()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [isBillingExpanded, setIsBillingExpanded] = useState(false)
+
+  // Auto-expand billing menu if on a billing sub-page
+  useEffect(() => {
+    if (location.pathname === '/subscription' || location.pathname === '/transactions') {
+      setIsBillingExpanded(true)
+    }
+  }, [location.pathname])
 
   const handleSignOut = async () => {
     try {
@@ -37,13 +46,12 @@ export const Sidebar = () => {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-4">
+      <nav className="flex-1 p-4 space-y-4">
         <div className="space-y-2">
           <Button
             fullWidth
-            variant={isActive('/') ? 'flat' : 'light'}
-            color={isActive('/') ? 'primary' : 'default'}
-            className="justify-start h-11"
+            variant="light"
+            className={`justify-start h-11 ${isActive('/') ? 'text-primary' : ''}`}
             startContent={<Home className="h-4 w-4" />}
             onPress={() => {
               navigate('/')
@@ -52,7 +60,54 @@ export const Sidebar = () => {
           >
             Projects
           </Button>
+          <Button
+            fullWidth
+            variant="light"
+            className={`justify-start h-11 ${(isActive('/subscription') || isActive('/transactions')) ? 'text-primary' : ''}`}
+            startContent={<CreditCard className="h-4 w-4" />}
+            endContent={isBillingExpanded ? <ChevronDown className="h-4 w-4 ml-auto" /> : <ChevronRight className="h-4 w-4 ml-auto" />}
+            onPress={() => {
+              if (!isBillingExpanded) {
+                navigate('/subscription')
+                setIsMobileMenuOpen(false)
+              }
+              setIsBillingExpanded(!isBillingExpanded)
+            }}
+          >
+            Billing
+          </Button>
+          {isBillingExpanded && (
+            <>
+              <Button
+                fullWidth
+                variant="light"
+                className={`justify-start h-9 pl-12 text-sm ${isActive('/subscription') ? 'text-primary' : ''}`}
+                startContent={<CreditCard className="h-3.5 w-3.5" />}
+                onPress={() => {
+                  navigate('/subscription')
+                  setIsMobileMenuOpen(false)
+                }}
+              >
+                Subscription
+              </Button>
+              <Button
+                fullWidth
+                variant="light"
+                className={`justify-start h-9 pl-12 text-sm ${isActive('/transactions') ? 'text-primary' : ''}`}
+                startContent={<Receipt className="h-3.5 w-3.5" />}
+                onPress={() => {
+                  navigate('/transactions')
+                  setIsMobileMenuOpen(false)
+                }}
+              >
+                Transactions
+              </Button>
+            </>
+          )}
         </div>
+
+        {/* Credit Balance Widget */}
+        <CreditBalanceWidget />
       </nav>
 
       {/* User Menu */}
@@ -68,11 +123,11 @@ export const Sidebar = () => {
                 </div>
               }
             >
-              <div className="flex flex-col items-start">
-                <span className="text-sm font-medium truncate">
+              <div className="flex flex-col items-start overflow-hidden max-w-[130px]">
+                <span className="text-sm font-medium truncate w-full text-left">
                   {user?.user_metadata?.display_name || 'User'}
                 </span>
-                <span className="text-xs text-default-500 truncate">
+                <span className="text-xs text-default-500 truncate w-full text-left">
                   {user?.email}
                 </span>
               </div>

@@ -47,6 +47,9 @@ export enum BuildStepStatus {
   /** Validating job, creating build record */
   INITIALIZING = 'INITIALIZING',
 
+  /** Processing user prompt (resizing images, validating media) */
+  PROCESSING_PROMPT = 'PROCESSING_PROMPT',
+
   /** AI generation + environment prep (parallel, but only track AI) */
   GENERATING_CODE = 'GENERATING_CODE',
 

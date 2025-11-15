@@ -2,16 +2,19 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { useNavigate } from 'react-router-dom';
 import { ApiService } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
-import type { Workspace, Project } from '../services/api';
+import type { Workspace, Project, CreditBalanceResponse } from '../services/api';
 
 interface ProjectContextType {
   workspaces: Workspace[];
   currentWorkspace: Workspace | null;
   projects: Project[];
   currentProject: Project | null;
+  creditBalance: CreditBalanceResponse | null;
+  isLoadingCredits: boolean;
   setCurrentProject: (project: Project) => void;
   deleteProject?: (projectId: string) => Promise<void>;
   refreshProjects: () => Promise<void>;
+  refreshCredits: () => Promise<void>;
   loading: boolean;
   error: string | null;
 }
@@ -35,6 +38,8 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
   const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
+  const [creditBalance, setCreditBalance] = useState<CreditBalanceResponse | null>(null);
+  const [isLoadingCredits, setIsLoadingCredits] = useState(false);
   const [loading, setLoading] = useState(true);
   const [projectsLoaded, setProjectsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -95,12 +100,35 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
     loadProjects();
   }, [currentWorkspace]);
 
-  // Update loading state when projects are loaded  
+  // Update loading state when projects are loaded
   useEffect(() => {
     if ((currentWorkspace !== null || workspaces.length === 0) && projectsLoaded) {
       setLoading(false);
     }
   }, [currentWorkspace, workspaces.length, projectsLoaded]);
+
+  // Fetch credit balance when workspace changes
+  useEffect(() => {
+    const loadCredits = async () => {
+      if (!currentWorkspace) {
+        setCreditBalance(null);
+        return;
+      }
+
+      try {
+        setIsLoadingCredits(true);
+        const balance = await ApiService.getCredits(currentWorkspace.id);
+        setCreditBalance(balance);
+      } catch (err) {
+        console.error('Failed to load credit balance:', err);
+        // Don't set error state here - credits are non-critical for initial load
+      } finally {
+        setIsLoadingCredits(false);
+      }
+    };
+
+    loadCredits();
+  }, [currentWorkspace]);
 
   const handleSetCurrentProject = useCallback((project: Project) => {
     setCurrentProject(project);
@@ -134,14 +162,31 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
     }
   }, [currentWorkspace]);
 
+  const handleRefreshCredits = useCallback(async () => {
+    if (!currentWorkspace) return;
+
+    try {
+      setIsLoadingCredits(true);
+      const balance = await ApiService.getCredits(currentWorkspace.id);
+      setCreditBalance(balance);
+    } catch (err) {
+      console.error('Failed to refresh credit balance:', err);
+    } finally {
+      setIsLoadingCredits(false);
+    }
+  }, [currentWorkspace]);
+
   const value: ProjectContextType = {
     workspaces,
     currentWorkspace,
     projects,
     currentProject,
+    creditBalance,
+    isLoadingCredits,
     setCurrentProject: handleSetCurrentProject,
     deleteProject: handleDeleteProject,
     refreshProjects: handleRefreshProjects,
+    refreshCredits: handleRefreshCredits,
     loading,
     error,
   };

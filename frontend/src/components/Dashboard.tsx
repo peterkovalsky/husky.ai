@@ -4,6 +4,7 @@ import { ApiService, type JobStatus, type Prompt } from '../services/api'
 import { LoadingSpinner } from './LoadingSpinner'
 import { Timer } from './Timer'
 import { IterationHistory } from './IterationHistory'
+import { CreditWarningBanner } from './CreditWarningBanner'
 import { useProject } from '../contexts/ProjectContext'
 import { Button, Textarea, Card, CardBody, CardHeader, Chip, Divider } from '@heroui/react'
 import { Code2, Settings, Plus, RotateCcw, ExternalLink, Loader2, AlertCircle, Clock, ArrowRight, RefreshCw } from 'lucide-react'
@@ -23,7 +24,7 @@ export const Dashboard = () => {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const pollCleanupRef = useRef<(() => void) | null>(null)
   const startTimeRef = useRef<Date | null>(null)
-  const { currentProject } = useProject()
+  const { currentProject, creditBalance, refreshCredits } = useProject()
   const location = useLocation()
   const navigate = useNavigate()
   
@@ -31,8 +32,14 @@ export const Dashboard = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!prompt.trim() || isSubmitting) return
+
+    // Check if user has credits before submitting
+    if (creditBalance?.isOut) {
+      setError('You are out of credits. Please upgrade your plan or purchase additional credits to continue.')
+      return
+    }
 
     setIsSubmitting(true)
     setError(null)
@@ -43,7 +50,7 @@ export const Dashboard = () => {
       const response = await ApiService.submitPrompt(prompt.trim(), currentProject?.id)
       setJobId(response.promptId || response.jobId)
       setAppState('submitted')
-      
+
       const cleanup = await ApiService.pollJobStatus(
         response.promptId || response.jobId,
         (status) => {
@@ -56,6 +63,8 @@ export const Dashboard = () => {
               const timeDiff = Math.floor((endTime.getTime() - startTimeRef.current.getTime()) / 1000)
               setGenerationTime(timeDiff)
             }
+            // Refresh credits after successful build
+            refreshCredits()
           } else if (status.status === 'FAILED' || status.errorMessage) {
             setError(status.errorMessage || 'Job failed to complete')
             setAppState('error')
@@ -80,7 +89,7 @@ export const Dashboard = () => {
           }
         }
       )
-      
+
       pollCleanupRef.current = cleanup
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to submit prompt')
@@ -228,26 +237,36 @@ export const Dashboard = () => {
                 </p>
               </div>
             )}
-            
+
+            {/* Credit Warning Banner */}
+            {!isInitialState && <CreditWarningBanner showWhen="always" />}
+
             <form onSubmit={handleSubmit} className="relative">
               <Card className={`${isInitialState ? 'max-w-2xl mx-auto' : ''}`}>
                 <CardBody className="p-6">
+                  {/* Credit Warning Banner for initial state */}
+                  {isInitialState && <CreditWarningBanner showWhen="always" />}
+
                   <div className="relative">
                     <Textarea
                       ref={textareaRef}
                       value={prompt}
                       onChange={(e) => setPrompt(e.target.value)}
                       onKeyDown={handleKeyDown}
-                      placeholder="Describe the app you want to build... (Press Enter to submit)"
+                      placeholder={
+                        creditBalance?.isOut
+                          ? "Please upgrade your plan or purchase credits to continue..."
+                          : "Describe the app you want to build... (Press Enter to submit)"
+                      }
                       className={`${isInitialState ? 'min-h-[120px]' : 'min-h-[80px]'} resize-none`}
-                      disabled={isSubmitting || (appState !== 'initial' && appState !== 'error')}
+                      disabled={isSubmitting || (appState !== 'initial' && appState !== 'error') || creditBalance?.isOut}
                     />
                     
                     {/* Submit Button - positioned in bottom right of textarea for initial state */}
                     {isInitialState && (
                       <Button
                         type="submit"
-                        disabled={!prompt.trim() || isSubmitting}
+                        disabled={!prompt.trim() || isSubmitting || creditBalance?.isOut}
                         className="absolute bottom-3 right-3"
                         size="sm"
                       >
@@ -255,6 +274,10 @@ export const Dashboard = () => {
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             Building...
+                          </>
+                        ) : creditBalance?.isOut ? (
+                          <>
+                            Out of Credits
                           </>
                         ) : (
                           <>
@@ -316,7 +339,7 @@ export const Dashboard = () => {
                           {appState === 'error' && (
                             <Button
                               type="submit"
-                              disabled={!prompt.trim() || isSubmitting}
+                              disabled={!prompt.trim() || isSubmitting || creditBalance?.isOut}
                               size="sm"
                             >
                               {isSubmitting ? (
