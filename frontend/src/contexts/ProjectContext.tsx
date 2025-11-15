@@ -82,9 +82,9 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
         if (projects.length > 0 && !currentProject) {
           const defaultProject = projects.find(p => p.name === 'My Project') || projects[0];
           setCurrentProject(defaultProject);
-          
-          // Check if this is a newly created user (single workspace with single "My Project")
-          if (workspaces.length === 1 && projects.length === 1 && projects[0].name === 'My Project') {
+
+          // Check if this is a newly created user (single workspace with single "My Project" and no successful builds)
+          if (workspaces.length === 1 && projects.length === 1 && projects[0].name === 'My Project' && (!projects[0].currentVersion || projects[0].currentVersion === 0)) {
             // Navigate to the newly created project
             navigate(`/project/${projects[0].id}`, { replace: true });
           }
