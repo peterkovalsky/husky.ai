@@ -448,9 +448,9 @@ export const ChatWidget = ({
               key={message.id}
               className="flex justify-end"
             >
-              <div className="max-w-[85%] rounded-2xl px-4 py-3 backdrop-blur-sm bg-primary text-primary-foreground shadow-sm">
+              <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-[#2d2d2d] text-white shadow-sm">
                 <div className="flex items-start gap-2">
-                  <span className="flex-1 leading-relaxed break-words">{message.content}</span>
+                  <span className="flex-1 leading-relaxed break-words text-sm">{message.content}</span>
                   {getStatusIcon(message.status)}
                 </div>
                 <div className="opacity-60 mt-2 text-xs">
@@ -466,9 +466,9 @@ export const ChatWidget = ({
               key={message.id}
               className="flex justify-end"
             >
-              <div className="max-w-[85%] rounded-2xl px-4 py-3 backdrop-blur-sm bg-primary text-primary-foreground shadow-sm">
+              <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-[#2d2d2d] text-white shadow-sm">
                 <div className="flex items-start gap-2">
-                  <span className="flex-1 leading-relaxed break-words">{message.content}</span>
+                  <span className="flex-1 leading-relaxed break-words text-sm">{message.content}</span>
                   {getStatusIcon(message.status)}
                 </div>
                 <div className="opacity-60 mt-2 text-xs">
