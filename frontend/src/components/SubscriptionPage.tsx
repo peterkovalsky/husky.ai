@@ -79,7 +79,6 @@ export const SubscriptionPage = () => {
     const params = new URLSearchParams(window.location.search);
     const success = params.get('success');
     const canceled = params.get('canceled');
-    const type = params.get('type');
 
     if (success === 'true') {
       // Success! Payment completed
@@ -178,7 +177,7 @@ export const SubscriptionPage = () => {
     // Note: Don't reset loading state if redirecting to Stripe
   };
 
-  const currentTier = creditBalance?.tier || 'free';
+  const currentTier = (creditBalance?.tier || 'free') as 'free' | 'basic' | 'pro';
 
   // Helper function to determine tier order
   const getTierOrder = (tier: 'free' | 'basic' | 'pro'): number => {
