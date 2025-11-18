@@ -27,8 +27,8 @@ export class ProductionUploadStep implements IBuildStep {
     try {
       console.log(`[${this.stepName}] Uploading production build for project ${context.projectId}...`);
 
-      // Update step status
-      await this.buildRepository.updateStepStatus(buildId, this.stepStatus);
+      // Update status
+      await this.buildRepository.updateStatus(buildId, this.stepStatus);
 
       // Get app directory from previous step
       const appDirectory = context.getStepData<string>('appDirectory');

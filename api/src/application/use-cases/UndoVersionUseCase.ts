@@ -1,6 +1,7 @@
 import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
 import { IStorageService } from '../../domain/services/IStorageService';
+import { BuildStepStatus } from '../build-steps/IBuildStep';
 
 export interface UndoVersionResult {
   version: number;
@@ -21,9 +22,9 @@ export class UndoVersionUseCase {
       throw new Error('Project not found');
     }
 
-    // Get all successful builds (status='READY') ordered by version DESC
+    // Get all successful builds (status='COMPLETED') ordered by version DESC
     const builds = await this.buildRepository.findByProjectId(projectId);
-    const successfulBuilds = builds.filter(build => build.status === 'READY')
+    const successfulBuilds = builds.filter(build => build.status === BuildStepStatus.COMPLETED)
       .sort((a, b) => b.version - a.version);
 
     // Validate: Must have at least 2 successful builds

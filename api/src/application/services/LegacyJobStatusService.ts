@@ -3,7 +3,7 @@
 
 export interface JobStatus {
   id: string;
-  status: 'QUEUED' | 'PROCESSING' | 'BUILDING' | 'READY' | 'FAILED';
+  status: 'QUEUED' | 'PROCESSING' | 'BUILDING' | 'READY' | 'COMPLETED' | 'FAILED';
   prompt: string;
   createdAt: Date;
   data?: any;

@@ -2,6 +2,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
 import { Build, CreateBuildRequest, BuildMetrics, BuildStatus } from '../../domain/entities/Build';
 import { SupabaseClientFactory } from '../../shared/database/SupabaseClientFactory';
+import { BuildStepStatus } from '../../application/build-steps/IBuildStep';
 
 export class SupabaseBuildRepository implements IBuildRepository {
   private supabase: SupabaseClient;
@@ -11,7 +12,7 @@ export class SupabaseBuildRepository implements IBuildRepository {
   }
 
   async create(request: CreateBuildRequest): Promise<Build> {
-    // Initially set version to 0, will be updated when build reaches READY status
+    // Initially set version to 0, will be updated when build reaches COMPLETED status
     console.log(`[SupabaseBuildRepository] Creating build with mediaIds:`, request.mediaIds);
     const { data, error } = await this.supabase
       .from('builds')
@@ -19,7 +20,7 @@ export class SupabaseBuildRepository implements IBuildRepository {
         file_tree: request.fileTree,
         project_id: request.projectId,
         version: 0,
-        status: request.status || 'QUEUED',
+        status: request.status || BuildStepStatus.INITIALIZING,
         metrics: request.metrics || {},
         media_ids: request.mediaIds || []
       })
@@ -78,13 +79,13 @@ export class SupabaseBuildRepository implements IBuildRepository {
       .from('builds')
       .select('*')
       .eq('project_id', projectId)
-      .eq('status', 'READY')
+      .eq('status', BuildStepStatus.COMPLETED)
       .order('version', { ascending: false })
       .limit(1)
       .single();
 
     if (error && error.code !== 'PGRST116') throw error;
-    
+
     return data ? this.mapToEntity(data) : null;
   }
 
@@ -102,13 +103,13 @@ export class SupabaseBuildRepository implements IBuildRepository {
   }
 
   async getNextVersionForProject(projectId: string): Promise<number> {
-    // Only consider READY builds when determining next version
+    // Only consider COMPLETED builds when determining next version
     // Failed/in-progress builds have version 0 and should be ignored
     const { data, error } = await this.supabase
       .from('builds')
       .select('version')
       .eq('project_id', projectId)
-      .eq('status', 'READY')
+      .eq('status', BuildStepStatus.COMPLETED)
       .order('version', { ascending: false })
       .limit(1)
       .single();
@@ -130,15 +131,6 @@ export class SupabaseBuildRepository implements IBuildRepository {
     const { error } = await this.supabase
       .from('builds')
       .update({ status })
-      .eq('id', id);
-
-    if (error) throw error;
-  }
-
-  async updateStepStatus(id: string, stepStatus: string): Promise<void> {
-    const { error } = await this.supabase
-      .from('builds')
-      .update({ step_status: stepStatus })
       .eq('id', id);
 
     if (error) throw error;
@@ -170,7 +162,6 @@ export class SupabaseBuildRepository implements IBuildRepository {
     if (updates.projectId !== undefined) dbUpdates.project_id = updates.projectId;
     if (updates.version !== undefined) dbUpdates.version = updates.version;
     if (updates.status !== undefined) dbUpdates.status = updates.status;
-    if (updates.stepStatus !== undefined) dbUpdates.step_status = updates.stepStatus;
     if (updates.metrics !== undefined) dbUpdates.metrics = updates.metrics;
     if (updates.mediaIds !== undefined) dbUpdates.media_ids = updates.mediaIds;
     if (updates.errorMessage !== undefined) dbUpdates.error_message = updates.errorMessage;
@@ -286,7 +277,6 @@ export class SupabaseBuildRepository implements IBuildRepository {
       projectId: data.project_id,
       version: data.version,
       status: data.status,
-      stepStatus: data.step_status,
       metrics: data.metrics || {},
       mediaIds: data.media_ids || [],
       errorMessage: data.error_message,

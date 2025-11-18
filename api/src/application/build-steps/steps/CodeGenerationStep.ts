@@ -52,8 +52,8 @@ export class CodeGenerationStep implements IBuildStep {
     try {
       console.log(`[${this.stepName}] Starting code generation for project ${context.projectId}...`);
 
-      // Update step status
-      await this.buildRepository.updateStepStatus(buildId, this.stepStatus);
+      // Update status
+      await this.buildRepository.updateStatus(buildId, this.stepStatus);
 
       // START PARALLEL OPERATIONS
       // 1. Start environment preparation (runs in background)

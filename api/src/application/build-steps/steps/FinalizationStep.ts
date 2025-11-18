@@ -10,7 +10,7 @@ import { BuildMetrics } from '../../../domain/entities/Build';
  * Responsibilities:
  * - Update step_status to FINALIZING
  * - Calculate total build time
- * - Update build status to READY
+ * - Update build status to COMPLETED
  * - Update build metrics with all accumulated data
  * - Update project's current_version
  * - Update step_status to COMPLETED
@@ -32,8 +32,8 @@ export class FinalizationStep implements IBuildStep {
     try {
       console.log(`[${this.stepName}] Finalizing build for project ${context.projectId}...`);
 
-      // Update step status to FINALIZING
-      await this.buildRepository.updateStepStatus(buildId, this.stepStatus);
+      // Update status to FINALIZING
+      await this.buildRepository.updateStatus(buildId, this.stepStatus);
 
       // Get version from context
       if (!context.version) {
@@ -50,9 +50,9 @@ export class FinalizationStep implements IBuildStep {
         totalTimeMs
       };
 
-      // Update build status to READY
-      await this.buildRepository.updateStatus(buildId, 'READY');
-      console.log(`[${this.stepName}] Build status updated to READY`);
+      // Update build status to COMPLETED
+      await this.buildRepository.updateStatus(buildId, BuildStepStatus.COMPLETED);
+      console.log(`[${this.stepName}] Build status updated to COMPLETED`);
 
       // Update build metrics
       try {
@@ -69,9 +69,6 @@ export class FinalizationStep implements IBuildStep {
       } catch (versionError) {
         console.warn(`[${this.stepName}] Failed to update current_version:`, versionError);
       }
-
-      // Update step_status to COMPLETED
-      await this.buildRepository.updateStepStatus(buildId, BuildStepStatus.COMPLETED);
 
       // Log completion with detailed metrics
       console.log(`\n[${this.stepName}] Build completed successfully!`);

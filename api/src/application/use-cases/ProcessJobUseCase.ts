@@ -228,8 +228,7 @@ export class ProcessJobUseCase {
     // Update build status if build was created
     if (context.buildId) {
       try {
-        await this.buildRepository.updateStatus(context.buildId, 'FAILED');
-        await this.buildRepository.updateStepStatus(context.buildId, BuildStepStatus.FAILED);
+        await this.buildRepository.updateStatus(context.buildId, BuildStepStatus.FAILED);
 
         // Save metrics even for failed builds (for debugging)
         const metrics = context.getMetrics();

@@ -1,7 +1,7 @@
 export interface JobStatus {
   jobId: string;
   promptId?: string;
-  status: 'QUEUED' | 'PROCESSING' | 'BUILDING' | 'READY' | 'FAILED';
+  status: 'QUEUED' | 'PROCESSING' | 'BUILDING' | 'READY' | 'COMPLETED' | 'FAILED';
   createdAt: string;
   updatedAt: string;
   previewUrl?: string;
@@ -45,7 +45,7 @@ export interface Project {
 export interface Prompt {
   id: string;
   prompt: string;
-  status: 'QUEUED' | 'PROCESSING' | 'BUILDING' | 'READY' | 'FAILED';
+  status: 'QUEUED' | 'PROCESSING' | 'BUILDING' | 'READY' | 'COMPLETED' | 'FAILED';
   projectId: string;
   userId: string;
   createdAt: string;
@@ -105,7 +105,7 @@ export interface ProjectDetails {
   recentPrompts: {
     id: string;
     prompt: string;
-    status: 'QUEUED' | 'PROCESSING' | 'BUILDING' | 'READY' | 'FAILED';
+    status: 'QUEUED' | 'PROCESSING' | 'BUILDING' | 'READY' | 'COMPLETED' | 'FAILED';
     createdAt: string;
     modifiedAt: string;
   }[];
@@ -389,7 +389,7 @@ export class ApiService {
         onUpdate(status);
 
         // Stop polling if job is in final state
-        if (status.status === 'READY' || status.status === 'FAILED' || status.errorMessage) {
+        if (status.status === 'READY' || status.status === 'COMPLETED' || status.status === 'FAILED' || status.errorMessage) {
           clearInterval(intervalId);
         }
       } catch (error) {

@@ -43,8 +43,8 @@ export const ProjectPage = () => {
         const details = await ApiService.getProjectDetails(project_id)
         setProjectDetails(details)
 
-        // Find the latest READY prompt for preview
-        const readyPrompts = details.recentPrompts.filter(p => p.status === 'READY')
+        // Find the latest READY or COMPLETED prompt for preview
+        const readyPrompts = details.recentPrompts.filter(p => p.status === 'READY' || p.status === 'COMPLETED')
         if (readyPrompts.length > 0) {
           const latest = readyPrompts[0] // recentPrompts are already sorted by createdAt desc
 
@@ -117,7 +117,7 @@ export const ProjectPage = () => {
     const hasNoBuilds = projectDetails.stats.totalBuilds === 0
     const allBuildsFailed = projectDetails.recentPrompts.length > 0 &&
       projectDetails.recentPrompts.every(p => p.status === 'FAILED')
-    const latestReadyPrompt = projectDetails.recentPrompts.find(p => p.status === 'READY')
+    const latestReadyPrompt = projectDetails.recentPrompts.find(p => p.status === 'READY' || p.status === 'COMPLETED')
 
     // If there are prompts but no ready preview and not in special cases, redirect
     if (!hasNoBuilds && !allBuildsFailed && !latestReadyPrompt) {
@@ -152,7 +152,7 @@ export const ProjectPage = () => {
   const hasNoBuilds = projectDetails?.stats.totalBuilds === 0
   const allBuildsFailed = (projectDetails?.recentPrompts?.length ?? 0) > 0 &&
     projectDetails?.recentPrompts?.every(p => p.status === 'FAILED')
-  const latestReadyPrompt = projectDetails?.recentPrompts?.find(p => p.status === 'READY')
+  const latestReadyPrompt = projectDetails?.recentPrompts?.find(p => p.status === 'READY' || p.status === 'COMPLETED')
   const hasReadyPreview = latestReadyPrompt && latestJobStatus?.previewUrl
 
   // Special case: NewProjectStarter is completely different UI

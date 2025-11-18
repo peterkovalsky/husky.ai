@@ -46,19 +46,15 @@ export class InitializationStep implements IBuildStep {
 
       console.log(`[${this.stepName}] Creating build record...`);
 
-      // Create build with PROCESSING status and INITIALIZING step_status
+      // Create build with INITIALIZING status
       const createdBuild = await this.buildRepository.create({
         fileTree: {},
         projectId: context.projectId,
-        status: 'PROCESSING',
-        stepStatus: BuildStepStatus.INITIALIZING,
+        status: BuildStepStatus.INITIALIZING,
         mediaIds: context.mediaIds || []
       });
 
       console.log(`[${this.stepName}] Build created with ID: ${createdBuild.id}`);
-
-      // Update step_status to INITIALIZING (explicitly set it after creation)
-      await this.buildRepository.updateStepStatus(createdBuild.id, BuildStepStatus.INITIALIZING);
 
       // Link prompt to build
       await this.promptRepository.updateBuildId(context.promptId, createdBuild.id);

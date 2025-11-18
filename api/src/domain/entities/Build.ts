@@ -1,4 +1,17 @@
-export type BuildStatus = 'QUEUED' | 'PROCESSING_PROMPT' | 'PROCESSING' | 'BUILDING' | 'READY' | 'FAILED';
+import { BuildStepStatus } from '../../application/build-steps/IBuildStep';
+
+// Database stores detailed build step statuses
+export type BuildStatus = BuildStepStatus;
+
+// Frontend-facing status for API responses
+export enum FrontendBuildStatus {
+  QUEUED = 'QUEUED',
+  PROCESSING = 'PROCESSING',
+  BUILDING = 'BUILDING',
+  READY = 'READY',
+  COMPLETED = 'COMPLETED',
+  FAILED = 'FAILED'
+}
 
 export type FileTree = Record<string, string>;
 
@@ -31,7 +44,6 @@ export interface Build {
   projectId: string;
   version: number;
   status: BuildStatus;
-  stepStatus?: string;
   metrics: BuildMetrics;
   mediaIds?: string[];
   errorMessage?: string; // Human-readable error summary when build fails
@@ -46,7 +58,6 @@ export interface CreateBuildRequest {
   fileTree: Record<string, string>;
   projectId: string;
   status?: BuildStatus;
-  stepStatus?: string;
   metrics?: BuildMetrics;
   mediaIds?: string[];
 }

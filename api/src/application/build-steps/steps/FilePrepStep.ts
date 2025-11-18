@@ -29,8 +29,8 @@ export class FilePrepStep implements IBuildStep {
     try {
       console.log(`[${this.stepName}] Preparing files for project ${context.projectId}...`);
 
-      // Update step status
-      await this.buildRepository.updateStepStatus(buildId, this.stepStatus);
+      // Update status
+      await this.buildRepository.updateStatus(buildId, this.stepStatus);
 
       // Check if file tree is available
       if (!context.fileTree) {
@@ -55,9 +55,6 @@ export class FilePrepStep implements IBuildStep {
       const fileSaveTimeMs = Date.now() - fileSaveStartTime;
 
       console.log(`[${this.stepName}] Files saved to: ${appDirectory}`);
-
-      // Update build status to BUILDING
-      await this.buildRepository.updateStatus(buildId, 'BUILDING');
 
       // Assign version number before building (needed for S3 paths)
       const buildVersion = await this.buildRepository.getNextVersionForProject(context.projectId);

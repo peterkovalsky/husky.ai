@@ -1,5 +1,5 @@
 interface LoadingSpinnerProps {
-  status?: 'QUEUED' | 'PROCESSING' | 'BUILDING' | 'READY' | 'FAILED';
+  status?: 'QUEUED' | 'PROCESSING' | 'BUILDING' | 'READY' | 'COMPLETED' | 'FAILED';
 }
 
 export function LoadingSpinner({ status = 'QUEUED' }: LoadingSpinnerProps) {
@@ -62,6 +62,20 @@ export function LoadingSpinner({ status = 'QUEUED' }: LoadingSpinnerProps) {
             </svg>
           )
         };
+      case 'COMPLETED':
+        return {
+          text: 'Completed!',
+          description: 'All builds finished successfully. Your app is fully deployed!',
+          color: 'text-green-700',
+          bgColor: 'bg-green-100',
+          borderColor: 'border-green-300',
+          icon: (
+            <svg className="size-5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+              <polyline points="22 4 12 14.01 9 11.01"/>
+            </svg>
+          )
+        };
       case 'FAILED':
         return {
           text: 'Failed',
@@ -98,7 +112,7 @@ export function LoadingSpinner({ status = 'QUEUED' }: LoadingSpinnerProps) {
   return (
     <div className="text-center max-w-xs mx-auto">
       <div className={`inline-flex items-center justify-center size-16 ${config.bgColor} ${config.borderColor} border-2 rounded-full mb-4`}>
-        {status === 'FAILED' || status === 'READY' ? (
+        {status === 'FAILED' || status === 'READY' || status === 'COMPLETED' ? (
           <div className={config.color}>
             {config.icon}
           </div>

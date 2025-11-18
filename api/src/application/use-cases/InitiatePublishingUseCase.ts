@@ -3,6 +3,7 @@ import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
 import { IQueueService, PublishProjectMessage } from '../../domain/services/IQueueService';
 import { User } from '../../domain/entities/User';
 import { PublishingStatus } from '../../domain/entities/Project';
+import { BuildStepStatus } from '../build-steps/IBuildStep';
 
 export class InitiatePublishingUseCase {
   constructor(
@@ -35,7 +36,7 @@ export class InitiatePublishingUseCase {
 
     // Check if project has at least one successful build
     const builds = await this.buildRepository.findByProjectId(projectId);
-    const hasSuccessfulBuild = builds.some((build) => build.status === 'READY');
+    const hasSuccessfulBuild = builds.some((build) => build.status === BuildStepStatus.COMPLETED);
 
     if (!hasSuccessfulBuild) {
       throw new Error('Your project needs at least one successful build before publishing.');

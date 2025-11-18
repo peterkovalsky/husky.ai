@@ -1,6 +1,8 @@
 import { IPromptRepository } from '../../domain/repositories/IPromptRepository';
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
 import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
+import { mapBuildStatusToFrontend } from '../../domain/utils/statusMapper';
+import { BuildStepStatus } from '../build-steps/IBuildStep';
 
 export interface GetPromptStatusResponse {
   promptId: string;
@@ -33,16 +35,25 @@ export class GetPromptStatusUseCase {
     }
 
     // Get build status if build exists
-    let status = 'QUEUED'; // Default status
+    let status = 'QUEUED'; // Default status for frontend
     let previewUrl = null;
-    
+
     if (prompt.buildId) {
       const build = await this.buildRepository.findById(prompt.buildId);
       if (build) {
-        status = build.status;
-        
-        // Get preview URL from project if build is ready
-        if (build.status === 'READY') {
+        // Map detailed build status to frontend-compatible status
+        status = mapBuildStatusToFrontend(build.status);
+
+        // Get preview URL from project if build has reached production/finalization stage
+        // These statuses map to READY on the frontend
+        const previewReadyStatuses = [
+          BuildStepStatus.BUILDING_PRODUCTION,
+          BuildStepStatus.UPLOADING_PRODUCTION,
+          BuildStepStatus.FINALIZING,
+          BuildStepStatus.COMPLETED
+        ];
+
+        if (previewReadyStatuses.includes(build.status)) {
           const project = await this.projectRepository.findById(prompt.projectId);
           previewUrl = project?.previewUrl || null;
         }

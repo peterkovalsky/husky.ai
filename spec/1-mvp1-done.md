@@ -5,7 +5,7 @@ The main page should have a textarea for entering a prompt and be displayed in t
 ## API
 
 - Prompt endpoint: receives user’s prompt and submits a aws sqs message witch contains the prompt. Marks the global status to QUEUED.
-- Status endpoint: reveals the status of the job. Possible statuses: QUEUED, PROCESSING, BUILDING, READY.
+- Status endpoint: reveals the status of the job. Possible statuses: QUEUED, PROCESSING, BUILDING, READY, COMPLETED, FAILED.
 
 ## Agent
 
@@ -13,15 +13,18 @@ The main page should have a textarea for entering a prompt and be displayed in t
 
 1. Receives sqs message from the queue.
 2. Marks the global status to PROCESSING
-3. Submits prompt to AI service (reuse existing functionality)
-4. Parses AI response into JSON (reuse existing functionality)
-5. Validates the response, if error try again with error description
-6. Update file tree (reuse existing functionality)
+3. Process user media (resize images if needed)
+4. Submits prompt to AI service (reuse existing functionality)
+5. Parses AI response into JSON (reuse existing functionality)
+6. Validates the response, if error try again with error description
+7. Update file tree (reuse existing functionality)
 
 ### Build stage
 
 1. Marks the global status to BUILDING
 2. Save file tree to disk as physical files
-3. Run build commands to build React app
-4. Upload the build to S3 bucket for web preview
-5. Marks the global status to READY
+3. Run preview build commands to build React app
+4. Upload the preview build to S3 bucket for web preview
+5. Marks the global status to READY (preview is now live!)
+6. Run production build and upload to S3
+7. Marks the global status to COMPLETED (all builds finished)

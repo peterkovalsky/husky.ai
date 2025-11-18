@@ -31,9 +31,8 @@ export class UserPromptProcessingStep implements IBuildStep {
       const buildId = context.requireBuildId();
       console.log(`[${this.stepName}] Processing user prompt images...`);
 
-      // Update build status to PROCESSING_PROMPT
-      await this.buildRepository.updateStatus(buildId, 'PROCESSING_PROMPT');
-      await this.buildRepository.updateStepStatus(buildId, this.stepStatus);
+      // Update status to PROCESSING_PROMPT
+      await this.buildRepository.updateStatus(buildId, this.stepStatus);
 
       // Check if there are any media IDs to process
       if (!context.mediaIds || context.mediaIds.length === 0) {

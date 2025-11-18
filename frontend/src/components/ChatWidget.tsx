@@ -131,7 +131,7 @@ export const ChatWidget = ({
           type: 'user',
           content: prompt.prompt,
           timestamp: new Date(prompt.createdAt),
-          status: prompt.status === 'READY' ? 'completed' : prompt.status === 'FAILED' ? 'failed' : 'processing',
+          status: prompt.status === 'READY' || prompt.status === 'COMPLETED' ? 'completed' : prompt.status === 'FAILED' ? 'failed' : 'processing',
           jobId: prompt.id
         }))
 

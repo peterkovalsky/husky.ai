@@ -10,7 +10,6 @@ export interface IBuildRepository {
   getNextVersionForProject(projectId: string): Promise<number>;
   updateMetrics(id: string, metrics: BuildMetrics): Promise<void>;
   updateStatus(id: string, status: BuildStatus): Promise<void>;
-  updateStepStatus(id: string, stepStatus: string): Promise<void>;
   updateVersion(id: string, version: number): Promise<void>;
   updateFileTree(id: string, fileTree: Record<string, string>): Promise<void>;
   update(id: string, updates: Partial<Build>): Promise<void>; // Generic update for any build fields

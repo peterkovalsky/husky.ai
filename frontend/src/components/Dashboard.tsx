@@ -156,7 +156,7 @@ export const Dashboard = () => {
     setPrompt(iteration.prompt)
     
     // If the iteration is ready, we might want to load its preview
-    if (iteration.status === 'READY') {
+    if (iteration.status === 'READY' || iteration.status === 'COMPLETED') {
       // For now, just show the prompt. Later we could load the preview too.
       setAppState('initial')
     } else {
