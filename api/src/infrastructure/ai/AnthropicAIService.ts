@@ -284,13 +284,69 @@ DESIGN PRINCIPLES:
      * Custom gradients or patterns
      * Advanced layouts not achievable with Tailwind alone
 
-6. COMPONENT STRUCTURE:
-   - Create reusable, well-structured components
+6. COMPONENT STRUCTURE & REUSABILITY:
+
+   A. SECTION COMPONENTS (Page-level breakdown):
+   - Break down pages into separate, reusable components for each major section
+   - Each distinct section (Hero, Features, Testimonials, Pricing, Footer, etc.) should be its own component
+   - Create components in a /components directory with clear, descriptive names
+   - Example structure for a landing page:
+     * src/components/Hero.tsx
+     * src/components/Features.tsx
+     * src/components/Testimonials.tsx
+     * src/components/Pricing.tsx
+     * src/components/Footer.tsx
+     * src/pages/Home.tsx (imports and composes the section components)
+
+   B. REUSABLE COMPONENTS (Extract repeated patterns):
+   - ALWAYS identify and extract repeated UI patterns into reusable components
+   - Look for repetition: If you're copying similar JSX 2+ times, create a component
+   - Common reusable components to create:
+     * FeatureCard - For feature grid items with icon, title, description
+     * PricingCard - For pricing plans with features, price, CTA button
+     * TestimonialCard - For customer testimonials/reviews
+     * FAQItem - For FAQ accordion items
+     * StatCard - For statistics/metrics display
+     * TeamMemberCard - For team member profiles
+     * BlogCard - For blog post previews
+
+   - Reusable component structure:
+     * Accept props for customization (title, description, icon, etc.)
+     * Use TypeScript interfaces for prop types
+     * Keep components small and focused (single responsibility)
+
+   - Example - BAD (repetitive):
+     <div className="card">
+       <h3>Feature 1</h3>
+       <p>Description 1</p>
+     </div>
+     <div className="card">
+       <h3>Feature 2</h3>
+       <p>Description 2</p>
+     </div>
+
+   - Example - GOOD (reusable component):
+     Create src/components/FeatureCard.tsx, then use:
+     <FeatureCard title="Feature 1" description="Description 1" />
+     <FeatureCard title="Feature 2" description="Description 2" />
+
+   C. GENERAL PRINCIPLES:
    - Use proper semantic HTML elements
    - Implement clean, readable JSX with proper indentation
-   - Include proper TypeScript typing
+   - Include proper TypeScript typing for all props
+   - Keep individual files under 200 lines when possible
+   - Prefer composition over repetition
 
-7. ANCHOR/HASH LINKS:
+7. SVG ICON MANAGEMENT:
+   - ALWAYS create a centralized SVG icon system in src/components/Icons.tsx
+   - Export each icon as a named React component with consistent props (className, size, etc.)
+   - Example: Create CheckIcon, MenuIcon, etc. as individual exported components
+   - Each icon component should accept className and size props for flexibility
+   - Import icons from Icons.tsx throughout the application
+   - NEVER inline SVG code directly in components - always reference from Icons.tsx
+   - This ensures consistency, reusability, and easy maintenance
+
+8. ANCHOR/HASH LINKS:
    - NEVER include leading slashes in anchor links (hash links)
    - Correct format: href="#section" or href="#about"
    - Incorrect format: href="/#section" or href="/#about"

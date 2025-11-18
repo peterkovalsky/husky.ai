@@ -6,7 +6,11 @@
 --              This removes redundancy and provides better internal tracking while
 --              maintaining frontend compatibility through the status mapping layer.
 
--- Step 1: Update existing records FIRST (before adding constraint)
+-- Step 1: Drop the old status constraint FIRST
+-- This allows the running application to insert new status values during migration
+ALTER TABLE builds DROP CONSTRAINT IF EXISTS builds_status_check;
+
+-- Step 2: Update existing records to use new status values
 -- Map old high-level statuses to equivalent step statuses
 UPDATE builds SET status = 'INITIALIZING' WHERE status = 'QUEUED';
 UPDATE builds SET status = 'COMPLETED' WHERE status = 'READY';
@@ -14,12 +18,9 @@ UPDATE builds SET status = 'GENERATING_CODE' WHERE status = 'PROCESSING';
 UPDATE builds SET status = 'BUILDING_PREVIEW' WHERE status = 'BUILDING';
 -- FAILED can remain as-is
 
--- Step 2: Drop the step_status column and its index
+-- Step 3: Drop the step_status column and its index
 DROP INDEX IF EXISTS idx_builds_step_status;
 ALTER TABLE builds DROP COLUMN IF EXISTS step_status;
-
--- Step 3: Drop the old status constraint
-ALTER TABLE builds DROP CONSTRAINT IF EXISTS builds_status_check;
 
 -- Step 4: Add new constraint with all step status values
 ALTER TABLE builds
