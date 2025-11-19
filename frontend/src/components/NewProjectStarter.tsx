@@ -149,15 +149,19 @@ export const NewProjectStarter = ({ projectId }: NewProjectStarterProps) => {
   // If app is ready and we have a preview URL, show the full-screen preview
   if (appState === 'ready' && jobStatus?.previewUrl) {
     return (
-      <div className="h-screen flex flex-col">
-        <iframe
-          key={iframeKey}
-          src={jobStatus.previewUrl}
-          className="w-full h-full border-0"
-          title="Project Preview"
-          sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-        />
-        <ChatWidget projectId={projectId}/>
+      <div className="h-screen flex bg-background">
+        <div style={{ width: '400px' }} className="h-full">
+          <ChatWidget projectId={projectId}/>
+        </div>
+        <div className="flex-1 h-full">
+          <iframe
+            key={iframeKey}
+            src={jobStatus.previewUrl}
+            className="w-full h-full border-0"
+            title="Project Preview"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+          />
+        </div>
       </div>
     )
   }

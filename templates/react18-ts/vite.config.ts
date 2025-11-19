@@ -1,20 +1,65 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// https://vitejs.dev/config/
+/**
+ * Optimized Vite Configuration for HuskyStudio Generated Apps
+ *
+ * Optimizations:
+ * - Code splitting for better browser caching
+ * - Console logs removed for smaller bundles
+ * - Faster build times
+ */
 export default defineConfig({
   base: process.env.VITE_BASE_PATH || '/',
-  plugins: [react()],
+
+  plugins: [
+    react({
+      jsxRuntime: 'automatic',
+      fastRefresh: true,
+    })
+  ],
+
   build: {
     target: 'es2020',
-    minify: 'esbuild', // faster than terser
+    minify: 'esbuild',
+
+    // Enable code splitting for better caching
     rollupOptions: {
       output: {
-        manualChunks: undefined, // disable chunking for faster builds
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom'],
+          'router': ['react-router-dom'],
+        },
       },
     },
+
+    // Faster builds - skip compressed size calculation
+    reportCompressedSize: false,
+
+    // Reasonable chunk size warning
+    chunkSizeWarningLimit: 1000,
+
+    // No source maps in production
+    sourcemap: false,
+
+    // Enable CSS code splitting
+    cssCodeSplit: true,
   },
+
+  // Optimize dependency pre-bundling
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'react-router-dom'],
+  },
+
   esbuild: {
-    logOverride: { 'this-is-undefined-in-esm': 'silent' }
-  }
+    logOverride: { 'this-is-undefined-in-esm': 'silent' },
+    // Remove console logs and debugger statements for smaller bundles
+    drop: ['console', 'debugger'],
+  },
+
+  // Dev server configuration
+  server: {
+    hmr: true,
+    open: false,
+  },
 })

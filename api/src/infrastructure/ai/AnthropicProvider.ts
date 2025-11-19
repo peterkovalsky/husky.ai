@@ -1,113 +1,38 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { IAIService, AIResponse } from '../../domain/services/IAIService';
-import { BuildLogger } from '../../shared/logger/BuildLogger';
-import { IPromptRepository } from '../../domain/repositories/IPromptRepository';
+import { BaseAIProvider } from './BaseAIProvider';
+import { AIProviderResponse } from '../../domain/services/IAIProvider';
+import { IAILogRepository } from '../../domain/repositories/IAILogRepository';
 import { CostCalculator } from '../../shared/utils/CostCalculator';
 
-export class AnthropicAIService implements IAIService {
+export class AnthropicProvider extends BaseAIProvider {
   private client: Anthropic;
-  private currentFileTree: Record<string, string> = {};
-  private buildLogger: BuildLogger;
-  private currentProjectId: string = '';
-  private currentBuildId: string = '';
-  private promptRepository: IPromptRepository;
 
-  constructor(promptRepository: IPromptRepository, apiKey?: string) {
-    this.promptRepository = promptRepository;
+  constructor(aiLogRepository: IAILogRepository, apiKey?: string) {
+    super(aiLogRepository);
     this.client = new Anthropic({
       apiKey: apiKey || process.env.ANTHROPIC_API_KEY,
       timeout: 20 * 60 * 1000, // 20 minutes timeout for long-running requests
     });
-    this.buildLogger = new BuildLogger();
   }
 
-  getCurrentFileTree(): Record<string, string> {
-    return this.currentFileTree;
+  getName(): string {
+    return 'anthropic';
   }
 
-  async setProjectContext(projectId: string, fileTree: Record<string, string>, buildId?: string): Promise<void> {
-    this.currentProjectId = projectId;
-    this.currentFileTree = fileTree;
-    this.currentBuildId = buildId || '';
+  getSupportedModels(): string[] {
+    return [
+      'claude-sonnet-4-5-20250929',
+      'claude-haiku-4-5-20251001'
+    ];
   }
 
-
-  private extractJSON(content: string): any {
-    try {
-      // First try to parse as is
-      return JSON.parse(content);
-    } catch {
-      // If that fails, try to extract JSON from content that might have explanatory text
-      // Look for the first occurrence of { and last occurrence of }
-      const firstBrace = content.indexOf('{');
-      const lastBrace = content.lastIndexOf('}');
-
-      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-        const jsonString = content.slice(firstBrace, lastBrace + 1);
-        try {
-          return JSON.parse(jsonString);
-        } catch {
-          // If extraction still fails, throw original error
-          throw new Error(`Failed to parse JSON from AI response: ${content.substring(0, 200)}...`);
-        }
-      }
-
-      throw new Error(`No valid JSON found in AI response: ${content.substring(0, 200)}...`);
-    }
-  }
-
-  private formatFileTreeForPrompt(fileTree: Record<string, string>): string {
-    return Object.entries(fileTree)
-      .map(([path, content]) => {
-        return `${path}:\n${content}`;
-      })
-      .join("\n\n---\n\n");
-  }
-
-
-  private normalizeChanges(rawChanges: any): Record<string, string> {
-    const normalized: Record<string, string> = {};
-
-    for (const [filePath, content] of Object.entries(rawChanges)) {
-      if (content === "__DELETE__") {
-        normalized[filePath] = "__DELETE__";
-      } else if (typeof content === "string") {
-        normalized[filePath] = content;
-      } else if (typeof content === "object" && content !== null) {
-        // Handle nested object responses
-        if ((content as any).__DELETE__ === true) {
-          normalized[filePath] = "__DELETE__";
-        } else {
-          // Convert object to JSON string
-          normalized[filePath] = JSON.stringify(content, null, 2);
-        }
-      } else {
-        // Convert other types to string
-        normalized[filePath] = String(content);
-      }
-    }
-
-    return normalized;
-  }
-
-  private updateFileTree(changes: Record<string, string>): Record<string, string> {
-    const newFileTree = { ...this.currentFileTree };
-
-    for (const [filePath, content] of Object.entries(changes)) {
-      if (content === "__DELETE__") {
-        // Remove file from tree
-        delete newFileTree[filePath];
-      } else {
-        // Update existing file or add new file
-        newFileTree[filePath] = content;
-      }
-    }
-
-    return newFileTree;
-  }
-
-
-  async generateResponse(userRequest: string, promptId: string, useHaiku: boolean = false, mediaUrls?: string[]): Promise<AIResponse> {
+  async generateResponse(
+    userRequest: string,
+    promptId: string,
+    userId: string,
+    useHaiku: boolean = false,
+    mediaUrls?: string[]
+  ): Promise<AIProviderResponse> {
     const startTime = Date.now();
 
     try {
@@ -123,6 +48,16 @@ export class AnthropicAIService implements IAIService {
 
       const currentYear = new Date().getFullYear();
       const systemPrompt = `You are a senior UI/UX developer creating beautiful, industry-appropriate React applications.
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+CRITICAL: Your ENTIRE response MUST be ONLY valid JSON starting with { and ending with }
+- NO explanations before the JSON
+- NO markdown code blocks (\`\`\`json)
+- NO commentary or reasoning
+- NO text after the JSON
+- The FIRST character of your response MUST be {
+- The LAST character of your response MUST be }
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 IMPORTANT: Current year is ${currentYear}. Use ${currentYear} for all date-sensitive content (copyrights, testimonials, blog posts, etc.) unless user specifies otherwise.
 
@@ -209,9 +144,18 @@ DESIGN:
 8. HASH LINKS: Use href="#section" NOT href="/#section" (breaks SPA navigation)
 
 ========================================
-RESPONSE FORMAT (CRITICAL):
+RESPONSE FORMAT (CRITICAL - READ CAREFULLY):
 ========================================
-Return ONLY raw JSON. No explanations, commentary, reasoning, or descriptions.
+Your response MUST start with { and end with }. Nothing else.
+
+CORRECT format:
+{"src/App.tsx": "import React from \\"react\\";\\n\\nfunction App() {\\n  return <div>Hello</div>\\n}"}
+
+WRONG formats (DO NOT USE):
+❌ "I'll create..." followed by JSON
+❌ \`\`\`json followed by JSON followed by \`\`\`
+❌ Any text before or after the JSON object
+❌ Markdown formatting of any kind
 
 Structure:
 - Key: file path (relative)
@@ -220,10 +164,11 @@ Structure:
 
 Rules:
 - Escape quotes: \\" for all quotes in strings
+- Escape newlines: \\n for line breaks
 - File contents are strings, not nested objects
 - Example: {"src/App.tsx": "import React from \\"react\\";..."}
 
-Create beautiful, industry-appropriate designs.`;
+Your response = ONE JSON object. Nothing more, nothing less.`;
 
       console.log("Formatting file tree...");
       const fileTreeContent = this.formatFileTreeForPrompt(this.currentFileTree);
@@ -341,37 +286,33 @@ IMPORTANT: When the request mentions "this image" or "these images", use the EXA
       // Calculate duration
       const durationMs = Date.now() - startTime;
 
-      // Save raw AI response to database immediately after receiving it
-      try {
-        await this.promptRepository.updateRawAiResponse(promptId, rawContent);
-        console.log(`Stored raw AI response for prompt ${promptId}`);
-      } catch (error) {
-        console.warn(`Failed to store raw AI response for prompt ${promptId}:`, error);
-        // Don't throw - this is not critical to the main flow
-      }
+      // Calculate cost
+      const cost = CostCalculator.calculateCost(
+        model,
+        inputTokens,
+        outputTokens
+      );
 
-      // Save metrics (tokens and duration) to database
+      // Create AI log record immediately after receiving response
       try {
-        await this.promptRepository.updateMetrics(
-          promptId,
-          inputTokens,
-          outputTokens,
-          durationMs
-        );
-        console.log(`Stored metrics for prompt ${promptId}: ${inputTokens} input tokens, ${outputTokens} output tokens, ${durationMs}ms`);
+        await this.aiLogRepository.create({
+          provider: this.getName(),
+          model: model,
+          inputTokens: inputTokens,
+          outputTokens: outputTokens,
+          costUsd: cost,
+          durationMs: durationMs,
+          projectId: this.currentProjectId,
+          buildId: this.currentBuildId,
+          userId: userId,
+          prompt: userRequest,
+          systemPrompt: systemPrompt,
+          aiResponse: rawContent
+        });
+        console.log(`[AnthropicProvider] Logged AI execution to ai_logs table (model: ${model}, cost: $${cost.toFixed(6)})`);
       } catch (error) {
-        console.warn(`Failed to store metrics for prompt ${promptId}:`, error);
-        // Don't throw - this is not critical to the main flow
-      }
-
-      // Calculate and save model and cost to database
-      try {
-        const cost = CostCalculator.calculateCost(model, inputTokens, outputTokens);
-        await this.promptRepository.updateModelAndCost(promptId, model, cost);
-        console.log(`Stored model and cost for prompt ${promptId}: ${model}, $${cost.toFixed(6)}`);
-      } catch (error) {
-        console.warn(`Failed to store model and cost for prompt ${promptId}:`, error);
-        // Don't throw - this is not critical to the main flow
+        console.error(`[AnthropicProvider] CRITICAL: Failed to log to ai_logs table:`, error);
+        // Don't throw - logging failure shouldn't break the main flow
       }
 
       // Log raw AI response immediately after receiving it
@@ -432,6 +373,8 @@ IMPORTANT: When the request mentions "this image" or "these images", use the EXA
           inputTokens: inputTokens,
           outputTokens: outputTokens,
         },
+        durationMs,
+        systemPrompt
       };
     } catch (error) {
       throw new Error(`Anthropic API error: ${error instanceof Error ? error.message : "Unknown error"}`);

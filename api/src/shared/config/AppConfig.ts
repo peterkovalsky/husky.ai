@@ -16,6 +16,11 @@ export interface AppConfig {
     host?: string;
     enabled: boolean;
   };
+  ai: {
+    provider: 'anthropic' | 'openai';
+    anthropicApiKey?: string;
+    openaiApiKey?: string;
+  };
 }
 
 export function loadAppConfig(): AppConfig {
@@ -42,6 +47,11 @@ export function loadAppConfig(): AppConfig {
       apiKey: process.env.POSTHOG_API_KEY,
       host: process.env.POSTHOG_HOST || 'https://us.i.posthog.com',
       enabled: !!process.env.POSTHOG_API_KEY,
+    },
+    ai: {
+      provider: (process.env.AI_PROVIDER || 'anthropic') as 'anthropic' | 'openai',
+      anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+      openaiApiKey: process.env.OPENAI_API_KEY,
     }
   };
 }

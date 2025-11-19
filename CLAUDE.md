@@ -46,8 +46,12 @@ The API follows Clean Architecture with four distinct layers:
 - Services: Application-specific services (JobProcessor, LegacyJobStatus)
 
 **Infrastructure Layer** (`/src/infrastructure/`)
-- Database: Supabase repository implementations
-- AI: Anthropic AI service integration
+- Database: Supabase repository implementations (includes AILogRepository for execution tracking)
+- AI: Provider-agnostic architecture with Anthropic and OpenAI implementations
+  - BaseAIProvider: Common file tree management and response parsing
+  - AnthropicProvider: Claude Sonnet/Haiku integration
+  - OpenAIProvider: GPT-5.1 integration
+  - AIService: Orchestrator with automatic logging to ai_logs table
 - Queue: AWS SQS integration
 - Storage: AWS S3 integration
 - Auth: Supabase authentication
@@ -69,6 +73,43 @@ The API follows Clean Architecture with four distinct layers:
 - **Clean Architecture**: Dependencies point inward, external concerns are in outer layers
 - **Fail Fast**: NEVER supply default values for missing required data. If a required value is missing, throw a clear exception immediately. Silent fallbacks mask bugs and create unpredictable behavior.
 
+### AI Provider Architecture
+**Provider-agnostic architecture with automatic execution logging**
+
+The system uses a flexible AI provider architecture that supports multiple AI services:
+
+**Architecture Layers:**
+1. **IAIProvider Interface**: Defines contract for AI providers (generateResponse, setProjectContext, etc.)
+2. **BaseAIProvider**: Abstract class with common logic (file tree management, JSON parsing, response normalization)
+3. **Provider Implementations**:
+   - `AnthropicProvider`: Claude Sonnet 4.5 & Haiku 4.5 integration
+   - `OpenAIProvider`: GPT-5.1 & GPT-5.1-chat-latest integration
+4. **AIService Orchestrator**: Manages provider selection and automatic logging
+
+**Supported Providers & Models:**
+- **Anthropic** (default):
+  - `claude-sonnet-4-5-20250929` - Primary model for first builds and complex tasks
+  - `claude-haiku-4-5-20251001` - Faster model for iterative builds
+- **OpenAI**:
+  - `gpt-5.1` - Reasoning model (Sonnet equivalent)
+  - `gpt-5.1-chat-latest` - Instant model (Haiku equivalent)
+
+**Configuration:**
+- Set `AI_PROVIDER=anthropic` or `AI_PROVIDER=openai` in environment
+- Provide corresponding API key (`ANTHROPIC_API_KEY` or `OPENAI_API_KEY`)
+- Provider selection happens at container initialization in `ContainerSetup.ts`
+
+**Automatic Logging:**
+- All AI executions are automatically logged to `ai_logs` table
+- Logs include: provider, model, tokens, cost, duration, full prompts/responses
+- Dual tracking: `prompts` table (high-level) + `ai_logs` table (detailed execution)
+- No code changes needed in use cases - logging happens in AIService orchestrator
+
+**Cost Tracking:**
+- OpenAI GPT-5.1: $1.25 input / $10.00 output per million tokens
+- Anthropic pricing maintained in `CostCalculator.ts`
+- Automatic cost calculation for all executions
+
 ### Frontend Architecture
 - **React 19** with TypeScript and Vite
 - **State Management**: React Context for auth and project state
@@ -76,6 +117,7 @@ The API follows Clean Architecture with four distinct layers:
 - **Routing**: React Router for navigation
 - **Styling**: Tailwind CSS with HeroUI components
 - **UI Components**: HeroUI (https://www.heroui.com)
+- **Component Design**: Reusable components with data extracted to constants
 
 ### Documentation Strategy
 **ALWAYS use context7 MCP tools to fetch the latest API documentation**
@@ -95,6 +137,7 @@ When working with any library or framework in this project:
 - Supabase (JavaScript client)
 - AWS SDK (S3, SQS)
 - Anthropic SDK
+- OpenAI SDK
 
 ### UI Component Standards
 **ALWAYS use HeroUI components - fetch latest docs via context7 before implementing**
@@ -134,6 +177,161 @@ import { Alert, Card, CardBody, Code } from '@heroui/react'
 </div>
 ```
 
+### Component Reusability Standards
+**CRITICAL: Always create reusable components and extract data to constants**
+
+When building React components:
+
+**1. Identify Repetition (DRY Principle)**
+- ✅ DO: Create a reusable component when you see the same structure 2+ times
+- ✅ DO: Extract props interface for type safety
+- ✅ DO: Use composition over duplication
+- ❌ DON'T: Copy-paste similar JSX structures
+- ❌ DON'T: Keep inline data when there are 3+ similar items
+
+**2. Extract Data to Constants**
+- ✅ DO: Create separate data files (e.g., `src/data/features.ts`)
+- ✅ DO: Define data as typed constants outside components
+- ✅ DO: Map over data arrays to render components
+- ❌ DON'T: Hardcode data directly in JSX
+- ❌ DON'T: Repeat similar objects inline in components
+
+**3. Component Structure Pattern**
+```
+src/
+  components/
+    FeatureCard.tsx     # Reusable component
+    PricingCard.tsx     # Reusable component
+  data/
+    features.ts         # Data constants
+    pricing.ts          # Data constants
+  pages/
+    Features.tsx        # Composition (maps data to components)
+```
+
+**Example - BAD (Repetitive, Inline Data):**
+```typescript
+// ❌ DON'T: Repeat similar structures
+export default function Features() {
+  return (
+    <div>
+      <div className="card">
+        <div className="card-body">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-500">
+            <ChatIcon />
+          </div>
+          <h3>Smart Questions</h3>
+          <p>Our AI asks intelligent questions...</p>
+        </div>
+      </div>
+
+      {/* Same structure repeated 5 more times - BAD! */}
+      <div className="card">
+        <div className="card-body">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-500">
+            <PaletteIcon />
+          </div>
+          <h3>Beautiful Design</h3>
+          <p>Professional UI components...</p>
+        </div>
+      </div>
+      {/* ... more repetition ... */}
+    </div>
+  );
+}
+```
+
+**Example - GOOD (Reusable Component + Data Constants):**
+
+**Step 1: Create data constant** (`src/data/features.ts`)
+```typescript
+import { ChatIcon, PaletteIcon, BoltIcon } from '../components/SVGIcons';
+
+export interface Feature {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  gradientFrom: string;
+  gradientTo: string;
+}
+
+export const FEATURES: Feature[] = [
+  {
+    icon: <ChatIcon />,
+    title: 'Smart Questions',
+    description: 'Our AI asks intelligent questions...',
+    gradientFrom: 'from-purple-500',
+    gradientTo: 'to-indigo-500',
+  },
+  {
+    icon: <PaletteIcon />,
+    title: 'Beautiful Design',
+    description: 'Professional UI components...',
+    gradientFrom: 'from-blue-500',
+    gradientTo: 'to-cyan-500',
+  },
+  // ... more features
+];
+```
+
+**Step 2: Create reusable component** (`src/components/FeatureCard.tsx`)
+```typescript
+import { Feature } from '../data/features';
+
+export default function FeatureCard({
+  icon,
+  title,
+  description,
+  gradientFrom,
+  gradientTo
+}: Feature) {
+  return (
+    <div className="card bg-white shadow-xl">
+      <div className="card-body">
+        <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${gradientFrom} ${gradientTo} flex items-center justify-center mb-4`}>
+          {icon}
+        </div>
+        <h3 className="card-title text-2xl mb-2">{title}</h3>
+        <p className="text-gray-600">{description}</p>
+      </div>
+    </div>
+  );
+}
+```
+
+**Step 3: Use composition** (`src/pages/Features.tsx`)
+```typescript
+import FeatureCard from '../components/FeatureCard';
+import { FEATURES } from '../data/features';
+
+export default function Features() {
+  return (
+    <section>
+      <h2>Features</h2>
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {FEATURES.map((feature, index) => (
+          <FeatureCard key={index} {...feature} />
+        ))}
+      </div>
+    </section>
+  );
+}
+```
+
+**Benefits:**
+- **Maintainability**: Change card design once, updates everywhere
+- **Type Safety**: TypeScript interfaces ensure consistency
+- **Readability**: Clear separation of data and presentation
+- **Performance**: Smaller bundle size, better tree-shaking
+- **AI Efficiency**: Reduces token usage by 40-50% when regenerating
+- **Testing**: Easy to test reusable components in isolation
+
+**When to Extract:**
+- 2+ identical or very similar components → Create reusable component
+- 3+ data objects with same structure → Extract to constants file
+- Inline styling repeated → Move to reusable component or Tailwind classes
+- Complex prop drilling → Consider data file + spread operator
+
 ### Project Structure
 Generated apps are stored in project directories:
 - `/projects/{project-id}/web/` - Working directory for each project
@@ -152,7 +350,10 @@ Generated apps are stored in project directories:
 ### Required Environment Variables (API)
 All variables are required for startup:
 - `SUPABASE_URL` & `SUPABASE_SERVICE_ROLE_KEY` - Database access
-- `ANTHROPIC_API_KEY` - AI service
+- **AI Provider Configuration:**
+  - `AI_PROVIDER` - Provider selection: 'anthropic' | 'openai' (default: 'anthropic')
+  - `ANTHROPIC_API_KEY` - Required if AI_PROVIDER=anthropic
+  - `OPENAI_API_KEY` - Required if AI_PROVIDER=openai
 - `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` - AWS services
 - `S3_BUCKET_NAME` - Preview bucket (dev-husky-app-previews)
 - `S3_PROJECTS_BUCKET_NAME` - Projects/versions bucket (dev-husky-projects)
@@ -203,8 +404,9 @@ dev-husky-projects/
 ## Database Schema
 - PostgreSQL via Supabase
 - Migrations in `/database/migrations/`
-- Key tables: projects, builds, prompts, users, workspaces
-- Recent migrations added version tracking and project descriptions
+- Key tables: projects, builds, prompts, users, workspaces, ai_logs
+- **AI Logging:** All AI executions (code generation, auto-fix) are logged to `ai_logs` table
+- Recent migrations added version tracking, project descriptions, and comprehensive AI execution logging
 
 ### Database Troubleshooting
 **ALWAYS use Supabase MCP tools for database operations, troubleshooting, and checking data**

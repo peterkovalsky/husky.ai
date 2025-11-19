@@ -1,6 +1,8 @@
 /**
- * Cost Calculator for Claude API usage
- * Based on pricing from: https://docs.claude.com/en/docs/about-claude/models/overview
+ * Cost Calculator for AI API usage
+ * Based on pricing from:
+ * - Claude: https://docs.claude.com/en/docs/about-claude/models/overview
+ * - OpenAI: https://openai.com/api/pricing/
  * Prices are per million tokens
  */
 
@@ -41,6 +43,15 @@ const MODEL_PRICING: Record<string, ModelPricing> = {
   'claude-3-5-haiku-20241022': {
     inputPricePerMillion: 0.80,
     outputPricePerMillion: 4.00,
+  },
+  // OpenAI GPT-5.1 Models
+  'gpt-5.1': {
+    inputPricePerMillion: 1.25,
+    outputPricePerMillion: 10.00,
+  },
+  'gpt-5.1-chat-latest': {
+    inputPricePerMillion: 1.25,
+    outputPricePerMillion: 10.00,
   },
 };
 

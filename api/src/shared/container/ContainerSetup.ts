@@ -10,9 +10,11 @@ import { IPromptRepository } from '../../domain/repositories/IPromptRepository';
 import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
 import { IMediaRepository } from '../../domain/repositories/IMediaRepository';
 import { ICreditPurchaseRepository } from '../../domain/repositories/ICreditPurchaseRepository';
+import { IAILogRepository } from '../../domain/repositories/IAILogRepository';
 
 // Domain Services
 import { IAIService } from '../../domain/services/IAIService';
+import { IAIProvider } from '../../domain/services/IAIProvider';
 import { IStorageService } from '../../domain/services/IStorageService';
 import { IQueueService } from '../../domain/services/IQueueService';
 import { IBuildService } from '../../domain/services/IBuildService';
@@ -30,7 +32,10 @@ import { SupabasePromptRepository } from '../../infrastructure/database/Supabase
 import { SupabaseBuildRepository } from '../../infrastructure/database/SupabaseBuildRepository';
 import { SupabaseMediaRepository } from '../../infrastructure/database/SupabaseMediaRepository';
 import { SupabaseCreditPurchaseRepository } from '../../infrastructure/database/SupabaseCreditPurchaseRepository';
-import { AnthropicAIService } from '../../infrastructure/ai/AnthropicAIService';
+import { SupabaseAILogRepository } from '../../infrastructure/database/SupabaseAILogRepository';
+import { AnthropicProvider } from '../../infrastructure/ai/AnthropicProvider';
+import { OpenAIProvider } from '../../infrastructure/ai/OpenAIProvider';
+import { AIService } from '../../infrastructure/ai/AIService';
 import { S3StorageService } from '../../infrastructure/storage/S3StorageService';
 import { SQSQueueService } from '../../infrastructure/queue/SQSQueueService';
 import { BuildService } from '../../infrastructure/build/BuildService';
@@ -117,11 +122,35 @@ export function setupContainer(): DIContainer {
   container.registerFactory<IBuildRepository>('buildRepository', () => new SupabaseBuildRepository());
   container.registerFactory<IMediaRepository>('mediaRepository', () => new SupabaseMediaRepository());
   container.registerFactory<ICreditPurchaseRepository>('creditPurchaseRepository', () => new SupabaseCreditPurchaseRepository());
+  container.registerFactory<IAILogRepository>('aiLogRepository', () => new SupabaseAILogRepository());
 
-  // Register Infrastructure Services
+  // Register AI Providers
+  container.registerFactory<IAIProvider>('anthropicProvider', () => {
+    const aiLogRepository = container.get<IAILogRepository>('aiLogRepository');
+    return new AnthropicProvider(aiLogRepository, config.ai.anthropicApiKey);
+  });
+
+  container.registerFactory<IAIProvider>('openaiProvider', () => {
+    const aiLogRepository = container.get<IAILogRepository>('aiLogRepository');
+    return new OpenAIProvider(aiLogRepository, config.ai.openaiApiKey);
+  });
+
+  // Register AI Service (orchestrator with automatic logging)
   container.registerFactory<IAIService>('aiService', () => {
     const promptRepository = container.get<IPromptRepository>('promptRepository');
-    return new AnthropicAIService(promptRepository);
+    const aiLogRepository = container.get<IAILogRepository>('aiLogRepository');
+
+    // Select provider based on config
+    let provider: IAIProvider;
+    if (config.ai.provider === 'openai') {
+      provider = container.get<IAIProvider>('openaiProvider');
+      console.log('[Container] AI Service initialized with OpenAI provider');
+    } else {
+      provider = container.get<IAIProvider>('anthropicProvider');
+      console.log('[Container] AI Service initialized with Anthropic provider');
+    }
+
+    return new AIService(provider, promptRepository, aiLogRepository);
   });
   
   container.registerFactory<IStorageService>('storageService', () => new S3StorageService());
