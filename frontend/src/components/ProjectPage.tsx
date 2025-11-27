@@ -136,12 +136,60 @@ export const ProjectPage = () => {
     const allBuildsFailed = projectDetails.recentPrompts.length > 0 &&
       projectDetails.recentPrompts.every(p => p.status === 'FAILED')
     const latestReadyPrompt = projectDetails.recentPrompts.find(p => p.status === 'READY' || p.status === 'COMPLETED')
+    const hasInProgressPrompt = projectDetails.recentPrompts.some(
+      p => p.status === 'QUEUED' || p.status === 'PROCESSING' || p.status === 'BUILDING'
+    )
 
     // If there are prompts but no ready preview and not in special cases, redirect
-    if (!hasNoBuilds && !allBuildsFailed && !latestReadyPrompt) {
+    // BUT don't redirect if there's a build in progress - wait for it to complete
+    if (!hasNoBuilds && !allBuildsFailed && !latestReadyPrompt && !hasInProgressPrompt) {
       navigate('/')
     }
   }, [projectDetails, navigate])
+
+  // Poll for in-progress builds and reload when ready
+  useEffect(() => {
+    if (!projectDetails) return
+
+    // Find in-progress prompt to poll
+    const inProgressPrompt = projectDetails.recentPrompts.find(
+      p => p.status === 'QUEUED' || p.status === 'PROCESSING' || p.status === 'BUILDING'
+    )
+
+    if (!inProgressPrompt) return
+
+    console.log('[ProjectPage] Found in-progress prompt, starting poll:', inProgressPrompt.id)
+
+    let cleanup: (() => void) | null = null
+
+    const startPolling = async () => {
+      cleanup = await ApiService.pollJobStatus(
+        inProgressPrompt.id,
+        (status) => {
+          console.log('[ProjectPage] Poll status received:', status.status)
+          if (status.status === 'READY' && status.previewUrl) {
+            console.log('[ProjectPage] Build ready, reloading project details')
+            // Trigger a reload of project details
+            setReloadCounter(c => c + 1)
+          } else if (status.status === 'FAILED') {
+            console.log('[ProjectPage] Build failed, reloading project details')
+            setReloadCounter(c => c + 1)
+          }
+        },
+        (error) => {
+          console.error('[ProjectPage] Poll error:', error)
+        }
+      )
+    }
+
+    startPolling()
+
+    return () => {
+      if (cleanup) {
+        cleanup()
+      }
+    }
+  }, [projectDetails])
 
   if (error) {
     return (

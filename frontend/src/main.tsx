@@ -10,9 +10,15 @@ import { ErrorBoundary } from "./components/ErrorBoundary.tsx";
 import posthog from 'posthog-js';
 import { PostHogProvider } from 'posthog-js/react'
 
+// Disable PostHog on localhost
+const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
 posthog.init(import.meta.env.VITE_PUBLIC_POSTHOG_KEY, {
   api_host: import.meta.env.VITE_PUBLIC_POSTHOG_HOST,
   defaults: '2025-05-24',
+
+  // Disable on localhost
+  disabled: isLocalhost,
 
   // Pageview and navigation tracking
   capture_pageview: true,
