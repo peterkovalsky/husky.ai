@@ -4,6 +4,7 @@ import { IWorkspaceRepository } from '../../domain/repositories/IWorkspaceReposi
 import { IMediaRepository } from '../../domain/repositories/IMediaRepository';
 import { IQueueService } from '../../domain/services/IQueueService';
 import { CreatePromptDto, CreatePromptResponseDto } from '../dto/CreatePromptDto';
+import { ClarificationAnswer } from '../dto/AnalyzePromptDto';
 import { User } from '../../domain/entities/User';
 
 export class CreatePromptUseCase {
@@ -66,18 +67,21 @@ export class CreatePromptUseCase {
       }
     }
 
-    // Create prompt in database
+    // Enhance prompt with clarification data if provided
+    const enhancedPrompt = this.buildEnhancedPrompt(dto.prompt, dto.clarificationAnswers, dto.skippedClarification);
+
+    // Create prompt in database (store original prompt, enhanced version goes to AI)
     const prompt = await this.promptRepository.create({
       prompt: dto.prompt,
       projectId,
       userId: user.id
     });
 
-    // Send message to queue with media IDs
+    // Send message to queue with media IDs and enhanced prompt
     const message = {
       promptId: prompt.id,
       jobId: prompt.id, // Keep for backward compatibility
-      prompt: dto.prompt,
+      prompt: enhancedPrompt, // Use enhanced prompt for AI
       projectId,
       userId: user.id,
       mediaIds: dto.mediaIds || [],
@@ -88,9 +92,7 @@ export class CreatePromptUseCase {
     await this.queueService.sendMessage(message);
     console.log(`[CreatePromptUseCase] Message sent to queue successfully`);
 
-    // Consume one credit after successful queue
-    await this.workspaceRepository.consumeCredit(project.workspaceId);
-    console.log(`[CreatePromptUseCase] Consumed 1 credit from workspace ${project.workspaceId}`);
+    // Note: Credit consumption moved to FinalizationStep (only charged on successful build)
 
     return {
       promptId: prompt.id,
@@ -99,5 +101,55 @@ export class CreatePromptUseCase {
       projectId,
       timestamp: prompt.createdAt
     };
+  }
+
+  /**
+   * Build an enhanced prompt that includes user's clarification answers
+   */
+  private buildEnhancedPrompt(
+    originalPrompt: string,
+    clarificationAnswers?: ClarificationAnswer[],
+    skippedClarification?: boolean
+  ): string {
+    // If user skipped clarification ("Surprise Me"), add note for creative freedom
+    if (skippedClarification) {
+      return `${originalPrompt}
+
+Note: User selected "Surprise Me" - use your best creative judgment for all design choices. Be bold and creative with the visual direction.`;
+    }
+
+    // If no clarification answers, return original prompt
+    if (!clarificationAnswers || clarificationAnswers.length === 0) {
+      return originalPrompt;
+    }
+
+    // Build user preferences section from answers
+    const preferences = clarificationAnswers
+      .map(answer => {
+        const questionLabel = answer.questionText || `Question ${answer.questionId}`;
+
+        if (answer.freeTextAnswer) {
+          return `- ${questionLabel}: ${answer.freeTextAnswer}`;
+        } else if (answer.selectedOptionLabel) {
+          const description = answer.selectedOptionDescription
+            ? ` - "${answer.selectedOptionDescription}"`
+            : '';
+          return `- ${questionLabel}: ${answer.selectedOptionLabel}${description}`;
+        }
+        return null;
+      })
+      .filter(Boolean)
+      .join('\n');
+
+    if (!preferences) {
+      return originalPrompt;
+    }
+
+    return `${originalPrompt}
+
+User's design preferences:
+${preferences}
+
+Please incorporate these design preferences into your implementation.`;
   }
 }

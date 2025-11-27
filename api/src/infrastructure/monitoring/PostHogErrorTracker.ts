@@ -25,6 +25,7 @@ export interface ErrorContext {
 export interface IPostHogErrorTracker {
   captureError(error: Error, context?: ErrorContext): Promise<void>;
   captureException(error: Error, context?: ErrorContext): Promise<void>;
+  captureEvent(eventName: string, properties?: Record<string, any>, distinctId?: string): Promise<void>;
   identify(userId: string, properties?: Record<string, any>): Promise<void>;
   shutdown(): Promise<void>;
   getClient(): PostHog | null;
@@ -150,6 +151,34 @@ export class PostHogErrorTracker implements IPostHogErrorTracker {
 
     await this.captureError(error, { ...context, severity: 'critical' });
     await this.client.flush();
+  }
+
+  /**
+   * Captures a custom event with properties
+   * Use this for tracking custom application events (e.g., cleanup jobs, scheduled tasks)
+   */
+  async captureEvent(
+    eventName: string,
+    properties: Record<string, any> = {},
+    distinctId: string = 'system'
+  ): Promise<void> {
+    if (!this.isEnabled || !this.client) {
+      return;
+    }
+
+    try {
+      this.client.capture({
+        distinctId,
+        event: eventName,
+        properties: {
+          ...properties,
+          environment: process.env.NODE_ENV || 'development',
+          timestamp: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      console.error('[PostHogErrorTracker] Failed to capture event:', error);
+    }
   }
 
   /**

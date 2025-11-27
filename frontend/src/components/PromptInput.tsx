@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useEffect } from 'react'
 import { Button, Textarea } from '@heroui/react'
 import { ArrowUp, ImageIcon, Loader2 } from 'lucide-react'
 import { ImagePreview, type AttachedImage } from './ImagePreview'
@@ -21,6 +21,7 @@ interface PromptInputProps {
   onDrop?: (e: React.DragEvent) => void
   isDragging?: boolean
   loadingStatus?: 'QUEUED' | 'PROCESSING' | 'BUILDING' | null
+  autoFocus?: boolean
 }
 
 export const PromptInput = ({
@@ -39,8 +40,17 @@ export const PromptInput = ({
   onDrop,
   isDragging = false,
   loadingStatus = null,
+  autoFocus = false,
 }: PromptInputProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Auto-focus the textarea on mount if autoFocus is true
+  useEffect(() => {
+    if (autoFocus && textareaRef.current) {
+      textareaRef.current.focus()
+    }
+  }, [autoFocus])
 
   const handleFileButtonClick = () => {
     fileInputRef.current?.click()
@@ -126,19 +136,23 @@ export const PromptInput = ({
           )}
 
           {/* Textarea */}
-          <div className="flex-1 min-h-[32px] focus-within:outline-none">
+          <div className="flex-1 min-h-[32px] prompt-input-no-ring">
             <Textarea
+              ref={textareaRef}
               value={value}
               onValueChange={onChange}
               onKeyDown={handleKeyDown}
               placeholder={placeholder}
               isDisabled={isDisabled || isSubmitting}
+              autoFocus={autoFocus}
               minRows={1}
               maxRows={5}
+              variant="flat"
               classNames={{
-                base: "w-full focus:outline-none",
-                inputWrapper: "!bg-transparent shadow-none p-0 border-none min-h-0 data-[hover=true]:!bg-transparent data-[focus=true]:!bg-transparent focus-within:!outline-none !outline-none",
-                input: "resize-none !bg-transparent text-sm px-0 py-0 focus:outline-none focus:ring-0 !outline-none"
+                base: "w-full",
+                inputWrapper: "!bg-transparent !p-0 !border-0 !min-h-0 !rounded-none !outline-none after:!hidden before:!hidden shadow-none ring-0",
+                innerWrapper: "!p-0 !border-0 !outline-none",
+                input: "!resize-none !bg-transparent !text-sm !px-0 !py-0 !outline-none !ring-0 !border-0 !shadow-none focus:!outline-none focus:!ring-0 focus:!border-0 focus:!shadow-none focus-visible:!outline-none focus-visible:!ring-0 focus-visible:!shadow-none caret-primary"
               }}
             />
           </div>

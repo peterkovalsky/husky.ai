@@ -30,4 +30,10 @@ export interface IProjectRepository {
   isCustomDomainTaken(domain: string): Promise<boolean>;
   clearCustomDomain(projectId: string): Promise<void>;
   updateCustomDomainStatus(projectId: string, status: string, error?: string | null): Promise<void>;
+
+  // Name uniqueness
+  isNameTakenInWorkspace(name: string, workspaceId: string): Promise<boolean>;
+
+  // Cleanup methods
+  findStaleProjects(olderThan: Date): Promise<Project[]>;
 }

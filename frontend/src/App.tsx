@@ -4,6 +4,7 @@ import { SignIn } from './components/auth/SignIn'
 import { SignUp } from './components/auth/SignUp'
 import { ForgotPassword } from './components/auth/ForgotPassword'
 import { Home } from './components/Home'
+import { NewProjectPage } from './components/NewProjectPage'
 import { ProjectPage } from './components/ProjectPage'
 import { SubscriptionPage } from './components/SubscriptionPage'
 import { TransactionsPage } from './components/TransactionsPage'
@@ -81,6 +82,18 @@ function App() {
             </ProjectProvider>
           </ProtectedRoute>
         } 
+      />
+      <Route
+        path="/project/new"
+        element={
+          <ProtectedRoute>
+            <ProjectProvider>
+              <AppLayout>
+                <NewProjectPage />
+              </AppLayout>
+            </ProjectProvider>
+          </ProtectedRoute>
+        }
       />
       <Route
         path="/project/:project_id"

@@ -1,7 +1,13 @@
+import { ClarificationAnswer } from './AnalyzePromptDto';
+
 export interface CreatePromptDto {
   prompt: string;
   projectId?: string;
   mediaIds?: string[];
+  // Clarification fields (optional)
+  clarificationAnswers?: ClarificationAnswer[];
+  analysisId?: string;
+  skippedClarification?: boolean;
 }
 
 export interface CreatePromptResponseDto {

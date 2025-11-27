@@ -37,24 +37,15 @@ export abstract class BaseAIProvider implements IAIProvider {
    * Extract JSON from AI response, handling markdown code blocks and explanatory text
    */
   protected extractJSON(content: string): any {
-    // Step 1: Try to parse content as-is
+    // Step 1: Try to parse content as-is (cleanest case)
     try {
       return JSON.parse(content);
     } catch {
       // Continue to extraction attempts
     }
 
-    // Step 2: Check for markdown code blocks (```json ... ```)
-    const codeBlockMatch = content.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
-    if (codeBlockMatch && codeBlockMatch[1]) {
-      try {
-        return JSON.parse(codeBlockMatch[1].trim());
-      } catch {
-        // Continue to next attempt
-      }
-    }
-
-    // Step 3: Try to extract JSON by finding { and } braces
+    // Step 2: Try to extract JSON by finding { and } braces first
+    // This is more reliable than regex for code blocks that may contain backticks
     const firstBrace = content.indexOf('{');
     const lastBrace = content.lastIndexOf('}');
 
@@ -69,8 +60,21 @@ export abstract class BaseAIProvider implements IAIProvider {
         }
 
         return parsed;
-      } catch (error) {
-        throw new Error(`Failed to parse extracted JSON from AI response. Error: ${error instanceof Error ? error.message : 'Unknown'}. Content preview: ${content.substring(0, 300)}...`);
+      } catch (parseError) {
+        // JSON extraction found braces but parsing failed - this is the real error
+        // Don't fall through, throw with details
+        throw new Error(`Failed to parse extracted JSON from AI response. Error: ${parseError instanceof Error ? parseError.message : 'Unknown'}. Content preview: ${content.substring(0, 300)}...`);
+      }
+    }
+
+    // Step 3: Fallback - check for markdown code blocks (```json ... ```)
+    // Use a more specific pattern that looks for the closing ``` at a line boundary
+    const codeBlockMatch = content.match(/```(?:json)?\s*\n([\s\S]*)\n```\s*$/);
+    if (codeBlockMatch && codeBlockMatch[1]) {
+      try {
+        return JSON.parse(codeBlockMatch[1].trim());
+      } catch {
+        // Continue to error
       }
     }
 
@@ -91,8 +95,22 @@ export abstract class BaseAIProvider implements IAIProvider {
 
   /**
    * Normalize AI response changes to handle different formats
+   *
+   * Handles two response formats:
+   * 1. Flat format: {"src/App.tsx": "content", "src/index.ts": "content"}
+   * 2. Wrapped format: {"fileTree": {"src/App.tsx": "content"}}
    */
   protected normalizeChanges(rawChanges: any): Record<string, string> {
+    // Handle wrapped fileTree format (used by auto-fix prompts)
+    // If the only key is "fileTree" and its value is an object, unwrap it
+    if (rawChanges.fileTree && typeof rawChanges.fileTree === 'object' && !Array.isArray(rawChanges.fileTree)) {
+      const keys = Object.keys(rawChanges);
+      if (keys.length === 1 && keys[0] === 'fileTree') {
+        console.log('[BaseAIProvider] Detected wrapped fileTree format, unwrapping...');
+        rawChanges = rawChanges.fileTree;
+      }
+    }
+
     const normalized: Record<string, string> = {};
 
     for (const [filePath, content] of Object.entries(rawChanges)) {

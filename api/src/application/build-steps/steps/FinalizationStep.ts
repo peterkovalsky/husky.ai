@@ -2,7 +2,9 @@ import { IBuildStep, StepResult, BuildStepStatus } from '../IBuildStep';
 import { BuildStepContext } from '../BuildStepContext';
 import { IBuildRepository } from '../../../domain/repositories/IBuildRepository';
 import { IProjectRepository } from '../../../domain/repositories/IProjectRepository';
+import { IWorkspaceRepository } from '../../../domain/repositories/IWorkspaceRepository';
 import { BuildMetrics } from '../../../domain/entities/Build';
+import { ProjectStatus } from '../../../domain/entities/Project';
 
 /**
  * FinalizationStep: Completes the build process
@@ -13,6 +15,7 @@ import { BuildMetrics } from '../../../domain/entities/Build';
  * - Update build status to COMPLETED
  * - Update build metrics with all accumulated data
  * - Update project's current_version
+ * - Consume credit from workspace (only on successful build)
  * - Update step_status to COMPLETED
  * - Log final metrics and completion
  */
@@ -22,7 +25,8 @@ export class FinalizationStep implements IBuildStep {
 
   constructor(
     private buildRepository: IBuildRepository,
-    private projectRepository: IProjectRepository
+    private projectRepository: IProjectRepository,
+    private workspaceRepository: IWorkspaceRepository
   ) {}
 
   async execute(context: BuildStepContext): Promise<StepResult> {
@@ -68,6 +72,27 @@ export class FinalizationStep implements IBuildStep {
         console.log(`[${this.stepName}] Updated project current_version to ${context.version}`);
       } catch (versionError) {
         console.warn(`[${this.stepName}] Failed to update current_version:`, versionError);
+      }
+
+      // Consume credit from workspace (only on successful build)
+      try {
+        const project = await this.projectRepository.findById(context.projectId);
+        if (project) {
+          await this.workspaceRepository.consumeCredit(project.workspaceId);
+          console.log(`[${this.stepName}] Consumed 1 credit from workspace ${project.workspaceId}`);
+        }
+      } catch (creditError) {
+        console.warn(`[${this.stepName}] Failed to consume credit:`, creditError);
+        // Don't fail the build if credit consumption fails - it's already built successfully
+      }
+
+      // Update project status to ACTIVE (has at least one successful build)
+      try {
+        await this.projectRepository.update(context.projectId, { status: ProjectStatus.ACTIVE });
+        console.log(`[${this.stepName}] Updated project status to ACTIVE`);
+      } catch (statusError) {
+        console.warn(`[${this.stepName}] Failed to update project status:`, statusError);
+        // Don't fail the build if status update fails
       }
 
       // Log completion with detailed metrics

@@ -56,12 +56,12 @@ export class AutoFixStep implements IBuildStep {
       // Build fix prompt for AI
       const fixPrompt = this.buildFixPrompt(buildError, context.fileTree);
 
-      // Call AI to generate fixes (using Haiku for speed and cost)
+      // Call AI to generate fixes (using Sonnet for better fix quality)
       const aiStartTime = Date.now();
       const aiResponse = await this.aiService.generateResponse(
         fixPrompt,
         context.promptId,
-        true // Use Haiku for fast, cheap fixes
+        false // Use Sonnet for more reliable fixes
       );
       const aiFixTimeMs = Date.now() - aiStartTime;
 
@@ -133,15 +133,22 @@ IMPORTANT INSTRUCTIONS:
 1. Return ONLY the files that need to be changed to fix the error
 2. Do not modify files that are not related to the error
 3. Preserve all existing functionality - only fix the specific error
-4. Return the response in this exact JSON format:
+4. To DELETE a file (e.g., when renaming), set its value to "__DELETE__"
+5. Return the response in this exact JSON format:
 {
   "fileTree": {
     "path/to/file.tsx": "fixed file content",
-    "another/file.ts": "another fixed file content"
+    "old/file/to/delete.ts": "__DELETE__"
   }
 }
 
+CRITICAL RULES:
+- JSX syntax (<Component />) can ONLY be used in .tsx or .jsx files, NEVER in .ts files
+- If a .ts file contains JSX, you MUST rename it to .tsx (create new .tsx file AND delete the old .ts file)
+- When renaming a file, remember to update all imports that reference it
+
 Focus on common issues:
+- JSX in .ts files (must be .tsx) - FIX BY RENAMING: create .tsx and delete .ts
 - TypeScript type errors (missing types, incorrect props, type mismatches)
 - Import/export errors (wrong paths, missing imports, circular dependencies)
 - Syntax errors (invalid JSX, parsing errors)

@@ -8,6 +8,12 @@ import { Button } from '@heroui/react'
 import { Code2, ArrowLeft, Loader2 } from 'lucide-react'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 
+// Helper function to add cache-busting parameter to preview URL
+const getCacheBustedUrl = (url: string) => {
+  const timestamp = Date.now()
+  return url.includes('?') ? `${url}&t=${timestamp}` : `${url}?t=${timestamp}`
+}
+
 export const ProjectPage = () => {
   const { project_id } = useParams<{ project_id: string }>()
   const navigate = useNavigate()
@@ -18,6 +24,8 @@ export const ProjectPage = () => {
   const [error, setError] = useState<string | null>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [currentPreviewUrl, setCurrentPreviewUrl] = useState<string>('')
+  // Track the current URL in a ref to avoid stale closures in onLoad/onError
+  const currentPreviewUrlRef = useRef(currentPreviewUrl)
 
   // Sidebar state with localStorage persistence
   const [isSidebarLocked, setIsSidebarLocked] = useLocalStorage('husky_sidebar_locked', true)
@@ -25,12 +33,16 @@ export const ProjectPage = () => {
   const [isHoveringLeftEdge, setIsHoveringLeftEdge] = useState(false)
   const [isHoveringSidebar, setIsHoveringSidebar] = useState(false)
 
+  // Counter to force reload - increment to trigger re-fetch
+  const [reloadCounter, setReloadCounter] = useState(0)
+
   // Reset state when project_id changes
   useEffect(() => {
     setProjectDetails(null)
     setLatestJobStatus(null)
     setIframeLoaded(false)
     setCurrentPreviewUrl('')
+    currentPreviewUrlRef.current = ''
     setError(null)
   }, [project_id])
 
@@ -38,9 +50,11 @@ export const ProjectPage = () => {
     const loadProject = async () => {
       if (!project_id) return
 
+      console.log('[ProjectPage] loadProject starting for project_id:', project_id)
       try {
         // Get all project details in one API call
         const details = await ApiService.getProjectDetails(project_id)
+        console.log('[ProjectPage] loadProject got details:', details)
         setProjectDetails(details)
 
         // Find the latest READY or COMPLETED prompt for preview
@@ -52,23 +66,25 @@ export const ProjectPage = () => {
           try {
             const jobStatus = await ApiService.getJobStatus(latest.id)
             if (jobStatus.previewUrl) {
+              const cacheBustedUrl = getCacheBustedUrl(jobStatus.previewUrl)
               setLatestJobStatus(jobStatus)
-              setCurrentPreviewUrl(getCacheBustedUrl(jobStatus.previewUrl))
+              setCurrentPreviewUrl(cacheBustedUrl)
+              currentPreviewUrlRef.current = cacheBustedUrl
             }
           } catch {
             console.warn('Could not fetch job status for prompt:', latest.id)
           }
         }
 
-        // Project data loaded
+        console.log('[ProjectPage] loadProject completed successfully')
       } catch (err) {
-        console.error('Failed to load project:', err)
+        console.error('[ProjectPage] Failed to load project:', err)
         setError(err instanceof Error ? err.message : 'Failed to load project')
       }
     }
 
     loadProject()
-  }, [project_id])
+  }, [project_id, reloadCounter])
 
   // Set current project in context when project details are loaded
   useEffect(() => {
@@ -90,16 +106,18 @@ export const ProjectPage = () => {
 
       // Update the job status with new preview URL if provided
       if (previewUrl && latestJobStatus) {
+        const cacheBustedUrl = getCacheBustedUrl(previewUrl)
         setLatestJobStatus(prev => prev ? { ...prev, previewUrl } : null)
-        setCurrentPreviewUrl(getCacheBustedUrl(previewUrl))
+        setCurrentPreviewUrl(cacheBustedUrl)
+        currentPreviewUrlRef.current = cacheBustedUrl
       }
 
       // Reset iframe loaded state - this will show loading overlay again
       setIframeLoaded(false)
 
       // Force reload by updating src with new cache-busting timestamp
-      if (iframeRef.current && currentPreviewUrl) {
-        iframeRef.current.src = getCacheBustedUrl(currentPreviewUrl)
+      if (iframeRef.current && currentPreviewUrlRef.current) {
+        iframeRef.current.src = getCacheBustedUrl(currentPreviewUrlRef.current)
       }
     }
 
@@ -124,12 +142,6 @@ export const ProjectPage = () => {
       navigate('/')
     }
   }, [projectDetails, navigate])
-
-  // Helper function to add cache-busting parameter to preview URL
-  const getCacheBustedUrl = (url: string) => {
-    const timestamp = Date.now()
-    return url.includes('?') ? `${url}&t=${timestamp}` : `${url}?t=${timestamp}`
-  }
 
   if (error) {
     return (
@@ -161,13 +173,24 @@ export const ProjectPage = () => {
       <NewProjectStarter
         projectId={projectDetails.project.id}
         projectName={projectDetails.project.name}
+        onBuildComplete={() => setReloadCounter(c => c + 1)}
       />
     )
   }
 
-  // Simple boolean: show loading until both project details AND iframe are ready
+  // Fully loaded when we have project details, preview URL, and iframe is loaded
   const isFullyLoaded = projectDetails && hasReadyPreview && iframeLoaded
   const shouldShowLoading = !isFullyLoaded
+
+  // Debug logging
+  console.log('[ProjectPage] State check:', {
+    projectDetails: !!projectDetails,
+    hasReadyPreview: !!hasReadyPreview,
+    currentPreviewUrl,
+    iframeLoaded,
+    isFullyLoaded,
+    shouldShowLoading
+  })
 
   // Determine if sidebar should be visible
   // When locked: show if open OR if hovering (to allow reopening)
@@ -245,20 +268,24 @@ export const ProjectPage = () => {
       >
         {/* Iframe - ALWAYS rendered from the start, NEVER unmounts or remounts */}
         {/* No key prop = stable element, only src updates */}
+        {/* Use undefined instead of empty string to avoid browser warning */}
         <iframe
           ref={iframeRef}
-          src={currentPreviewUrl}
+          src={currentPreviewUrl || undefined}
           className="w-full h-full border-0"
           title="Project Preview"
           sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
           onLoad={() => {
-            // Only mark as loaded if we actually have content
-            if (currentPreviewUrl) {
+            console.log('[ProjectPage] iframe onLoad fired, currentPreviewUrlRef:', currentPreviewUrlRef.current)
+            // Only mark as loaded if we actually have content (use ref to avoid stale closure)
+            if (currentPreviewUrlRef.current) {
+              console.log('[ProjectPage] Setting iframeLoaded to true')
               setIframeLoaded(true)
             }
           }}
           onError={() => {
-            if (currentPreviewUrl) {
+            console.log('[ProjectPage] iframe onError fired, currentPreviewUrlRef:', currentPreviewUrlRef.current)
+            if (currentPreviewUrlRef.current) {
               setIframeLoaded(true)
             }
           }}

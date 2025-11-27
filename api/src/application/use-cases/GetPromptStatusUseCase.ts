@@ -29,7 +29,7 @@ export class GetPromptStatusUseCase {
 
     // Get prompt from database
     const prompt = await this.promptRepository.findById(promptId);
-    
+
     if (!prompt) {
       throw new Error('Prompt not found');
     }
@@ -42,7 +42,9 @@ export class GetPromptStatusUseCase {
       const build = await this.buildRepository.findById(prompt.buildId);
       if (build) {
         // Map detailed build status to frontend-compatible status
+        console.log(`[GetPromptStatusUseCase] Build status from DB: '${build.status}', mapping to frontend...`);
         status = mapBuildStatusToFrontend(build.status);
+        console.log(`[GetPromptStatusUseCase] Mapped status: '${status}'`);
 
         // Get preview URL from project if build has reached production/finalization stage
         // These statuses map to READY on the frontend
@@ -56,6 +58,7 @@ export class GetPromptStatusUseCase {
         if (previewReadyStatuses.includes(build.status)) {
           const project = await this.projectRepository.findById(prompt.projectId);
           previewUrl = project?.previewUrl || null;
+          console.log(`[GetPromptStatusUseCase] Preview URL from project: '${previewUrl}'`);
         }
       }
     }

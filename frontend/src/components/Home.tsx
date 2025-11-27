@@ -1,13 +1,12 @@
 import { useProject } from '../contexts/ProjectContext'
 import { Card, CardBody, CardHeader, Button, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Divider, Chip } from '@heroui/react'
-import { CreateProjectDialog } from './CreateProjectDialog'
 import { EditProjectDialog } from './EditProjectDialog'
 import { DeleteProjectDialog } from './DeleteProjectDialog'
 import { PublishDialog } from './PublishDialog'
-import { Code2, Calendar, FolderOpen, MoreVertical, Trash2, Globe, Loader2, AlertCircle, Edit } from 'lucide-react'
+import { Code2, Calendar, FolderOpen, MoreVertical, Trash2, Globe, Loader2, AlertCircle, Edit, Plus } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useState, useEffect, useMemo } from 'react'
-import { PublishingStatus, type Project } from '../services/api'
+import { PublishingStatus, ProjectStatus, type Project } from '../services/api'
 
 export const Home = () => {
   const { projects, loading, deleteProject, refreshProjects } = useProject()
@@ -17,19 +16,21 @@ export const Home = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
 
-  // Sort projects by creation date ascending (oldest first)
+  // Filter to only ACTIVE projects and sort by creation date ascending (oldest first)
   const sortedProjects = useMemo(() => {
-    return [...projects].sort((a, b) => {
-      const dateA = new Date(a.createdAt).getTime()
-      const dateB = new Date(b.createdAt).getTime()
-      return dateA - dateB // Ascending order
-    })
+    return [...projects]
+      .filter((p) => p.status === ProjectStatus.ACTIVE || p.status === undefined)
+      .sort((a, b) => {
+        const dateA = new Date(a.createdAt).getTime()
+        const dateB = new Date(b.createdAt).getTime()
+        return dateA - dateB // Ascending order
+      })
   }, [projects])
 
   // Refresh projects when component mounts or becomes visible
   useEffect(() => {
     refreshProjects()
-  }, [refreshProjects])
+  }, [refreshProjects]) 
 
   const formatDate = (dateString: string) => {
     if (!dateString) return 'Unknown Date'
@@ -120,7 +121,13 @@ export const Home = () => {
             <p className="text-default-500">Select a project to continue building your app</p>
           </div>
           {sortedProjects.length > 0 && (
-            <CreateProjectDialog />
+            <Button
+              color="primary"
+              onPress={() => navigate('/project/new')}
+              startContent={<Plus className="h-4 w-4" />}
+            >
+              Create Project
+            </Button>
           )}
         </div>
 
@@ -131,7 +138,14 @@ export const Home = () => {
             </div>
             <h3 className="text-lg font-semibold mb-2">No projects yet</h3>
             <p className="text-default-500 mb-6">Create your first project to get started</p>
-            <CreateProjectDialog isFirstProject={true} />
+            <Button
+              color="primary"
+              size="lg"
+              onPress={() => navigate('/project/new')}
+              startContent={<Plus className="h-5 w-5" />}
+            >
+              Create Your First Project
+            </Button>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -231,7 +245,7 @@ export const Home = () => {
                       <span className="text-sm text-default-500">
                         Last modified {formatDate(project.modifiedAt)}
                       </span>
-                      <Button size="sm" variant="light">
+                      <Button as="div" size="sm" variant="light">
                         Open →
                       </Button>
                     </div>

@@ -30,6 +30,15 @@ export interface Workspace {
   creditsMonthlyAllocated?: number;
 }
 
+export const ProjectStatus = {
+  NEW: 'NEW',
+  FAILED: 'FAILED',
+  ACTIVE: 'ACTIVE',
+  DELETING: 'DELETING'
+} as const
+
+export type ProjectStatus = typeof ProjectStatus[keyof typeof ProjectStatus]
+
 export interface Project {
   id: string;
   name: string;
@@ -40,6 +49,7 @@ export interface Project {
   publishedStatus?: PublishingStatus;
   publishedAt?: string;
   currentVersion?: number;
+  status?: ProjectStatus;
 }
 
 export interface Prompt {
@@ -319,10 +329,45 @@ export class ApiService {
     }
   }
 
-  static async submitPrompt(prompt: string, projectId?: string, mediaIds?: string[]): Promise<PromptResponse> {
+  static async submitPrompt(
+    prompt: string,
+    projectId?: string,
+    mediaIds?: string[],
+    clarificationAnswers?: import('../types/clarification').ClarificationAnswer[],
+    analysisId?: string,
+    skippedClarification?: boolean
+  ): Promise<PromptResponse> {
     return this.request<PromptResponse>('/api/prompt', {
       method: 'POST',
+      body: JSON.stringify({
+        prompt,
+        projectId,
+        mediaIds,
+        clarificationAnswers,
+        analysisId,
+        skippedClarification
+      }),
+    });
+  }
+
+  static async analyzePrompt(
+    prompt: string,
+    projectId?: string,
+    mediaIds?: string[]
+  ): Promise<import('../types/clarification').AnalyzePromptResponse> {
+    return this.request<import('../types/clarification').AnalyzePromptResponse>('/api/prompt/analyze', {
+      method: 'POST',
       body: JSON.stringify({ prompt, projectId, mediaIds }),
+    });
+  }
+
+  static async createProjectFromPrompt(
+    suggestedName: string,
+    workspaceId?: string
+  ): Promise<Project> {
+    return this.request<Project>('/api/project/from-prompt', {
+      method: 'POST',
+      body: JSON.stringify({ suggestedName, workspaceId }),
     });
   }
 
@@ -383,29 +428,47 @@ export class ApiService {
     onUpdate: (status: JobStatus) => void,
     onError: (error: Error) => void
   ): Promise<() => void> {
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    let isStopped = false;
+
+    const stopPolling = () => {
+      isStopped = true;
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+
     const poll = async () => {
+      if (isStopped) return;
+
       try {
         const status = await this.getJobStatus(jobId);
+        if (isStopped) return; // Check again after async call
+
         onUpdate(status);
 
         // Stop polling if job is in final state
         if (status.status === 'READY' || status.status === 'COMPLETED' || status.status === 'FAILED' || status.errorMessage) {
-          clearInterval(intervalId);
+          stopPolling();
         }
       } catch (error) {
+        if (isStopped) return;
         onError(error instanceof Error ? error : new Error('Failed to poll job status'));
-        clearInterval(intervalId);
+        stopPolling();
       }
     };
 
     // Poll immediately
     await poll();
 
-    // Set up interval for polling every 10 seconds
-    const intervalId = setInterval(poll, 10000);
+    // Only set up interval if not already stopped (job wasn't in final state)
+    if (!isStopped) {
+      intervalId = setInterval(poll, 10000);
+    }
 
     // Return cleanup function
-    return () => clearInterval(intervalId);
+    return stopPolling;
   }
 
   // Media upload methods
