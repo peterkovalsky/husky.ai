@@ -44,8 +44,8 @@ export const SignUp = () => {
         duration: 3000
       })
 
-      // Redirect to dashboard - it will handle the setup check
-      navigate('/', { replace: true })
+      // Redirect new users directly to create their first project
+      navigate('/project/new', { replace: true })
 
     } catch (error) {
       console.error('Signup error:', error)

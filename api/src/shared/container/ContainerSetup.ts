@@ -54,7 +54,9 @@ import { ImageProcessingService } from '../../infrastructure/services/ImageProce
 // Application Use Cases
 import { CreatePromptUseCase } from '../../application/use-cases/CreatePromptUseCase';
 import { GetPromptStatusUseCase } from '../../application/use-cases/GetPromptStatusUseCase';
+import { AnalyzePromptUseCase } from '../../application/use-cases/AnalyzePromptUseCase';
 import { CreateProjectUseCase } from '../../application/use-cases/CreateProjectUseCase';
+import { CreateProjectFromPromptUseCase } from '../../application/use-cases/CreateProjectFromPromptUseCase';
 import { GetProjectDetailsUseCase } from '../../application/use-cases/GetProjectDetailsUseCase';
 import { UpdateProjectUseCase } from '../../application/use-cases/UpdateProjectUseCase';
 import { ProcessJobUseCase } from '../../application/use-cases/ProcessJobUseCase';
@@ -209,7 +211,20 @@ export function setupContainer(): DIContainer {
     container.get<IBuildRepository>('buildRepository')
   ));
 
+  container.registerFactory<AnalyzePromptUseCase>('analyzePromptUseCase', () => new AnalyzePromptUseCase(
+    container.get<IProjectRepository>('projectRepository'),
+    container.get<IBuildRepository>('buildRepository'),
+    container.get<IAILogRepository>('aiLogRepository')
+  ));
+
   container.registerFactory<CreateProjectUseCase>('createProjectUseCase', () => new CreateProjectUseCase(
+    container.get<IProjectRepository>('projectRepository'),
+    container.get<IWorkspaceRepository>('workspaceRepository'),
+    container.get<ISubdomainService>('subdomainService'),
+    container.get<IQueueService>('queueService')
+  ));
+
+  container.registerFactory<CreateProjectFromPromptUseCase>('createProjectFromPromptUseCase', () => new CreateProjectFromPromptUseCase(
     container.get<IProjectRepository>('projectRepository'),
     container.get<IWorkspaceRepository>('workspaceRepository'),
     container.get<ISubdomainService>('subdomainService'),
@@ -241,6 +256,7 @@ export function setupContainer(): DIContainer {
     container.get<IPromptRepository>('promptRepository'),
     container.get<IBuildRepository>('buildRepository'),
     container.get<IProjectRepository>('projectRepository'),
+    container.get<IWorkspaceRepository>('workspaceRepository'),
     container.get<IAIService>('aiService'),
     container.get<IBuildService>('buildService'),
     container.get<IStorageService>('storageService'),
@@ -278,11 +294,13 @@ export function setupContainer(): DIContainer {
   // Register Controllers
   container.registerFactory<PromptController>('promptController', () => new PromptController(
     container.get<CreatePromptUseCase>('createPromptUseCase'),
-    container.get<GetPromptStatusUseCase>('getPromptStatusUseCase')
+    container.get<GetPromptStatusUseCase>('getPromptStatusUseCase'),
+    container.get<AnalyzePromptUseCase>('analyzePromptUseCase')
   ));
 
   container.registerFactory<ProjectController>('projectController', () => new ProjectController(
     container.get<CreateProjectUseCase>('createProjectUseCase'),
+    container.get<CreateProjectFromPromptUseCase>('createProjectFromPromptUseCase'),
     container.get<GetProjectDetailsUseCase>('getProjectDetailsUseCase'),
     container.get<UpdateProjectUseCase>('updateProjectUseCase'),
     container.get<UndoVersionUseCase>('undoVersionUseCase'),

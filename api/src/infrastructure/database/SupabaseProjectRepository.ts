@@ -279,6 +279,30 @@ export class SupabaseProjectRepository implements IProjectRepository {
     if (error) throw error;
   }
 
+  async isNameTakenInWorkspace(name: string, workspaceId: string): Promise<boolean> {
+    const { data, error } = await this.supabase
+      .from('projects')
+      .select('id')
+      .eq('workspace_id', workspaceId)
+      .eq('name', name)
+      .neq('status', 'DELETING')
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error;
+    return !!data;
+  }
+
+  async findStaleProjects(olderThan: Date): Promise<Project[]> {
+    const { data, error } = await this.supabase
+      .from('projects')
+      .select('*')
+      .in('status', ['NEW', 'FAILED'])
+      .lt('created_at', olderThan.toISOString());
+
+    if (error) throw error;
+    return (data || []).map(this.mapToEntity);
+  }
+
   private mapToEntity(data: any): Project {
     return {
       id: data.id,
@@ -286,7 +310,7 @@ export class SupabaseProjectRepository implements IProjectRepository {
       description: data.description,
       previewUrl: data.preview_url,
       workspaceId: data.workspace_id,
-      status: data.status || ProjectStatus.ACTIVE,
+      status: data.status as ProjectStatus,
       currentVersion: data.current_version || 0,
       subdomain: data.subdomain,
       publishedStatus: data.published_status || PublishingStatus.UNPUBLISHED,

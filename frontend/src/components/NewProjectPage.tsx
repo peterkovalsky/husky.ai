@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ApiService, type JobStatus } from '../services/api'
+import { ApiService, type JobStatus, type Project } from '../services/api'
 import { Button, Spinner } from '@heroui/react'
 import { ArrowLeft } from 'lucide-react'
 import { PromptInput } from './PromptInput'
@@ -10,21 +10,16 @@ import ClarificationPanel from './ClarificationPanel'
 import FailedBuildOptions from './FailedBuildOptions'
 import type { ClarificationQuestion, ClarificationAnswer } from '../types/clarification'
 
-interface NewProjectStarterProps {
-  projectId: string
-  projectName: string
-  onBuildComplete?: () => void
-}
-
 type AppState = 'initial' | 'ready' | 'error'
 
-export const NewProjectStarter = ({ projectId, onBuildComplete }: NewProjectStarterProps) => {
+export const NewProjectPage = () => {
   const [prompt, setPrompt] = useState('')
   const [appState, setAppState] = useState<AppState>('initial')
   const [jobStatus, setJobStatus] = useState<JobStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [createdProject, setCreatedProject] = useState<Project | null>(null)
   const pollCleanupRef = useRef<(() => void) | null>(null)
   const navigate = useNavigate()
 
@@ -34,10 +29,14 @@ export const NewProjectStarter = ({ projectId, onBuildComplete }: NewProjectStar
   const [analysisId, setAnalysisId] = useState<string>('')
   const [pendingPrompt, setPendingPrompt] = useState<string>('')
   const [pendingMediaIds, setPendingMediaIds] = useState<string[]>([])
+  const [suggestedProjectName, setSuggestedProjectName] = useState<string>('')
   const [lastClarificationAnswers, setLastClarificationAnswers] = useState<ClarificationAnswer[]>([])
   const [showFailedBuildOptions, setShowFailedBuildOptions] = useState(false)
 
-  // Media upload hook
+  // Temporary project ID for media uploads (null until we create a project)
+  const [tempProjectId, setTempProjectId] = useState<string | null>(null)
+
+  // Media upload hook - only enable if we have a project for uploads
   const {
     attachedImages,
     isDragging,
@@ -51,7 +50,7 @@ export const NewProjectStarter = ({ projectId, onBuildComplete }: NewProjectStar
     hasUploadingFiles,
     hasFailedFiles,
   } = useMediaUpload({
-    projectId,
+    projectId: tempProjectId || 'temp-new-project',
     onError: (message) => setError(message),
     maxFiles: 1,
   })
@@ -80,12 +79,17 @@ export const NewProjectStarter = ({ projectId, onBuildComplete }: NewProjectStar
       // Get mediaIds from ready files
       const mediaIds = getMediaIds()
 
-      // Call analyze endpoint first for clarification
+      // Call analyze endpoint WITHOUT projectId - this will generate a suggested name
       const analysisResponse = await ApiService.analyzePrompt(
         prompt.trim(),
-        projectId,
+        undefined, // No projectId yet
         mediaIds.length > 0 ? mediaIds : undefined
       )
+
+      // Store suggested name for project creation
+      if (analysisResponse.suggestedProjectName) {
+        setSuggestedProjectName(analysisResponse.suggestedProjectName)
+      }
 
       // If clarification is needed, show questions
       if (analysisResponse.needsClarification && analysisResponse.questions && analysisResponse.questions.length > 0) {
@@ -98,31 +102,46 @@ export const NewProjectStarter = ({ projectId, onBuildComplete }: NewProjectStar
         return
       }
 
-      // If no clarification needed, proceed directly
-      await submitWithClarification(prompt.trim(), mediaIds)
+      // If no clarification needed, proceed directly - create project and submit
+      await createProjectAndSubmit(
+        prompt.trim(),
+        mediaIds,
+        analysisResponse.suggestedProjectName || 'New Project',
+        analysisResponse.analysisId
+      )
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to analyze prompt')
       setIsSubmitting(false)
     }
   }
 
-  const submitWithClarification = async (
+  const createProjectAndSubmit = async (
     promptText: string,
     mediaIds: string[],
+    projectName: string,
+    currentAnalysisId: string,
     clarificationAnswers?: ClarificationAnswer[],
     skippedClarification?: boolean
   ) => {
     try {
+      // Step 1: Create the project with AI-suggested name
+      console.log('[NewProjectPage] Creating project with name:', projectName)
+      const project = await ApiService.createProjectFromPrompt(projectName)
+      setCreatedProject(project)
+      setTempProjectId(project.id)
+      console.log('[NewProjectPage] Project created:', project.id)
+
+      // Step 2: Submit the prompt to the new project
       const response = await ApiService.submitPrompt(
         promptText,
-        projectId,
+        project.id,
         mediaIds.length > 0 ? mediaIds : undefined,
         clarificationAnswers,
-        analysisId,
+        currentAnalysisId,
         skippedClarification
       )
 
-      // Start generating - stay on initial screen
+      // Start generating
       setIsGenerating(true)
       setShowClarification(false)
 
@@ -137,10 +156,10 @@ export const NewProjectStarter = ({ projectId, onBuildComplete }: NewProjectStar
       const cleanup = await ApiService.pollJobStatus(
         response.promptId || response.jobId,
         (status) => {
-          console.log('[NewProjectStarter] Poll status received:', status.status, 'previewUrl:', status.previewUrl)
+          console.log('[NewProjectPage] Poll status received:', status.status, 'previewUrl:', status.previewUrl)
           setJobStatus(status)
           if (status.status === 'READY' && status.previewUrl) {
-            console.log('[NewProjectStarter] Setting appState to ready, will redirect...')
+            console.log('[NewProjectPage] Setting appState to ready, will redirect...')
             setAppState('ready')
             setIsGenerating(false)
             setShowFailedBuildOptions(false)
@@ -169,7 +188,7 @@ export const NewProjectStarter = ({ projectId, onBuildComplete }: NewProjectStar
 
       pollCleanupRef.current = cleanup
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to submit prompt')
+      setError(error instanceof Error ? error.message : 'Failed to create project')
       setIsGenerating(false)
     } finally {
       setIsSubmitting(false)
@@ -178,12 +197,26 @@ export const NewProjectStarter = ({ projectId, onBuildComplete }: NewProjectStar
 
   const handleClarificationSubmit = (answers: ClarificationAnswer[]) => {
     setIsSubmitting(true)
-    submitWithClarification(pendingPrompt, pendingMediaIds, answers, false)
+    createProjectAndSubmit(
+      pendingPrompt,
+      pendingMediaIds,
+      suggestedProjectName || 'New Project',
+      analysisId,
+      answers,
+      false
+    )
   }
 
   const handleSurpriseMe = () => {
     setIsSubmitting(true)
-    submitWithClarification(pendingPrompt, pendingMediaIds, undefined, true)
+    createProjectAndSubmit(
+      pendingPrompt,
+      pendingMediaIds,
+      suggestedProjectName || 'New Project',
+      analysisId,
+      undefined,
+      true
+    )
   }
 
   const handleClarificationCancel = () => {
@@ -191,6 +224,7 @@ export const NewProjectStarter = ({ projectId, onBuildComplete }: NewProjectStar
     setPendingPrompt('')
     setPendingMediaIds([])
     setClarificationQuestions([])
+    setSuggestedProjectName('')
   }
 
   const handleRevisePreferences = () => {
@@ -199,11 +233,57 @@ export const NewProjectStarter = ({ projectId, onBuildComplete }: NewProjectStar
     setError(null)
   }
 
-  const handleTryAgain = () => {
+  const handleTryAgain = async () => {
+    if (!createdProject) {
+      setError('No project to retry')
+      return
+    }
+
     setShowFailedBuildOptions(false)
     setError(null)
     setIsSubmitting(true)
-    submitWithClarification(pendingPrompt, pendingMediaIds, lastClarificationAnswers, false)
+
+    try {
+      // Re-submit to the already created project
+      const response = await ApiService.submitPrompt(
+        pendingPrompt,
+        createdProject.id,
+        pendingMediaIds.length > 0 ? pendingMediaIds : undefined,
+        lastClarificationAnswers,
+        analysisId,
+        false
+      )
+
+      setIsGenerating(true)
+
+      const cleanup = await ApiService.pollJobStatus(
+        response.promptId || response.jobId,
+        (status) => {
+          setJobStatus(status)
+          if (status.status === 'READY' && status.previewUrl) {
+            setAppState('ready')
+            setIsGenerating(false)
+            setShowFailedBuildOptions(false)
+          } else if (status.status === 'FAILED' || status.errorMessage) {
+            setError(status.errorMessage || 'Generation failed')
+            setIsGenerating(false)
+            setShowFailedBuildOptions(true)
+          }
+        },
+        (error) => {
+          setError(error.message)
+          setIsGenerating(false)
+          setShowFailedBuildOptions(true)
+        }
+      )
+
+      pollCleanupRef.current = cleanup
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to retry')
+      setIsGenerating(false)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -222,14 +302,13 @@ export const NewProjectStarter = ({ projectId, onBuildComplete }: NewProjectStar
     }
   }, [])
 
-  // When app is ready, trigger parent to reload (which will show the preview)
-  // Note: We only set appState to 'ready' when previewUrl exists (see pollJobStatus callback)
+  // When app is ready, navigate to the project page
   React.useEffect(() => {
-    if (appState === 'ready') {
-      console.log('[NewProjectStarter] appState is ready, triggering parent reload')
-      onBuildComplete?.()
+    if (appState === 'ready' && createdProject) {
+      console.log('[NewProjectPage] Build complete, navigating to project:', createdProject.id)
+      navigate(`/project/${createdProject.id}`)
     }
-  }, [appState, onBuildComplete])
+  }, [appState, createdProject, navigate])
 
   return (
     <div className="min-h-screen bg-background">
@@ -252,7 +331,7 @@ export const NewProjectStarter = ({ projectId, onBuildComplete }: NewProjectStar
           <div className="w-full max-w-3xl flex flex-col items-center">
             {/* Main Heading */}
             <h1 className="text-4xl font-normal text-foreground mb-12 text-center">
-              How can I help you today?
+              What would you like to build?
             </h1>
 
             {/* Loading Indicator - shown while generating */}
@@ -281,11 +360,12 @@ export const NewProjectStarter = ({ projectId, onBuildComplete }: NewProjectStar
                   attachedFiles={attachedImages}
                   isSubmitting={isSubmitting}
                   isDisabled={isSubmitting || isGenerating}
-                  placeholder="Enter a prompt here"
+                  placeholder="Describe your app idea..."
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
                   isDragging={isDragging}
+                  autoFocus={true}
                 />
               </div>
             )}
@@ -371,6 +451,7 @@ export const NewProjectStarter = ({ projectId, onBuildComplete }: NewProjectStar
               setAppState('initial')
               setError(null)
               setIsGenerating(false)
+              setCreatedProject(null)
             }}>
               Try Again
             </Button>

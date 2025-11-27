@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/AuthMiddleware';
 import { CreateProjectUseCase } from '../../application/use-cases/CreateProjectUseCase';
+import { CreateProjectFromPromptUseCase } from '../../application/use-cases/CreateProjectFromPromptUseCase';
 import { GetProjectDetailsUseCase } from '../../application/use-cases/GetProjectDetailsUseCase';
 import { UpdateProjectUseCase } from '../../application/use-cases/UpdateProjectUseCase';
 import { UndoVersionUseCase } from '../../application/use-cases/UndoVersionUseCase';
@@ -11,6 +12,7 @@ import { IQueueService, DeleteProjectMessage } from '../../domain/services/IQueu
 export class ProjectController {
   constructor(
     private createProjectUseCase: CreateProjectUseCase,
+    private createProjectFromPromptUseCase: CreateProjectFromPromptUseCase,
     private getProjectDetailsUseCase: GetProjectDetailsUseCase,
     private updateProjectUseCase: UpdateProjectUseCase,
     private undoVersionUseCase: UndoVersionUseCase,
@@ -36,6 +38,35 @@ export class ProjectController {
       res.status(201).json(project);
     } catch (error) {
       console.error('Error creating project:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      res.status(500).json({
+        error: 'Failed to create project',
+        details: errorMessage
+      });
+    }
+  };
+
+  createProjectFromPrompt = async (req: AuthRequest, res: Response) => {
+    try {
+      const { suggestedName, workspaceId } = req.body;
+
+      if (!req.user) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+
+      if (!suggestedName || typeof suggestedName !== 'string' || !suggestedName.trim()) {
+        return res.status(400).json({ error: 'suggestedName is required' });
+      }
+
+      const project = await this.createProjectFromPromptUseCase.execute(
+        { suggestedName, workspaceId },
+        req.user
+      );
+
+      console.log(`Created project from prompt "${project.name}" (${project.id}) for user ${req.user.id}`);
+      res.status(201).json(project);
+    } catch (error) {
+      console.error('Error creating project from prompt:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       res.status(500).json({
         error: 'Failed to create project',

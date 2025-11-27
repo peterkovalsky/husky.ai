@@ -1,12 +1,14 @@
 import { IPromptRepository } from '../../domain/repositories/IPromptRepository';
 import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
+import { IWorkspaceRepository } from '../../domain/repositories/IWorkspaceRepository';
 import { IMediaRepository } from '../../domain/repositories/IMediaRepository';
 import { IAIService } from '../../domain/services/IAIService';
 import { IBuildService } from '../../domain/services/IBuildService';
 import { IStorageService } from '../../domain/services/IStorageService';
 import { IImageProcessingService } from '../../domain/services/IImageProcessingService';
 import { JobMessage } from '../../domain/services/IQueueService';
+import { ProjectStatus } from '../../domain/entities/Project';
 import { PrepareProjectEnvironmentUseCase } from './PrepareProjectEnvironmentUseCase';
 import { BuildStepContext } from '../build-steps/BuildStepContext';
 import { IBuildStep, BuildStepStatus } from '../build-steps/IBuildStep';
@@ -42,6 +44,7 @@ export class ProcessJobUseCase {
     private promptRepository: IPromptRepository,
     private buildRepository: IBuildRepository,
     private projectRepository: IProjectRepository,
+    private workspaceRepository: IWorkspaceRepository,
     private aiService: IAIService,
     private buildService: IBuildService,
     private storageService: IStorageService,
@@ -123,7 +126,8 @@ export class ProcessJobUseCase {
     );
     const finalizationStep = new FinalizationStep(
       this.buildRepository,
-      this.projectRepository
+      this.projectRepository,
+      this.workspaceRepository
     );
 
     // Execute build steps sequentially
@@ -240,6 +244,18 @@ export class ProcessJobUseCase {
       } catch (updateError) {
         console.error(`Failed to update build status:`, updateError);
       }
+    }
+
+    // Update project status to FAILED if it's currently NEW (no successful builds yet)
+    try {
+      const project = await this.projectRepository.findById(context.projectId);
+      if (project && project.status === ProjectStatus.NEW) {
+        await this.projectRepository.update(context.projectId, { status: ProjectStatus.FAILED });
+        console.log(`[ProcessJobUseCase] Updated project ${context.projectId} status to FAILED`);
+      }
+    } catch (projectUpdateError) {
+      console.error(`[ProcessJobUseCase] Failed to update project status:`, projectUpdateError);
+      // Don't fail the error handling if project status update fails
     }
 
     // Re-throw error to be handled by queue processor

@@ -2,25 +2,33 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/AuthMiddleware';
 import { CreatePromptUseCase } from '../../application/use-cases/CreatePromptUseCase';
 import { GetPromptStatusUseCase } from '../../application/use-cases/GetPromptStatusUseCase';
+import { AnalyzePromptUseCase } from '../../application/use-cases/AnalyzePromptUseCase';
 
 export class PromptController {
   constructor(
     private createPromptUseCase: CreatePromptUseCase,
-    private getPromptStatusUseCase: GetPromptStatusUseCase
+    private getPromptStatusUseCase: GetPromptStatusUseCase,
+    private analyzePromptUseCase: AnalyzePromptUseCase
   ) {}
 
   createPrompt = async (req: AuthRequest, res: Response) => {
     try {
-      const { prompt, projectId, mediaIds } = req.body;
+      const { prompt, projectId, mediaIds, clarificationAnswers, analysisId, skippedClarification } = req.body;
 
       console.log('[PromptController] Creating prompt - projectId:', projectId, 'prompt:', prompt?.substring(0, 50), 'mediaIds:', mediaIds);
+      if (clarificationAnswers) {
+        console.log('[PromptController] With clarification answers:', clarificationAnswers.length);
+      }
+      if (skippedClarification) {
+        console.log('[PromptController] User skipped clarification (Surprise Me)');
+      }
 
       if (!req.user) {
         return res.status(401).json({ error: 'User not authenticated' });
       }
 
       const result = await this.createPromptUseCase.execute(
-        { prompt, projectId, mediaIds },
+        { prompt, projectId, mediaIds, clarificationAnswers, analysisId, skippedClarification },
         req.user
       );
 
@@ -33,9 +41,42 @@ export class PromptController {
     } catch (error) {
       console.error('Error creating prompt:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      
+
       res.status(500).json({
         error: 'Failed to queue prompt',
+        details: errorMessage
+      });
+    }
+  };
+
+  analyzePrompt = async (req: AuthRequest, res: Response) => {
+    try {
+      const { prompt, projectId, mediaIds } = req.body;
+
+      console.log('[PromptController] Analyzing prompt for clarification - projectId:', projectId || '(new project)');
+
+      if (!req.user) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+
+      if (!prompt) {
+        return res.status(400).json({ error: 'prompt is required' });
+      }
+
+      const result = await this.analyzePromptUseCase.execute(
+        { prompt, projectId, mediaIds },
+        req.user
+      );
+
+      console.log('[PromptController] Analysis complete - needsClarification:', result.needsClarification, 'questions:', result.questions?.length || 0);
+
+      res.json(result);
+    } catch (error) {
+      console.error('Error analyzing prompt:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+      res.status(500).json({
+        error: 'Failed to analyze prompt',
         details: errorMessage
       });
     }

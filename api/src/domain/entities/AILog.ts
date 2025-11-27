@@ -23,7 +23,7 @@ export interface CreateAILogRequest {
   outputTokens: number;
   costUsd: number;
   durationMs: number;
-  projectId: string;
+  projectId?: string;
   buildId?: string;
   userId: string;
   prompt: string;

@@ -30,14 +30,19 @@ export function createApiRoutes(deps: ApiRoutesDependencies): Router {
 
 
   // Prompt routes
-  router.post('/prompt', 
-    deps.authMiddleware.authenticate, 
+  router.post('/prompt',
+    deps.authMiddleware.authenticate,
     deps.promptController.createPrompt
   );
 
-  router.get('/status/:promptId', 
-    deps.authMiddleware.authenticate, 
-    deps.workspaceAccessMiddleware.checkPromptAccess('promptId'), 
+  router.post('/prompt/analyze',
+    deps.authMiddleware.authenticate,
+    deps.promptController.analyzePrompt
+  );
+
+  router.get('/status/:promptId',
+    deps.authMiddleware.authenticate,
+    deps.workspaceAccessMiddleware.checkPromptAccess('promptId'),
     deps.promptController.getPromptStatus
   );
 
@@ -64,6 +69,11 @@ export function createApiRoutes(deps: ApiRoutesDependencies): Router {
   router.post('/projects',
     deps.authMiddleware.authenticate,
     deps.projectController.createProject
+  );
+
+  router.post('/project/from-prompt',
+    deps.authMiddleware.authenticate,
+    deps.projectController.createProjectFromPrompt
   );
 
   router.patch('/projects/:projectId',

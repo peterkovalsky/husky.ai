@@ -66,6 +66,16 @@ export class AnthropicAIService implements IAIService {
 
 
   private normalizeChanges(rawChanges: any): Record<string, string> {
+    // Handle wrapped fileTree format (used by auto-fix prompts)
+    // If the only key is "fileTree" and its value is an object, unwrap it
+    if (rawChanges.fileTree && typeof rawChanges.fileTree === 'object' && !Array.isArray(rawChanges.fileTree)) {
+      const keys = Object.keys(rawChanges);
+      if (keys.length === 1 && keys[0] === 'fileTree') {
+        console.log('[AnthropicAIService] Detected wrapped fileTree format, unwrapping...');
+        rawChanges = rawChanges.fileTree;
+      }
+    }
+
     const normalized: Record<string, string> = {};
 
     for (const [filePath, content] of Object.entries(rawChanges)) {

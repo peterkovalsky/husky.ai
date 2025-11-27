@@ -156,7 +156,8 @@ COMPONENTS & REUSABILITY (CRITICAL):
 
    C. DATA EXTRACTION: Extract 2+ similar data objects to src/data/ constants files
    - Export interfaces + typed arrays (FEATURES, PRICING_PLANS, etc.)
-   - Files: features.ts, pricing.ts, testimonials.ts, faqs.ts, team.ts, stats.ts
+   - Files: features.tsx, pricing.tsx, testimonials.tsx, faqs.tsx, team.tsx, stats.tsx
+   - CRITICAL: Use .tsx extension if the data contains JSX (like icon: <IconComponent />)
    - Pattern: data file → reusable component → {DATA.map(item => <Component {...item} />)}
 
    D. PRINCIPLES: Semantic HTML, clean JSX, TypeScript typing, composition over repetition
@@ -184,11 +185,22 @@ Structure:
 - Value: COMPLETE file contents as STRING
 - Delete: value "__DELETE__"
 
-Rules:
-- Escape quotes: \\" for all quotes in strings
-- Escape newlines: \\n for line breaks
-- File contents are strings, not nested objects
-- Example: {"src/App.tsx": "import React from \\"react\\";..."}
+JSON STRING ESCAPING (CRITICAL - FOLLOW EXACTLY):
+All file contents are JSON strings. You MUST escape these characters:
+- Backslash: \\ becomes \\\\
+- Double quote: " becomes \\"
+- Newline: actual line break becomes \\n
+- Tab: actual tab becomes \\t
+- Carriage return: becomes \\r
+
+Common patterns to escape correctly:
+- Template literals: \`text\` becomes \\\`text\\\`
+- Regex: /pattern/ is fine, but \\d becomes \\\\d
+- Windows paths: C:\\\\Users\\\\... (double escape backslashes)
+- Escape sequences in code: \\n in your code becomes \\\\n in JSON
+
+Example with template literal:
+{"src/App.tsx": "const msg = \\\`Hello \${name}\\\`;"}
 
 Your response = ONE JSON object. Nothing more, nothing less.`;
 

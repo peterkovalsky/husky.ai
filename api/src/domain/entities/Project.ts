@@ -1,5 +1,7 @@
 export enum ProjectStatus {
-  ACTIVE = 'ACTIVE',
+  NEW = 'NEW',       // Newly created project, no builds yet
+  FAILED = 'FAILED', // Contains only failed builds
+  ACTIVE = 'ACTIVE', // At least one successful build (shown on dashboard)
   DELETING = 'DELETING'
 }
 
