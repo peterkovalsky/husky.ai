@@ -88,7 +88,9 @@ function App() {
         element={
           <ProtectedRoute>
             <ProjectProvider>
-              <NewProjectPage />
+              <AppLayout>
+                <NewProjectPage />
+              </AppLayout>
             </ProjectProvider>
           </ProtectedRoute>
         }

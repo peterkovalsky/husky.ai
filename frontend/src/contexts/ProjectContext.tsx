@@ -78,16 +78,16 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
         const { projects } = await ApiService.getProjects(currentWorkspace.id);
         setProjects(projects);
         
-        // Select default project (usually "My Project")
-        if (projects.length > 0 && !currentProject) {
-          const defaultProject = projects.find(p => p.name === 'My Project') || projects[0];
-          setCurrentProject(defaultProject);
+        // Check if user has any active projects (with successful builds)
+        const activeProjects = projects.filter(p => p.currentVersion && p.currentVersion > 0);
 
-          // Check if this is a newly created user (single workspace with single "My Project" and no successful builds)
-          if (workspaces.length === 1 && projects.length === 1 && projects[0].name === 'My Project' && (!projects[0].currentVersion || projects[0].currentVersion === 0)) {
-            // Navigate to the newly created project
-            navigate(`/project/${projects[0].id}`, { replace: true });
-          }
+        if (activeProjects.length === 0) {
+          // No active projects - redirect to new project page
+          navigate('/project/new', { replace: true });
+        } else if (projects.length > 0 && !currentProject) {
+          // Select default project from active projects
+          const defaultProject = activeProjects.find(p => p.name === 'My Project') || activeProjects[0];
+          setCurrentProject(defaultProject);
         }
         
         setProjectsLoaded(true);

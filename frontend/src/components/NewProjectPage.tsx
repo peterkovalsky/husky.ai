@@ -3,7 +3,6 @@ import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ApiService, type JobStatus, type Project } from '../services/api'
 import { Button, Spinner } from '@heroui/react'
-import { ArrowLeft } from 'lucide-react'
 import { PromptInput } from './PromptInput'
 import { useMediaUpload } from '../hooks/useMediaUpload'
 import ClarificationPanel from './ClarificationPanel'
@@ -311,33 +310,22 @@ export const NewProjectPage = () => {
   }, [appState, createdProject, navigate])
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header Navigation */}
-      <div className="px-6 py-4">
-        <Button
-          variant="flat"
-          size="md"
-          onPress={() => navigate('/')}
-          startContent={<ArrowLeft className="h-4 w-4" />}
-          className="rounded-full"
-        >
-          Back to Projects
-        </Button>
-      </div>
-
+    <div className="h-full bg-background">
       {/* Main Content */}
       {appState === 'initial' && (
-        <div className="min-h-[calc(100vh-5rem)] flex items-center justify-center p-6">
+        <div className="h-full flex items-center justify-center p-6">
           <div className="w-full max-w-3xl flex flex-col items-center">
-            {/* Main Heading */}
-            <h1 className="text-4xl font-normal text-foreground mb-12 text-center">
-              What would you like to build?
-            </h1>
+            {/* Main Heading - hidden during clarification */}
+            {!showClarification && (
+              <h1 className="text-4xl font-normal text-foreground mb-12 text-center">
+                What would you like to build?
+              </h1>
+            )}
 
             {/* Loading Indicator - shown while generating */}
             {isGenerating && (
               <div className="mb-8 flex items-center gap-3 text-primary">
-                <Spinner size="sm" color="primary" />
+                <Spinner color="primary" />
                 <span className="text-sm font-medium">
                   {jobStatus?.status === 'QUEUED' && 'Analyzing your idea...'}
                   {jobStatus?.status === 'PROCESSING' && 'Generating your app...'}
@@ -372,14 +360,16 @@ export const NewProjectPage = () => {
 
             {/* Clarification Panel */}
             {showClarification && (
-              <ClarificationPanel
-                questions={clarificationQuestions}
-                onSubmit={handleClarificationSubmit}
-                onSurpriseMe={handleSurpriseMe}
-                onCancel={handleClarificationCancel}
-                isSubmitting={isSubmitting}
-                prompt={pendingPrompt}
-              />
+              <div className="pt-12 w-full">
+                <ClarificationPanel
+                  questions={clarificationQuestions}
+                  onSubmit={handleClarificationSubmit}
+                  onSurpriseMe={handleSurpriseMe}
+                  onCancel={handleClarificationCancel}
+                  isSubmitting={isSubmitting}
+                  prompt={pendingPrompt}
+                />
+              </div>
             )}
 
             {/* Failed Build Options */}
@@ -395,7 +385,7 @@ export const NewProjectPage = () => {
             {!isGenerating && !showClarification && !showFailedBuildOptions && (
               <div className="flex flex-wrap items-center justify-center gap-3">
                 <Button
-                  variant="bordered"
+                  variant="bordered"           
                   className="rounded-full"
                   onPress={() => {
                     setPrompt("Create a landing page for a SaaS product");
@@ -404,7 +394,7 @@ export const NewProjectPage = () => {
                   Create a landing page
                 </Button>
                 <Button
-                  variant="bordered"
+                  variant="bordered"                  
                   className="rounded-full"
                   onPress={() => {
                     setPrompt("Build a dashboard with charts");
@@ -413,7 +403,7 @@ export const NewProjectPage = () => {
                   Build a dashboard
                 </Button>
                 <Button
-                  variant="bordered"
+                  variant="bordered"             
                   className="rounded-full"
                   onPress={() => {
                     setPrompt("Design a portfolio website");
@@ -422,7 +412,7 @@ export const NewProjectPage = () => {
                   Design portfolio
                 </Button>
                 <Button
-                  variant="bordered"
+                  variant="bordered"       
                   className="rounded-full"
                   onPress={() => {
                     setPrompt("Create a blog layout");
@@ -438,7 +428,7 @@ export const NewProjectPage = () => {
 
       {/* Error State */}
       {appState === 'error' && (
-        <div className="flex items-center justify-center min-h-[calc(100vh-5rem)]">
+        <div className="flex items-center justify-center h-full">
           <div className="text-center max-w-md">
             <div className="w-16 h-16 bg-destructive/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <div className="w-8 h-8 bg-destructive rounded-full flex items-center justify-center">
