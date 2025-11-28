@@ -17,22 +17,22 @@ posthog.init(import.meta.env.VITE_PUBLIC_POSTHOG_KEY, {
   api_host: import.meta.env.VITE_PUBLIC_POSTHOG_HOST,
   defaults: '2025-05-24',
 
-  // Disable on localhost
-  disabled: isLocalhost,
-
   // Pageview and navigation tracking
-  capture_pageview: true,
-  capture_pageleave: true,
+  capture_pageview: !isLocalhost,
+  capture_pageleave: !isLocalhost,
 
   // Session recording (optional - can be disabled if not needed)
-  disable_session_recording: false,
+  disable_session_recording: isLocalhost,
 
   // Performance monitoring
-  enable_recording_console_log: true,
+  enable_recording_console_log: !isLocalhost,
 
   // Respect user privacy
   persistence: 'localStorage',
-  autocapture: true,
+  autocapture: !isLocalhost,
+
+  // Opt out on localhost
+  opt_out_capturing_by_default: isLocalhost,
 
   // Note: PostHog browser SDK handles uncaught exceptions automatically.
   // Our ErrorBoundary and manual error tracking provide additional coverage
