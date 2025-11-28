@@ -12,9 +12,15 @@ RUN apk add --no-cache \
     chromium \
     nss \
     freetype \
+    freetype-dev \
     harfbuzz \
     ca-certificates \
-    ttf-freefont
+    ttf-freefont \
+    font-noto-emoji \
+    udev \
+    ttf-dejavu \
+    fontconfig \
+    dbus
 
 # Configure Puppeteer to use system Chromium
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
@@ -56,6 +62,9 @@ RUN addgroup -g 1001 -S nodejs && \
 
 # Create /tmp/apps directory with proper permissions for generated apps
 RUN mkdir -p /tmp/apps && chown -R nextjs:nodejs /tmp/apps
+
+# Create Chromium cache directory with proper permissions
+RUN mkdir -p /home/nextjs/.cache/puppeteer && chown -R nextjs:nodejs /home/nextjs
 
 # Change ownership of the app directory
 RUN chown -R nextjs:nodejs /app

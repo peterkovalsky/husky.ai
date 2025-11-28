@@ -24,7 +24,6 @@ export class ScreenshotService implements IScreenshotService {
       console.log(`[ScreenshotService] Capturing screenshot of ${url}`);
 
       // Use system Chromium in Docker (set via PUPPETEER_EXECUTABLE_PATH)
-      // Use 'new' headless mode for compatibility with Alpine Chromium
       browser = await puppeteer.launch({
         headless: true,
         executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
@@ -33,11 +32,23 @@ export class ScreenshotService implements IScreenshotService {
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
           '--disable-gpu',
-          '--single-process',
-          '--no-zygote',
+          '--disable-software-rasterizer',
+          '--disable-extensions',
+          '--disable-background-networking',
+          '--disable-default-apps',
+          '--disable-sync',
+          '--disable-translate',
+          '--hide-scrollbars',
+          '--mute-audio',
+          '--no-first-run',
+          '--safebrowsing-disable-auto-update',
           '--disable-features=HttpsUpgrades,HttpsFirstModeV2,HttpsFirstModeForTypedNavigations,HttpsOnlyMode',
           '--disable-blink-features=AutomationControlled',
+          // Use /tmp for user data to avoid permission issues
+          '--user-data-dir=/tmp/chromium-user-data',
         ],
+        // Increase protocol timeout for slower container environments
+        protocolTimeout: 30000,
       });
 
       const page = await browser.newPage();
