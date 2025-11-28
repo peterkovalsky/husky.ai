@@ -39,23 +39,29 @@ export class PostHogErrorTracker implements IPostHogErrorTracker {
     this.isEnabled = !!apiKey;
 
     if (this.isEnabled && apiKey) {
-      this.client = new PostHog(apiKey, {
-        host: host || 'https://us.i.posthog.com',
-        flushAt: 1, // Send events immediately in development
-        flushInterval: 10000, // Flush every 10 seconds
+      try {
+        this.client = new PostHog(apiKey, {
+          host: host || 'https://us.i.posthog.com',
+          flushAt: 1, // Send events immediately in development
+          flushInterval: 10000, // Flush every 10 seconds
 
-        // Enable exception autocapture for uncaught exceptions and unhandled rejections
-        enableExceptionAutocapture: true,
+          // Enable exception autocapture for uncaught exceptions and unhandled rejections
+          enableExceptionAutocapture: true,
 
-        // Customize exception capture behavior
-        before_send: (event: any) => {
-          // Add any global context or filtering logic here
-          // Return null to drop an event
-          return event;
-        },
-      });
+          // Customize exception capture behavior
+          before_send: (event: any) => {
+            // Add any global context or filtering logic here
+            // Return null to drop an event
+            return event;
+          },
+        });
 
-      console.log('[PostHogErrorTracker] Initialized with exception autocapture enabled.');
+        console.log('[PostHogErrorTracker] Initialized with exception autocapture enabled.');
+      } catch (initError) {
+        console.error('[PostHogErrorTracker] Failed to initialize PostHog client:', initError);
+        this.isEnabled = false;
+        this.client = null;
+      }
     } else {
       console.warn('[PostHogErrorTracker] PostHog is not configured. Error tracking disabled.');
     }
@@ -146,11 +152,13 @@ export class PostHogErrorTracker implements IPostHogErrorTracker {
    */
   async captureException(error: Error, context: ErrorContext = {}): Promise<void> {
     if (!this.isEnabled || !this.client) {
+      console.warn('[PostHogErrorTracker] Cannot capture exception - PostHog not configured');
       return;
     }
 
     await this.captureError(error, { ...context, severity: 'critical' });
     await this.client.flush();
+    console.log('[PostHogErrorTracker] Exception captured and flushed');
   }
 
   /**
