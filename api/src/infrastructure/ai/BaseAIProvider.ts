@@ -1,6 +1,7 @@
 import { IAIProvider, AIProviderResponse } from '../../domain/services/IAIProvider';
 import { BuildLogger } from '../../shared/logger/BuildLogger';
 import { IAILogRepository } from '../../domain/repositories/IAILogRepository';
+import { FileTreeFormatter } from '../../shared/utils/FileTreeFormatter';
 
 /**
  * Base class for AI providers with common file tree management logic
@@ -84,13 +85,10 @@ export abstract class BaseAIProvider implements IAIProvider {
 
   /**
    * Format file tree for inclusion in prompts
+   * Uses shared FileTreeFormatter to avoid JSON escaping issues
    */
   protected formatFileTreeForPrompt(fileTree: Record<string, string>): string {
-    return Object.entries(fileTree)
-      .map(([path, content]) => {
-        return `${path}:\n${content}`;
-      })
-      .join("\n\n---\n\n");
+    return FileTreeFormatter.formatForPrompt(fileTree);
   }
 
   /**

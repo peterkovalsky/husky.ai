@@ -10,7 +10,9 @@
     "build:prod": "npm run build && npm prune --production",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "migrate": "ts-node src/scripts/migrate.ts migrate",
+    "migrate:status": "ts-node src/scripts/migrate.ts status"
   },
   "keywords": [],
   "author": "",
@@ -31,6 +33,7 @@
     "express": "^5.1.0",
     "openai": "^6.9.1",
     "posthog-node": "^5.11.0",
+    "puppeteer": "^24.31.0",
     "sharp": "^0.33.5",
     "stripe": "^19.3.0",
     "uuid": "^11.1.0"

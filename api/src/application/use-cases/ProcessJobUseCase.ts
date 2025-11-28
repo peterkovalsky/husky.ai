@@ -19,9 +19,11 @@ import { FilePrepStep } from '../build-steps/steps/FilePrepStep';
 import { PreviewBuildStep } from '../build-steps/steps/PreviewBuildStep';
 import { AutoFixStep } from '../build-steps/steps/AutoFixStep';
 import { PreviewUploadStep } from '../build-steps/steps/PreviewUploadStep';
+import { ScreenshotStep } from '../build-steps/steps/ScreenshotStep';
 import { ProductionBuildStep } from '../build-steps/steps/ProductionBuildStep';
 import { ProductionUploadStep } from '../build-steps/steps/ProductionUploadStep';
 import { FinalizationStep } from '../build-steps/steps/FinalizationStep';
+import { IScreenshotService } from '../../infrastructure/screenshot/ScreenshotService';
 
 /**
  * ProcessJobUseCase - Step-based Build Orchestrator
@@ -50,7 +52,8 @@ export class ProcessJobUseCase {
     private storageService: IStorageService,
     private prepareProjectEnvironmentUseCase: PrepareProjectEnvironmentUseCase,
     private mediaRepository: IMediaRepository,
-    private imageProcessingService: IImageProcessingService
+    private imageProcessingService: IImageProcessingService,
+    private screenshotService: IScreenshotService
   ) {}
 
   async execute(jobMessage: JobMessage): Promise<void> {
@@ -115,6 +118,12 @@ export class ProcessJobUseCase {
       this.buildRepository,
       this.projectRepository,
       this.storageService
+    );
+    const screenshotStep = new ScreenshotStep(
+      this.buildRepository,
+      this.projectRepository,
+      this.storageService,
+      this.screenshotService
     );
     const productionBuildStep = new ProductionBuildStep(
       this.buildRepository,
@@ -183,13 +192,16 @@ export class ProcessJobUseCase {
       // Step 6: Preview Upload
       await this.executeStep(context, previewUploadStep);
 
-      // Step 7: Production Build
+      // Step 7: Screenshot (non-blocking)
+      await this.executeStep(context, screenshotStep);
+
+      // Step 8: Production Build
       await this.executeStep(context, productionBuildStep);
 
-      // Step 8: Production Upload
+      // Step 9: Production Upload
       await this.executeStep(context, productionUploadStep);
 
-      // Step 9: Finalization
+      // Step 10: Finalization
       await this.executeStep(context, finalizationStep);
 
       console.log(`\n========================================`);

@@ -8,6 +8,8 @@ import { UndoVersionUseCase } from '../../application/use-cases/UndoVersionUseCa
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
 import { IPromptRepository } from '../../domain/repositories/IPromptRepository';
 import { IQueueService, DeleteProjectMessage } from '../../domain/services/IQueueService';
+import { IStorageService } from '../../domain/services/IStorageService';
+import { Project } from '../../domain/entities/Project';
 
 export class ProjectController {
   constructor(
@@ -18,8 +20,40 @@ export class ProjectController {
     private undoVersionUseCase: UndoVersionUseCase,
     private projectRepository: IProjectRepository,
     private promptRepository: IPromptRepository,
-    private queueService: IQueueService
+    private queueService: IQueueService,
+    private storageService: IStorageService
   ) {}
+
+  /**
+   * Convert thumbnail S3 keys to presigned URLs for a list of projects
+   */
+  private async addThumbnailUrls(projects: Project[]): Promise<Project[]> {
+    return Promise.all(
+      projects.map(async (project) => {
+        if (project.thumbnailUrl) {
+          try {
+            // Check if it's already a full URL (legacy data) or just a key
+            let s3Key = project.thumbnailUrl;
+            if (project.thumbnailUrl.startsWith('http')) {
+              // Extract key from full URL: https://bucket.s3.region.amazonaws.com/key
+              const url = new URL(project.thumbnailUrl);
+              s3Key = url.pathname.substring(1); // Remove leading slash
+            }
+
+            const presignedUrl = await this.storageService.getThumbnailPresignedUrl(
+              s3Key,
+              3600 // 1 hour expiry
+            );
+            return { ...project, thumbnailUrl: presignedUrl };
+          } catch (error) {
+            console.warn(`[ProjectController] Failed to generate presigned URL for thumbnail: ${error}`);
+            return { ...project, thumbnailUrl: null };
+          }
+        }
+        return project;
+      })
+    );
+  }
 
   createProject = async (req: AuthRequest, res: Response) => {
     try {
@@ -149,7 +183,11 @@ export class ProjectController {
     try {
       const { workspaceId } = req.params;
       const projects = await this.projectRepository.findByWorkspaceId(workspaceId);
-      res.json({ projects });
+
+      // Add presigned URLs for thumbnails
+      const projectsWithThumbnails = await this.addThumbnailUrls(projects);
+
+      res.json({ projects: projectsWithThumbnails });
     } catch (error) {
       console.error('Error fetching projects:', error);
       res.status(500).json({ error: 'Failed to fetch projects' });

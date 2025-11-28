@@ -525,4 +525,48 @@ export class S3StorageService implements IStorageService {
   async getPublicUrl(key: string): Promise<string> {
     return `${this.publicMediaBaseUrl}/${key}`;
   }
+
+  /**
+   * Upload a thumbnail screenshot to S3
+   * @param projectId The project ID
+   * @param version The build version number
+   * @param buffer The screenshot image buffer (PNG)
+   * @returns The S3 key of the uploaded thumbnail (not a URL)
+   */
+  async uploadThumbnail(projectId: string, version: number, buffer: Buffer): Promise<string> {
+    const key = `${projectId}/thumbnails/v${version}.png`;
+
+    try {
+      const command = new PutObjectCommand({
+        Bucket: this.projectsBucketName,
+        Key: key,
+        Body: buffer,
+        ContentType: 'image/png',
+      });
+
+      await this.s3Client.send(command);
+      console.log(`[S3StorageService] Uploaded thumbnail: ${key}`);
+
+      // Return just the key - presigned URL will be generated when fetching
+      return key;
+    } catch (error) {
+      throw new Error(`Failed to upload thumbnail: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Generate a presigned URL for a thumbnail
+   * @param thumbnailKey The S3 key of the thumbnail
+   * @param expiresIn Expiration time in seconds (default: 1 hour)
+   * @returns Presigned URL for the thumbnail
+   */
+  async getThumbnailPresignedUrl(thumbnailKey: string, expiresIn: number = 3600): Promise<string> {
+    const command = new GetObjectCommand({
+      Bucket: this.projectsBucketName,
+      Key: thumbnailKey,
+    });
+
+    const signedUrl = await getSignedUrl(this.s3Client, command, { expiresIn });
+    return signedUrl;
+  }
 }

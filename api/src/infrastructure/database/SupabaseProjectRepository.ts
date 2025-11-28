@@ -91,6 +91,15 @@ export class SupabaseProjectRepository implements IProjectRepository {
     if (error) throw error;
   }
 
+  async updateThumbnailUrl(projectId: string, thumbnailUrl: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('projects')
+      .update({ thumbnail_url: thumbnailUrl })
+      .eq('id', projectId);
+
+    if (error) throw error;
+  }
+
   async findByIdForOperations(id: string): Promise<Project | null> {
     const { data, error } = await this.supabase
       .from('projects')
@@ -270,6 +279,7 @@ export class SupabaseProjectRepository implements IProjectRepository {
     if (updates.customDomainStatus !== undefined) dbUpdates.custom_domain_status = updates.customDomainStatus;
     if (updates.customDomainError !== undefined) dbUpdates.custom_domain_error = updates.customDomainError;
     if (updates.customDomainVerifiedAt !== undefined) dbUpdates.custom_domain_verified_at = updates.customDomainVerifiedAt ? updates.customDomainVerifiedAt.toISOString() : null;
+    if (updates.thumbnailUrl !== undefined) dbUpdates.thumbnail_url = updates.thumbnailUrl;
 
     const { error } = await this.supabase
       .from('projects')
@@ -328,6 +338,7 @@ export class SupabaseProjectRepository implements IProjectRepository {
       customDomainStatus: data.custom_domain_status as CustomDomainStatus | undefined,
       customDomainError: data.custom_domain_error,
       customDomainVerifiedAt: data.custom_domain_verified_at ? new Date(data.custom_domain_verified_at) : undefined,
+      thumbnailUrl: data.thumbnail_url,
       createdAt: new Date(data.created_at),
       modifiedAt: new Date(data.modified_at)
     };

@@ -62,6 +62,9 @@ export enum BuildStepStatus {
   /** Uploading preview + source + version files */
   UPLOADING_PREVIEW = 'UPLOADING_PREVIEW',
 
+  /** Capturing screenshot of the preview */
+  CAPTURING_SCREENSHOT = 'CAPTURING_SCREENSHOT',
+
   /** Running production build with root base path */
   BUILDING_PRODUCTION = 'BUILDING_PRODUCTION',
 

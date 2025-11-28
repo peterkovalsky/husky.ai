@@ -50,6 +50,7 @@ export interface Project {
   publishedAt?: string;
   currentVersion?: number;
   status?: ProjectStatus;
+  thumbnailUrl?: string;
 }
 
 export interface Prompt {

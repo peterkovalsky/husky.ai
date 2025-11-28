@@ -6,6 +6,7 @@ on:
     paths:
       - 'api/**'
       - 'templates/**'
+      - 'database/migrations/**'
       - '.github/workflows/deploy-prod-api.yml'
   workflow_dispatch:
 
@@ -14,9 +15,15 @@ env:
   ECR_REPOSITORY: ${{ vars.PROD_ECR_REPOSITORY }}
 
 jobs:
+  # Run migrations before deploying
+  migrate:
+    uses: ./.github/workflows/run-migrations.yml
+    secrets: inherit
+
   build-and-deploy:
     runs-on: ubuntu-latest
-    
+    needs: migrate
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
