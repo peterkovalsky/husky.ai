@@ -52,6 +52,7 @@ export interface Project {
   customDomainStatus?: CustomDomainStatus;
   customDomainError?: string | null;
   customDomainVerifiedAt?: Date | null;
+  thumbnailUrl?: string | null;
   createdAt: Date;
   modifiedAt: Date;
 }

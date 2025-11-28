@@ -50,6 +50,7 @@ import { CloudflareKVService } from '../../infrastructure/storage/CloudflareKVSe
 import { DNSVerificationService, IDNSVerificationService } from '../../infrastructure/dns/DNSVerificationService';
 import { StripeService } from '../../infrastructure/payment/StripeService';
 import { ImageProcessingService } from '../../infrastructure/services/ImageProcessingService';
+import { ScreenshotService, IScreenshotService } from '../../infrastructure/screenshot/ScreenshotService';
 
 // Application Use Cases
 import { CreatePromptUseCase } from '../../application/use-cases/CreatePromptUseCase';
@@ -196,6 +197,9 @@ export function setupContainer(): DIContainer {
     return new ImageProcessingService(s3Client, logger);
   });
 
+  // Screenshot service for capturing project thumbnails
+  container.registerFactory<IScreenshotService>('screenshotService', () => new ScreenshotService());
+
   // Register Use Cases
   container.registerFactory<CreatePromptUseCase>('createPromptUseCase', () => new CreatePromptUseCase(
     container.get<IPromptRepository>('promptRepository'),
@@ -262,7 +266,8 @@ export function setupContainer(): DIContainer {
     container.get<IStorageService>('storageService'),
     container.get<PrepareProjectEnvironmentUseCase>('prepareProjectEnvironmentUseCase'),
     container.get<IMediaRepository>('mediaRepository'),
-    container.get<IImageProcessingService>('imageProcessingService')
+    container.get<IImageProcessingService>('imageProcessingService'),
+    container.get<IScreenshotService>('screenshotService')
   ));
 
   container.registerFactory<DeleteProjectUseCase>('deleteProjectUseCase', () => new DeleteProjectUseCase(
@@ -306,7 +311,8 @@ export function setupContainer(): DIContainer {
     container.get<UndoVersionUseCase>('undoVersionUseCase'),
     container.get<IProjectRepository>('projectRepository'),
     container.get<IPromptRepository>('promptRepository'),
-    container.get<IQueueService>('queueService')
+    container.get<IQueueService>('queueService'),
+    container.get<IStorageService>('storageService')
   ));
 
   container.registerFactory<WorkspaceController>('workspaceController', () => new WorkspaceController(

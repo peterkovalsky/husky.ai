@@ -22,4 +22,6 @@ export interface IStorageService {
   copyToPublicBucket(sourceKey: string, sourceBucket: string, projectId: string): Promise<{ publicKey: string; publicUrl: string }>;
   deleteFromPublicBucket(key: string): Promise<void>;
   getPublicUrl(key: string): Promise<string>;
+  uploadThumbnail(projectId: string, version: number, buffer: Buffer): Promise<string>;
+  getThumbnailPresignedUrl(thumbnailKey: string, expiresIn?: number): Promise<string>;
 }

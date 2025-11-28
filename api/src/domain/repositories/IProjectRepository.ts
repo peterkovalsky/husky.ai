@@ -7,6 +7,7 @@ export interface IProjectRepository {
   findByWorkspaceId(workspaceId: string): Promise<Project[]>;
   checkUserAccess(userId: string, projectId: string): Promise<boolean>;
   updatePreviewUrl(projectId: string, previewUrl: string): Promise<void>;
+  updateThumbnailUrl(projectId: string, thumbnailUrl: string): Promise<void>;
   updateCurrentVersion(projectId: string, version: number): Promise<void>;
   updateStatus(projectId: string, status: string): Promise<void>;
   deleteById(projectId: string): Promise<void>;
