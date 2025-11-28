@@ -23,8 +23,10 @@ export class ScreenshotService implements IScreenshotService {
     try {
       console.log(`[ScreenshotService] Capturing screenshot of ${url}`);
 
+      // Use system Chromium in Docker (set via PUPPETEER_EXECUTABLE_PATH)
+      // Use 'new' headless mode for compatibility with Alpine Chromium
       browser = await puppeteer.launch({
-        headless: 'shell', // Use shell mode to avoid HTTPS auto-upgrade issues
+        headless: true,
         executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
         args: [
           '--no-sandbox',
@@ -93,10 +95,10 @@ export class ScreenshotService implements IScreenshotService {
     } catch (error) {
       console.error('[ScreenshotService] Failed to capture screenshot:', error);
 
-      // Log error to PostHog
+      // Log error to PostHog (use captureException to flush immediately)
       try {
         const posthog = getPostHogErrorTracker();
-        await posthog.captureError(error instanceof Error ? error : new Error(String(error)), {
+        await posthog.captureException(error instanceof Error ? error : new Error(String(error)), {
           projectId: context?.projectId,
           userId: context?.userId,
           screenshotUrl: url,

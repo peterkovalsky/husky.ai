@@ -91,10 +91,18 @@ export class ScreenshotStep implements IBuildStep {
         console.error(`[${this.stepName}] Failed to capture/upload screenshot:`, screenshotError);
         metrics.screenshotCaptureTimeMs = Date.now() - captureStartTime;
         metrics.screenshotFailed = 1;
+
+        const duration = Date.now() - startTime;
+        console.log(`[${this.stepName}] Skipped (non-blocking failure) in ${duration}ms`);
+
+        return {
+          success: true,
+          metrics
+        };
       }
 
       const duration = Date.now() - startTime;
-      console.log(`[${this.stepName}] Completed in ${duration}ms`);
+      console.log(`[${this.stepName}] Completed successfully in ${duration}ms`);
 
       return {
         success: true,
@@ -103,7 +111,8 @@ export class ScreenshotStep implements IBuildStep {
     } catch (error) {
       // Even for unexpected errors, don't fail the build
       const duration = Date.now() - startTime;
-      console.error(`[${this.stepName}] Unexpected error after ${duration}ms:`, error);
+      console.error(`[${this.stepName}] Unexpected error:`, error);
+      console.log(`[${this.stepName}] Skipped (non-blocking failure) in ${duration}ms`);
 
       return {
         success: true, // Non-blocking - always return success

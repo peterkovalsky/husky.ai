@@ -4,11 +4,21 @@ FROM node:22-alpine
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies for native modules
+# Install system dependencies for native modules and Chromium for Puppeteer
 RUN apk add --no-cache \
     python3 \
     make \
-    g++
+    g++ \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont
+
+# Configure Puppeteer to use system Chromium
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 # Install TypeScript and Vite globally for building generated apps
 RUN npm install -g typescript vite
