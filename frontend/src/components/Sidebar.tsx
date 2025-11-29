@@ -1,9 +1,10 @@
+import React from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Button, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Tooltip } from '@heroui/react'
-import { Home, LogOut, Menu, X, CreditCard, Receipt, ChevronDown, ChevronRight, PanelLeftClose } from 'lucide-react'
+import { Home, LogOut, Menu, X, CreditCard, PanelLeftClose } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { CreditBalanceWidget } from './CreditBalanceWidget'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 
 export const Sidebar = () => {
@@ -11,15 +12,7 @@ export const Sidebar = () => {
   const navigate = useNavigate()
   const { user, signOut } = useAuth()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const [isBillingExpanded, setIsBillingExpanded] = useState(false)
-  const [isCollapsed, setIsCollapsed] = useLocalStorage('sidebar-collapsed', false)
-
-  // Auto-expand billing menu if on a billing sub-page
-  useEffect(() => {
-    if (location.pathname === '/subscription' || location.pathname === '/transactions') {
-      setIsBillingExpanded(true)
-    }
-  }, [location.pathname])
+  const [isCollapsed, setIsCollapsed] = useLocalStorage('sidebar-collapsed', true)
 
   const handleSignOut = async () => {
     try {
@@ -36,57 +29,58 @@ export const Sidebar = () => {
   const NavButton = ({
     icon,
     label,
-    path,
-    isSubItem = false,
-    endContent
+    path
   }: {
-    icon: React.ReactNode
+    icon: React.ReactElement<{ className?: string }>
     label: string
-    path?: string
-    isSubItem?: boolean
-    endContent?: React.ReactNode
+    path: string
   }) => {
-    const active = path ? isActive(path) : (isActive('/subscription') || isActive('/transactions'))
+    const active = isActive(path)
 
-    const button = (
-      <Button
-        fullWidth={!isCollapsed}
-        isIconOnly={isCollapsed && !isSubItem}
-        variant="light"
-        className={`
-          ${isCollapsed && !isSubItem ? 'w-10 h-10' : 'justify-start'}
-          ${isSubItem ? 'h-9 pl-12 text-sm' : 'h-11'}
-          ${active ? 'text-primary' : ''}
-        `}
-        startContent={!isCollapsed || isSubItem ? icon : undefined}
-        endContent={!isCollapsed ? endContent : undefined}
-        onPress={() => {
-          if (path) {
+    // Collapsed mode - Canva style with icon + label stacked
+    if (isCollapsed) {
+      return (
+        <button
+          onClick={() => {
             navigate(path)
             setIsMobileMenuOpen(false)
-          } else {
-            // Billing button behavior
-            if (!isBillingExpanded) {
-              navigate('/subscription')
-              setIsMobileMenuOpen(false)
-            }
-            setIsBillingExpanded(!isBillingExpanded)
-          }
-        }}
-      >
-        {isCollapsed && !isSubItem ? icon : label}
-      </Button>
-    )
-
-    if (isCollapsed && !isSubItem) {
-      return (
-        <Tooltip content={label} placement="right" delay={0} closeDelay={0}>
-          {button}
-        </Tooltip>
+          }}
+          className={`
+            flex flex-col items-center justify-center w-full py-2 px-2 rounded-xl cursor-pointer
+            ${active ? '' : 'text-gray-500'}
+            transition-colors duration-200
+          `}
+          style={active ? { color: '#7c3aed' } : {}}
+        >
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-1 ${active ? '' : 'hover:bg-gray-100'}`}
+               style={active ? { backgroundColor: '#ddd6fe' } : {}}>
+            {React.cloneElement(icon, { className: 'h-5 w-5' })}
+          </div>
+          <span className="text-xs font-medium">{label}</span>
+        </button>
       )
     }
 
-    return button
+    // Expanded mode
+    return (
+      <Button
+        fullWidth
+        variant="light"
+        className={`
+          justify-start cursor-pointer h-11
+          ${active ? '' : 'hover:bg-husky-50 dark:hover:bg-husky-900/20'}
+          transition-colors duration-200
+        `}
+        style={active ? { backgroundColor: '#ddd6fe', color: '#7c3aed' } : {}}
+        startContent={icon}
+        onPress={() => {
+          navigate(path)
+          setIsMobileMenuOpen(false)
+        }}
+      >
+        {label}
+      </Button>
+    )
   }
 
   // Handle click on empty space in collapsed sidebar to expand
@@ -102,15 +96,19 @@ export const Sidebar = () => {
       onClick={!isMobile ? handleSidebarClick : undefined}
     >
       {/* Header */}
-      <div className={`${isCollapsed && !isMobile ? 'p-3' : 'p-6'}`}>
+      <div className={`${isCollapsed && !isMobile ? 'p-3 pt-4' : 'p-6'}`}>
         <div className={`flex items-center ${isCollapsed && !isMobile ? 'justify-center' : 'justify-between'}`}>
-          <div className={`flex items-center ${isCollapsed && !isMobile ? '' : 'gap-3'}`}>
-            <img
-              src="/husky-logo-black-32x32.png"
-              alt="Husky AI Logo"
-              className="w-8 h-8 object-contain"
-            />
-            {(!isCollapsed || isMobile) && <h1 className="text-xl font-bold">Husky AI</h1>}
+          <div className={`flex items-center ${isCollapsed && !isMobile ? 'flex-col' : 'gap-3'}`}>
+            <div className="w-14 h-14 rounded-lg bg-husky-600 flex items-center justify-center">
+              <img
+                src="/husky-logo.png"
+                alt="Husky AI Logo"
+                className="w-10 h-10 object-contain"
+              />
+            </div>
+            {(!isCollapsed || isMobile) && (
+              <h1 className="text-xl font-bold text-gray-900">Husky AI</h1>
+            )}
           </div>
           {/* Collapse Toggle Button - Desktop only */}
           {(!isCollapsed || isMobile) && !isMobile && (
@@ -119,7 +117,7 @@ export const Sidebar = () => {
                 isIconOnly
                 variant="light"
                 size="sm"
-                className="text-default-400 hover:text-default-600 hidden lg:flex"
+                className="text-default-400 hover:text-husky-600 hover:bg-husky-50 hidden lg:flex transition-colors"
                 onPress={() => setIsCollapsed(true)}
               >
                 <PanelLeftClose className="h-4 w-4" />
@@ -143,24 +141,8 @@ export const Sidebar = () => {
           <NavButton
             icon={<CreditCard className="h-4 w-4" />}
             label="Billing"
-            endContent={isBillingExpanded ? <ChevronDown className="h-4 w-4 ml-auto" /> : <ChevronRight className="h-4 w-4 ml-auto" />}
+            path="/billing"
           />
-          {isBillingExpanded && (!isCollapsed || isMobile) && (
-            <>
-              <NavButton
-                icon={<CreditCard className="h-3.5 w-3.5" />}
-                label="Subscription"
-                path="/subscription"
-                isSubItem
-              />
-              <NavButton
-                icon={<Receipt className="h-3.5 w-3.5" />}
-                label="Transactions"
-                path="/transactions"
-                isSubItem
-              />
-            </>
-          )}
         </div>
 
         {/* Credit Balance Widget */}
@@ -172,23 +154,18 @@ export const Sidebar = () => {
         <Dropdown placement={isCollapsed && !isMobile ? 'right-end' : 'top-start'}>
           <DropdownTrigger>
             {isCollapsed && !isMobile ? (
-              <Button
-                size="sm"
-                isIconOnly
-                variant="bordered"
-                className="w-10 h-10"
-              >
-                <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-primary-foreground text-sm font-medium">
+              <button className="flex flex-col items-center justify-center w-full py-2 px-2 rounded-xl text-gray-600 hover:bg-gray-100 transition-colors">
+                <div className="w-10 h-10 bg-husky-600 rounded-full flex items-center justify-center text-white text-sm font-medium mb-1">
                   {(user?.user_metadata?.display_name || user?.email || 'U').charAt(0).toUpperCase()}
                 </div>
-              </Button>
+              </button>
             ) : (
               <Button
                 size="sm"
                 variant="bordered"
-                className="w-full justify-start h-12"
+                className="w-full justify-start h-12 border-husky-200 hover:border-husky-400 hover:bg-husky-50/50 transition-colors"
                 startContent={
-                  <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-primary-foreground text-sm font-medium">
+                  <div className="w-8 h-8 bg-gradient-husky rounded-full flex items-center justify-center text-white text-sm font-medium shadow-husky">
                     {(user?.user_metadata?.display_name || user?.email || 'U').charAt(0).toUpperCase()}
                   </div>
                 }
@@ -224,14 +201,14 @@ export const Sidebar = () => {
         size="sm"
         isIconOnly
         variant="light"
-        className="fixed top-4 left-4 z-50 lg:hidden"
+        className="fixed top-4 left-4 z-50 lg:hidden bg-white/80 backdrop-blur-sm shadow-md hover:shadow-husky transition-shadow"
         onPress={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
       >
         {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
       </Button>
 
       {/* Desktop Sidebar */}
-      <aside className={`hidden lg:flex ${isCollapsed ? 'w-16' : 'w-64'} bg-default-50 border-r border-divider transition-all duration-300 ease-in-out`}>
+      <aside className={`hidden lg:flex ${isCollapsed ? 'w-20' : 'w-64'} bg-gray-50 border-r border-gray-200 transition-all duration-300 ease-in-out`}>
         {sidebarContent(false)}
       </aside>
 
@@ -239,10 +216,10 @@ export const Sidebar = () => {
       {isMobileMenuOpen && (
         <>
           <div
-            className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden"
             onClick={() => setIsMobileMenuOpen(false)}
           />
-          <aside className="fixed left-0 top-0 h-full w-64 bg-default-50 border-r border-divider z-50 lg:hidden">
+          <aside className="fixed left-0 top-0 h-full w-64 bg-gray-50 border-r border-gray-200 z-50 lg:hidden animate-slide-up">
             {sidebarContent(true)}
           </aside>
         </>

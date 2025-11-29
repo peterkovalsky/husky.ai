@@ -2,8 +2,8 @@ import { useState, useRef } from 'react'
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ApiService, type JobStatus } from '../services/api'
-import { Button, Spinner } from '@heroui/react'
-import { ArrowLeft } from 'lucide-react'
+import { Button } from '@heroui/react'
+import { ArrowLeft, Loader2, AlertTriangle, Sparkles, Layout, BarChart3, Palette, FileText } from 'lucide-react'
 import { PromptInput } from './PromptInput'
 import { useMediaUpload } from '../hooks/useMediaUpload'
 import ClarificationPanel from './ClarificationPanel'
@@ -232,15 +232,15 @@ export const NewProjectStarter = ({ projectId, onBuildComplete }: NewProjectStar
   }, [appState, onBuildComplete])
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen">
       {/* Header Navigation */}
       <div className="px-6 py-4">
         <Button
-          variant="flat"
+          variant="light"
           size="md"
           onPress={() => navigate('/')}
           startContent={<ArrowLeft className="h-4 w-4" />}
-          className="rounded-full"
+          className="rounded-full hover:bg-husky-50"
         >
           Back to Projects
         </Button>
@@ -251,20 +251,33 @@ export const NewProjectStarter = ({ projectId, onBuildComplete }: NewProjectStar
         <div className="min-h-[calc(100vh-5rem)] flex items-center justify-center p-6">
           <div className="w-full max-w-3xl flex flex-col items-center">
             {/* Main Heading */}
-            <h1 className="text-4xl font-normal text-foreground mb-12 text-center">
-              How can I help you today?
-            </h1>
+            {!showClarification && (
+              <div className="text-center mb-12">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-husky flex items-center justify-center mx-auto mb-6 shadow-husky animate-float">
+                  <Sparkles className="w-8 h-8 text-white" />
+                </div>
+                <h1 className="text-4xl font-bold mb-3 text-gray-900">
+                  How can I help you today?
+                </h1>
+                <p className="text-default-500">Describe what you'd like to add or change</p>
+              </div>
+            )}
 
             {/* Loading Indicator - shown while generating */}
             {isGenerating && (
-              <div className="mb-8 flex items-center gap-3 text-primary">
-                <Spinner size="sm" color="primary" />
-                <span className="text-sm font-medium">
-                  {jobStatus?.status === 'QUEUED' && 'Analyzing your idea...'}
-                  {jobStatus?.status === 'PROCESSING' && 'Generating your app...'}
-                  {jobStatus?.status === 'BUILDING' && 'Building your app...'}
-                  {!jobStatus?.status && 'Starting generation...'}
-                </span>
+              <div className="mb-8 p-4 rounded-2xl glass border border-white/30 flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl status-processing flex items-center justify-center">
+                  <Loader2 className="w-5 h-5 text-white animate-spin" />
+                </div>
+                <div>
+                  <span className="text-sm font-medium text-default-700">
+                    {jobStatus?.status === 'QUEUED' && 'Analyzing your idea...'}
+                    {jobStatus?.status === 'PROCESSING' && 'Generating your app...'}
+                    {jobStatus?.status === 'BUILDING' && 'Building your app...'}
+                    {!jobStatus?.status && 'Starting generation...'}
+                  </span>
+                  <p className="text-xs text-default-500">This may take a minute</p>
+                </div>
               </div>
             )}
 
@@ -316,39 +329,43 @@ export const NewProjectStarter = ({ projectId, onBuildComplete }: NewProjectStar
               <div className="flex flex-wrap items-center justify-center gap-3">
                 <Button
                   variant="bordered"
-                  className="rounded-full"
+                  className="rounded-full border-husky-200 hover:border-husky-400 hover:bg-husky-50 transition-colors"
                   onPress={() => {
                     setPrompt("Create a landing page for a SaaS product");
                   }}
+                  startContent={<Layout className="w-4 h-4 text-husky-500" />}
                 >
-                  Create a landing page
+                  Landing page
                 </Button>
                 <Button
                   variant="bordered"
-                  className="rounded-full"
+                  className="rounded-full border-husky-200 hover:border-husky-400 hover:bg-husky-50 transition-colors"
                   onPress={() => {
                     setPrompt("Build a dashboard with charts");
                   }}
+                  startContent={<BarChart3 className="w-4 h-4 text-husky-500" />}
                 >
-                  Build a dashboard
+                  Dashboard
                 </Button>
                 <Button
                   variant="bordered"
-                  className="rounded-full"
+                  className="rounded-full border-husky-200 hover:border-husky-400 hover:bg-husky-50 transition-colors"
                   onPress={() => {
                     setPrompt("Design a portfolio website");
                   }}
+                  startContent={<Palette className="w-4 h-4 text-husky-500" />}
                 >
-                  Design portfolio
+                  Portfolio
                 </Button>
                 <Button
                   variant="bordered"
-                  className="rounded-full"
+                  className="rounded-full border-husky-200 hover:border-husky-400 hover:bg-husky-50 transition-colors"
                   onPress={() => {
                     setPrompt("Create a blog layout");
                   }}
+                  startContent={<FileText className="w-4 h-4 text-husky-500" />}
                 >
-                  Create blog
+                  Blog
                 </Button>
               </div>
             )}
@@ -360,18 +377,19 @@ export const NewProjectStarter = ({ projectId, onBuildComplete }: NewProjectStar
       {appState === 'error' && (
         <div className="flex items-center justify-center min-h-[calc(100vh-5rem)]">
           <div className="text-center max-w-md">
-            <div className="w-16 h-16 bg-destructive/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <div className="w-8 h-8 bg-destructive rounded-full flex items-center justify-center">
-                <span className="text-destructive-foreground text-sm font-bold">!</span>
-              </div>
+            <div className="w-16 h-16 rounded-2xl status-failed flex items-center justify-center mx-auto mb-6">
+              <AlertTriangle className="w-8 h-8 text-white" />
             </div>
-            <h3 className="text-lg font-semibold mb-2">Generation Failed</h3>
-            <p className="text-muted-foreground mb-6">{error}</p>
-            <Button onPress={() => {
-              setAppState('initial')
-              setError(null)
-              setIsGenerating(false)
-            }}>
+            <h3 className="text-xl font-semibold mb-2">Generation Failed</h3>
+            <p className="text-default-500 mb-6">{error}</p>
+            <Button
+              className="btn-primary"
+              onPress={() => {
+                setAppState('initial')
+                setError(null)
+                setIsGenerating(false)
+              }}
+            >
               Try Again
             </Button>
           </div>

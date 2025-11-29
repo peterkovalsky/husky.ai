@@ -55,10 +55,10 @@ export const SignUp = () => {
   }
 
   return (
-    <AuthLayout title="Sign Up">
+    <AuthLayout title="Create your account" subtitle="Start building amazing apps with AI">
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center gap-2 text-red-700">
+          <div className="flex items-center gap-3 p-4 rounded-xl bg-red-50/80 backdrop-blur-sm border border-red-200 text-red-700">
             <AlertCircle className="h-4 w-4 flex-shrink-0" />
             <span className="text-sm">{error}</span>
           </div>
@@ -69,12 +69,19 @@ export const SignUp = () => {
             type="text"
             id="displayName"
             name="displayName"
+            label="Full Name"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
             placeholder="Enter your full name"
             classNames={{
-              input: "bg-transparent placeholder:text-gray-600",
-              inputWrapper: "bg-white/30 backdrop-blur-sm border-white/30"
+              inputWrapper: [
+                'bg-white/50',
+                'backdrop-blur-sm',
+                'border-white/50',
+                'hover:bg-white/70',
+                'group-data-[focus=true]:bg-white/70',
+                'group-data-[focus=true]:border-husky-400',
+              ].join(' '),
             }}
             isRequired
           />
@@ -83,12 +90,19 @@ export const SignUp = () => {
             type="email"
             id="email"
             name="email"
+            label="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="Enter your email"
+            placeholder="you@example.com"
             classNames={{
-              input: "bg-transparent placeholder:text-gray-600",
-              inputWrapper: "bg-white/30 backdrop-blur-sm border-white/30"
+              inputWrapper: [
+                'bg-white/50',
+                'backdrop-blur-sm',
+                'border-white/50',
+                'hover:bg-white/70',
+                'group-data-[focus=true]:bg-white/70',
+                'group-data-[focus=true]:border-husky-400',
+              ].join(' '),
             }}
             isRequired
           />
@@ -97,12 +111,19 @@ export const SignUp = () => {
             type="password"
             id="password"
             name="password"
+            label="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Enter your password (min. 6 characters)"
+            placeholder="Min. 6 characters"
             classNames={{
-              input: "bg-transparent placeholder:text-gray-600",
-              inputWrapper: "bg-white/30 backdrop-blur-sm border-white/30"
+              inputWrapper: [
+                'bg-white/50',
+                'backdrop-blur-sm',
+                'border-white/50',
+                'hover:bg-white/70',
+                'group-data-[focus=true]:bg-white/70',
+                'group-data-[focus=true]:border-husky-400',
+              ].join(' '),
             }}
             isRequired
           />
@@ -112,9 +133,8 @@ export const SignUp = () => {
           <Button
             type="submit"
             isDisabled={loading}
-            className="w-full"
+            className="w-full btn-primary"
             size="lg"
-            color="primary"
           >
             {loading ? (
               <>
@@ -122,14 +142,14 @@ export const SignUp = () => {
                 Creating account...
               </>
             ) : (
-              'Sign Up'
+              'Create Account'
             )}
           </Button>
 
-          <div className="text-center text-sm text-default-500">
+          <div className="text-center text-sm text-default-600">
             Already have an account?{' '}
-            <Link to="/signin" className="text-primary hover:underline font-medium">
-              Log In
+            <Link to="/signin" className="text-husky-600 hover:text-husky-700 font-medium">
+              Sign In
             </Link>
           </div>
         </div>

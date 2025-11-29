@@ -4,7 +4,542 @@
 @source '../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}';
 @custom-variant dark (&:is(.dark *));
 
+/* ============================================================================
+   HUSKY AI DESIGN SYSTEM - CSS CUSTOM PROPERTIES
+   ============================================================================ */
+
+:root {
+  /* Brand Colors */
+  --husky-50: #f5f3ff;
+  --husky-100: #ede9fe;
+  --husky-200: #ddd6fe;
+  --husky-300: #c4b5fd;
+  --husky-400: #a78bfa;
+  --husky-500: #8b5cf6;
+  --husky-600: #7c3aed;
+  --husky-700: #6d28d9;
+  --husky-800: #5b21b6;
+  --husky-900: #4c1d95;
+
+  /* Accent Colors */
+  --cyan-400: #22d3ee;
+  --cyan-500: #06b6d4;
+  --cyan-600: #0891b2;
+  --pink-400: #f472b6;
+  --pink-500: #ec4899;
+
+  /* Gradients */
+  --gradient-hero: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 50%, #a5f3fc 100%);
+  --gradient-hero-subtle: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 50%, #ecfeff 100%);
+  --gradient-husky: linear-gradient(135deg, #8b5cf6 0%, #06b6d4 100%);
+  --gradient-husky-secondary: linear-gradient(135deg, #a78bfa 0%, #22d3ee 100%);
+  --gradient-button: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+
+  /* Glassmorphism */
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-bg-light: rgba(255, 255, 255, 0.5);
+  --glass-border: rgba(255, 255, 255, 0.3);
+  --glass-blur: 12px;
+  --glass-saturate: 180%;
+
+  /* Shadows */
+  --shadow-husky: 0 4px 14px 0 rgb(139 92 246 / 0.25);
+  --shadow-husky-lg: 0 10px 25px -3px rgb(139 92 246 / 0.3);
+  --shadow-cyan: 0 4px 14px 0 rgb(6 182 212 / 0.25);
+  --shadow-glass: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+
+  /* Focus Ring */
+  --focus-ring: 0 0 0 2px rgb(139 92 246 / 0.5);
+
+  /* Transitions */
+  --transition-fast: 150ms;
+  --transition-default: 200ms;
+  --transition-slow: 300ms;
+  --timing-default: cubic-bezier(0.4, 0, 0.2, 1);
+  --timing-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+/* Dark Mode Variables */
+.dark {
+  --glass-bg: rgba(39, 39, 42, 0.7);
+  --glass-bg-light: rgba(39, 39, 42, 0.5);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --gradient-hero-subtle: linear-gradient(135deg, #1e1b4b 0%, #172554 50%, #164e63 100%);
+}
+
+/* ============================================================================
+   GLASSMORPHISM UTILITIES
+   ============================================================================ */
+
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-border);
+}
+
+.glass-light {
+  background: var(--glass-bg-light);
+  backdrop-filter: blur(8px) saturate(150%);
+  -webkit-backdrop-filter: blur(8px) saturate(150%);
+  border: 1px solid var(--glass-border);
+}
+
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-glass);
+  border-radius: 1.25rem;
+}
+
+/* ============================================================================
+   GRADIENT UTILITIES
+   ============================================================================ */
+
+.gradient-hero {
+  background: var(--gradient-hero);
+}
+
+.gradient-hero-subtle {
+  background: var(--gradient-hero-subtle);
+}
+
+.gradient-husky {
+  background: var(--gradient-husky);
+}
+
+.gradient-text {
+  background: var(--gradient-husky);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-border {
+  position: relative;
+  background: white;
+  border-radius: 1rem;
+}
+
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: var(--gradient-husky);
+  z-index: -1;
+}
+
+/* Animated gradient border (like Canva's focused input) */
+.gradient-border-animated {
+  position: relative;
+  background: white;
+  border-radius: 1.25rem;
+  isolation: isolate;
+}
+
+.gradient-border-animated::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, #8b5cf6, #06b6d4, #ec4899, #8b5cf6);
+  background-size: 300% 300%;
+  animation: gradient-rotate 4s linear infinite;
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.gradient-border-animated:focus-within::before,
+.gradient-border-animated:hover::before {
+  opacity: 1;
+}
+
+@keyframes gradient-rotate {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ============================================================================
+   BUTTON STYLES - Solid Colors
+   ============================================================================ */
+
+/* Primary Button: Solid purple */
+.btn-primary {
+  background: var(--husky-600);
+  color: white;
+  font-weight: 500;
+  padding: 0.625rem 1.25rem;
+  border-radius: 0.75rem;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.btn-primary:hover {
+  background: var(--husky-700);
+}
+
+.btn-primary:active {
+  background: var(--husky-800);
+}
+
+/* Secondary Button: Light background with border */
+.btn-secondary {
+  background: white;
+  color: #1e293b;
+  font-weight: 500;
+  padding: 0.625rem 1.25rem;
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.btn-secondary:active {
+  background: #f1f5f9;
+}
+
+
+.btn-glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  color: var(--husky-700);
+  font-weight: 500;
+  padding: 0.625rem 1.25rem;
+  border-radius: 0.75rem;
+  transition: all var(--transition-default) var(--timing-default);
+}
+
+.btn-glass:hover {
+  background: var(--glass-bg-light);
+  border-color: var(--husky-300);
+}
+
+/* ============================================================================
+   INPUT STYLES (Canva-inspired)
+   ============================================================================ */
+
+.input-husky {
+  background: white;
+  border: 2px solid transparent;
+  border-radius: 1rem;
+  padding: 0.875rem 1rem;
+  font-size: 1rem;
+  transition: all var(--transition-default) var(--timing-default);
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+}
+
+.input-husky:hover {
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+}
+
+.input-husky:focus {
+  outline: none;
+  border-color: var(--husky-500);
+  box-shadow: var(--focus-ring);
+}
+
+/* Large AI prompt input (like Canva's main input) */
+.input-ai-prompt {
+  background: white;
+  border: 2px solid #e4e4e7;
+  border-radius: 1.25rem;
+  padding: 1rem 1.25rem;
+  font-size: 1rem;
+  line-height: 1.5;
+  min-height: 60px;
+  resize: none;
+  transition: all var(--transition-default) var(--timing-default);
+}
+
+.input-ai-prompt:focus {
+  outline: none;
+  border-color: var(--husky-400);
+  box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.1);
+}
+
+/* ============================================================================
+   CHIP/PILL STYLES (like Canva's category buttons)
+   ============================================================================ */
+
+.chip-category {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 0.875rem;
+  background: white;
+  border: 1px solid #e4e4e7;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #3f3f46;
+  transition: all var(--transition-default) var(--timing-default);
+  cursor: pointer;
+}
+
+.chip-category:hover {
+  background: #f4f4f5;
+  border-color: #d4d4d8;
+}
+
+.chip-category.active {
+  background: var(--husky-50);
+  border-color: var(--husky-300);
+  color: var(--husky-700);
+}
+
+.chip-category-gradient {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 0.875rem;
+  background: var(--gradient-husky);
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: white;
+  transition: all var(--transition-default) var(--timing-default);
+  cursor: pointer;
+  box-shadow: var(--shadow-husky);
+}
+
+.chip-category-gradient:hover {
+  box-shadow: var(--shadow-husky-lg);
+  transform: translateY(-1px);
+}
+
+/* ============================================================================
+   CARD STYLES
+   ============================================================================ */
+
+.card-husky {
+  background: white;
+  border-radius: 1.25rem;
+  border: 1px solid #e4e4e7;
+  padding: 1.5rem;
+  transition: all var(--transition-default) var(--timing-default);
+}
+
+.card-husky:hover {
+  border-color: var(--husky-200);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+}
+
+.card-husky-interactive {
+  background: white;
+  border-radius: 1.25rem;
+  border: 1px solid #e4e4e7;
+  padding: 1.5rem;
+  transition: all var(--transition-default) var(--timing-default);
+  cursor: pointer;
+}
+
+.card-husky-interactive:hover {
+  border-color: var(--husky-300);
+  box-shadow: var(--shadow-husky);
+  transform: translateY(-2px);
+}
+
+/* ============================================================================
+   STATUS INDICATOR STYLES
+   ============================================================================ */
+
+.status-queued {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+}
+
+.status-processing {
+  background: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%);
+}
+
+.status-building {
+  background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%);
+}
+
+.status-ready {
+  background: linear-gradient(135deg, #22c55e 0%, #10b981 100%);
+}
+
+.status-failed {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+}
+
+/* ============================================================================
+   SKELETON LOADING (shimmer effect)
+   ============================================================================ */
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    #f4f4f5 0%,
+    #e4e4e7 50%,
+    #f4f4f5 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 0.5rem;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ============================================================================
+   SCROLLBAR STYLES
+   ============================================================================ */
+
+.scrollbar-husky::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.scrollbar-husky::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-husky::-webkit-scrollbar-thumb {
+  background: #d4d4d8;
+  border-radius: 4px;
+}
+
+.scrollbar-husky::-webkit-scrollbar-thumb:hover {
+  background: #a1a1aa;
+}
+
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hidden {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ============================================================================
+   TYPOGRAPHY UTILITIES
+   ============================================================================ */
+
+.text-gradient {
+  background: var(--gradient-husky);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-gradient-hero {
+  background: var(--gradient-hero);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ============================================================================
+   FOCUS STATES
+   ============================================================================ */
+
+.focus-ring-husky:focus {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.focus-ring-husky:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ============================================================================
+   COMPONENT OVERRIDES
+   ============================================================================ */
+
 /* Remove focus ring from prompt input textarea */
 .prompt-input-no-ring [data-slot="input-wrapper"] {
   box-shadow: none !important;
+}
+
+/* Hero section background pattern */
+.hero-pattern {
+  background-color: #ffffff;
+  background-image: radial-gradient(circle at 25% 25%, var(--husky-100) 0%, transparent 50%),
+                    radial-gradient(circle at 75% 75%, #cffafe 0%, transparent 50%);
+}
+
+/* Subtle dot pattern for backgrounds */
+.dot-pattern {
+  background-image: radial-gradient(circle, #d4d4d8 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* ============================================================================
+   ANIMATION UTILITIES
+   ============================================================================ */
+
+.animate-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Pulse animation for loading states */
+.animate-pulse-husky {
+  animation: pulseHusky 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulseHusky {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.4);
+  }
+  50% {
+    opacity: 0.8;
+    box-shadow: 0 0 0 10px rgba(139, 92, 246, 0);
+  }
+}
+
+/* ============================================================================
+   RESPONSIVE UTILITIES
+   ============================================================================ */
+
+@media (max-width: 640px) {
+  .card-husky,
+  .card-husky-interactive,
+  .glass-card {
+    border-radius: 1rem;
+    padding: 1rem;
+  }
+
+  .input-ai-prompt {
+    border-radius: 1rem;
+    padding: 0.875rem 1rem;
+  }
 }

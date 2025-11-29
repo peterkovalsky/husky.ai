@@ -3,7 +3,7 @@ import { Card, Button, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Ch
 import { EditProjectDialog } from './EditProjectDialog'
 import { DeleteProjectDialog } from './DeleteProjectDialog'
 import { PublishDialog } from './PublishDialog'
-import { Code2, FolderOpen, MoreVertical, Trash2, Globe, Loader2, AlertCircle, Edit, Plus } from 'lucide-react'
+import { Code2, MoreVertical, Trash2, Globe, Loader2, AlertCircle, Edit, Plus, Sparkles } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useState, useEffect, useMemo } from 'react'
 import { PublishingStatus, ProjectStatus, type Project } from '../services/api'
@@ -30,7 +30,7 @@ export const Home = () => {
   // Refresh projects when component mounts or becomes visible
   useEffect(() => {
     refreshProjects()
-  }, [refreshProjects]) 
+  }, [refreshProjects])
 
   const formatRelativeDate = (dateString: string) => {
     if (!dateString) return 'Unknown'
@@ -84,25 +84,41 @@ export const Home = () => {
     switch (status) {
       case PublishingStatus.PUBLISHED:
         return (
-          <Chip size="sm" color="success" variant="flat" startContent={<Globe className="h-3 w-3" />}>
+          <Chip
+            size="sm"
+            className="bg-gradient-ready text-white border-0"
+            startContent={<Globe className="h-3 w-3" />}
+          >
             Published
           </Chip>
         )
       case PublishingStatus.PUBLISHING:
         return (
-          <Chip size="sm" color="primary" variant="flat" startContent={<Loader2 className="h-3 w-3 animate-spin" />}>
+          <Chip
+            size="sm"
+            className="bg-gradient-processing text-white border-0"
+            startContent={<Loader2 className="h-3 w-3 animate-spin" />}
+          >
             Publishing
           </Chip>
         )
       case PublishingStatus.UNPUBLISHING:
         return (
-          <Chip size="sm" color="default" variant="flat" startContent={<Loader2 className="h-3 w-3 animate-spin" />}>
+          <Chip
+            size="sm"
+            variant="flat"
+            startContent={<Loader2 className="h-3 w-3 animate-spin" />}
+          >
             Unpublishing
           </Chip>
         )
       case PublishingStatus.FAILED:
         return (
-          <Chip size="sm" color="danger" variant="flat" startContent={<AlertCircle className="h-3 w-3" />}>
+          <Chip
+            size="sm"
+            className="bg-gradient-failed text-white border-0"
+            startContent={<AlertCircle className="h-3 w-3" />}
+          >
             Publish Failed
           </Chip>
         )
@@ -115,7 +131,8 @@ export const Home = () => {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="w-8 h-8 border-4 border-default-200 border-t-primary rounded-full animate-spin mx-auto"></div>
+          <div className="w-12 h-12 rounded-full bg-gradient-husky animate-pulse-husky mx-auto mb-4"></div>
+          <p className="text-default-500">Loading projects...</p>
         </div>
       </div>
     )
@@ -127,12 +144,14 @@ export const Home = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8 flex justify-between items-start">
           <div>
-            <h2 className="text-3xl font-bold mb-2">Your Projects</h2>
+            <h2 className="text-3xl font-bold mb-2 text-gray-900">
+              Your Projects
+            </h2>
             <p className="text-default-500">Select a project to continue building your app</p>
           </div>
           {sortedProjects.length > 0 && (
             <Button
-              color="primary"
+              className="btn-primary"
               onPress={() => navigate('/project/new')}
               startContent={<Plus className="h-4 w-4" />}
             >
@@ -143,14 +162,16 @@ export const Home = () => {
 
         {!loading && sortedProjects.length === 0 ? (
           <div className="text-center py-16">
-            <div className="w-16 h-16 bg-default-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-              <FolderOpen className="w-8 h-8 text-default-500" />
+            <div className="w-20 h-20 bg-gradient-husky-accent rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-husky">
+              <Sparkles className="w-10 h-10 text-husky-600" />
             </div>
-            <h3 className="text-lg font-semibold mb-2">No projects yet</h3>
-            <p className="text-default-500 mb-6">Create your first project to get started</p>
+            <h3 className="text-xl font-semibold mb-2">No projects yet</h3>
+            <p className="text-default-500 mb-8 max-w-md mx-auto">
+              Create your first project and let AI build a beautiful app for you
+            </p>
             <Button
-              color="primary"
               size="lg"
+              className="btn-primary"
               onPress={() => navigate('/project/new')}
               startContent={<Plus className="h-5 w-5" />}
             >
@@ -160,12 +181,12 @@ export const Home = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {sortedProjects.map((project) => (
-              <div key={project.id} className="flex flex-col">
+              <div key={project.id} className="flex flex-col animate-in">
                 {/* Thumbnail Card */}
                 <Card
                   isPressable
                   onPress={() => navigate(`/project/${project.id}`)}
-                  className="relative overflow-hidden"
+                  className="relative overflow-hidden border border-default-200 shadow-none hover:border-husky-300 transition-colors"
                 >
                   {/* Action Menu - Overlaid on thumbnail */}
                   <div className="absolute top-2 right-2 z-10">
@@ -175,7 +196,7 @@ export const Home = () => {
                           as="div"
                           isIconOnly
                           size="sm"
-                          className="bg-white/80 backdrop-blur-sm hover:bg-white"
+                          className="glass hover:bg-white/90 transition-colors"
                           onClick={(e) => e.stopPropagation()}
                         >
                           <MoreVertical className="h-4 w-4 text-default-700" />
@@ -252,8 +273,8 @@ export const Home = () => {
                       />
                     </div>
                   ) : (
-                    <div className="w-full aspect-video bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center">
-                      <Code2 className="w-12 h-12 text-primary/40" />
+                    <div className="w-full aspect-video bg-default-100 flex items-center justify-center">
+                      <Code2 className="w-12 h-12 text-default-300" />
                     </div>
                   )}
                 </Card>
@@ -261,7 +282,7 @@ export const Home = () => {
                 {/* Project Info - Below the card */}
                 <div className="pt-3 px-1">
                   <h3
-                    className="text-base font-semibold cursor-pointer hover:text-primary transition-colors truncate"
+                    className="text-base font-semibold cursor-pointer hover:text-husky-600 transition-colors truncate"
                     onClick={() => navigate(`/project/${project.id}`)}
                   >
                     {project.name}

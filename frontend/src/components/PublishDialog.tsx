@@ -1,7 +1,7 @@
-import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, Card, CardBody, Divider, Code, Alert, Chip } from '@heroui/react'
+import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, Card, CardBody, Divider, Code, Chip } from '@heroui/react'
 import { ApiService, PublishingStatus, type PublishStatusResponse } from '../services/api'
 import { useState, useEffect, useRef } from 'react'
-import { Loader2, Globe, Calendar, Package } from 'lucide-react'
+import { Loader2, Globe, Calendar, Package, Rocket } from 'lucide-react'
 import { CustomDomainSection } from './CustomDomainSection'
 
 interface PublishDialogProps {
@@ -120,13 +120,13 @@ export const PublishDialog = ({ isOpen, onOpenChange, projectId, onSuccess }: Pu
         return (
           <div className="space-y-4">
             {publishStatus?.subdomain && (
-              <Card shadow="none" className="bg-default-50">
-                <CardBody className="gap-2 p-3">
+              <Card shadow="none" className="glass-card border-husky-200/50">
+                <CardBody className="gap-2 p-4">
                   <div className="text-xs text-default-600">
                     Your project will be published to:
                   </div>
-                  <div className="flex items-center gap-2">         
-                    <Code size="sm" className="text-xs">
+                  <div className="flex items-center gap-2">
+                    <Code size="sm" className="text-xs bg-husky-50 text-husky-700">
                       https://{publishStatus.subdomain}.{import.meta.env.VITE_PUBLISH_DOMAIN || 'huskystudio.ai'}
                     </Code>
                   </div>
@@ -144,25 +144,29 @@ export const PublishDialog = ({ isOpen, onOpenChange, projectId, onSuccess }: Pu
         )
       case PublishingStatus.PUBLISHING:
         return (
-          <Card shadow="none" className="bg-primary-50 border border-primary-200">
-            <CardBody className="flex flex-row items-center justify-center gap-2 py-4">
-              <Loader2 className="h-4 w-4 animate-spin text-primary" />
-              <span className="text-sm text-default-700">Publishing your project...</span>
+          <Card shadow="none" className="bg-gradient-to-r from-husky-50 to-cyan-50 border border-husky-200">
+            <CardBody className="flex flex-row items-center justify-center gap-3 py-6">
+              <div className="w-10 h-10 rounded-full status-processing flex items-center justify-center">
+                <Loader2 className="h-5 w-5 animate-spin text-white" />
+              </div>
+              <span className="text-sm text-default-700 font-medium">Publishing your project...</span>
             </CardBody>
           </Card>
         )
       case PublishingStatus.PUBLISHED:
         return (
           <div className="space-y-4">
-            <Card shadow="none" className="bg-default-100">
-              <CardBody className="gap-2 p-3">
+            <Card shadow="none" className="glass-card border-green-200/50">
+              <CardBody className="gap-3 p-4">
                 <div className="flex items-center gap-2">
-                  <Globe className="h-3.5 w-3.5 text-default-600" />
+                  <div className="w-8 h-8 rounded-lg status-ready flex items-center justify-center">
+                    <Globe className="h-4 w-4 text-white" />
+                  </div>
                   <a
                     href={publishStatus.publishedUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs text-primary hover:underline break-all"
+                    className="text-sm text-husky-600 hover:text-husky-700 font-medium hover:underline break-all"
                   >
                     {publishStatus.publishedUrl}
                   </a>
@@ -174,7 +178,7 @@ export const PublishDialog = ({ isOpen, onOpenChange, projectId, onSuccess }: Pu
                       <Package className="h-3.5 w-3.5" />
                       <span>Version {publishStatus.publishedVersion}</span>
                       {publishStatus.currentVersion > publishStatus.publishedVersion && (
-                        <Chip color="warning" variant="flat" size="sm">
+                        <Chip className="status-queued text-white border-0" size="sm">
                           Update available (v{publishStatus.currentVersion})
                         </Chip>
                       )}
@@ -213,22 +217,25 @@ export const PublishDialog = ({ isOpen, onOpenChange, projectId, onSuccess }: Pu
         )
       case PublishingStatus.FAILED:
         return (
-          <Alert
-            color="danger"
-            variant="flat"
-            title="Publishing failed"
-            description={publishStatus.error || "An error occurred while publishing your project. Please try again."}
-            classNames={{
-              title: "text-sm",
-              description: "text-xs"
-            }}
-          />
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-red-500/10 to-red-600/10 border border-red-200">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl status-failed flex items-center justify-center flex-shrink-0">
+                <Globe className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h4 className="font-semibold text-red-700 mb-1">Publishing failed</h4>
+                <p className="text-sm text-red-600/80">
+                  {publishStatus.error || "An error occurred while publishing your project. Please try again."}
+                </p>
+              </div>
+            </div>
+          </div>
         )
       case PublishingStatus.UNPUBLISHING:
         return (
           <Card shadow="none" className="bg-default-50 border border-default-200">
-            <CardBody className="flex flex-row items-center justify-center gap-2 py-4">
-              <Loader2 className="h-4 w-4 animate-spin text-default-500" />
+            <CardBody className="flex flex-row items-center justify-center gap-3 py-6">
+              <Loader2 className="h-5 w-5 animate-spin text-default-500" />
               <span className="text-sm text-default-700">Unpublishing your project...</span>
             </CardBody>
           </Card>
@@ -257,22 +264,35 @@ export const PublishDialog = ({ isOpen, onOpenChange, projectId, onSuccess }: Pu
 
   return (
     <>
-      <Modal isOpen={isOpen} onOpenChange={onOpenChange} size="md">
+      <Modal
+        isOpen={isOpen}
+        onOpenChange={onOpenChange}
+        size="md"
+        classNames={{
+          base: "glass-card border-white/30",
+          header: "border-b border-white/20",
+          footer: "border-t border-white/20",
+        }}
+      >
         <ModalContent>
           {(onClose) => (
             <>
               <ModalHeader className="flex flex-col gap-2">
                 <div className="flex items-center justify-between pr-8">
-                  <h3 className="text-lg font-semibold">Publish Website</h3>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-husky flex items-center justify-center shadow-husky">
+                      <Rocket className="w-5 h-5 text-white" />
+                    </div>
+                    <h3 className="text-lg font-semibold">Publish Website</h3>
+                  </div>
                   <Chip
-                    color={publishStatus?.status === PublishingStatus.PUBLISHED ? 'success' : 'default'}
-                    variant="flat"
+                    className={publishStatus?.status === PublishingStatus.PUBLISHED ? 'status-ready text-white border-0' : 'bg-default-100'}
                     size="sm"
                   >
                     {publishStatus?.status === PublishingStatus.PUBLISHED ? 'Published' : 'Not Published'}
                   </Chip>
                 </div>
-                <p className="text-xs font-normal text-default-500">
+                <p className="text-xs font-normal text-default-500 pl-13">
                   {getSubtitle()}
                 </p>
               </ModalHeader>
@@ -304,7 +324,7 @@ export const PublishDialog = ({ isOpen, onOpenChange, projectId, onSuccess }: Pu
                   </Button>
                   {(canPublish || canRepublish) && (
                     <Button
-                      color="primary"
+                      className="btn-primary"
                       onPress={publishStatus?.status === PublishingStatus.FAILED ? handleRetry : handlePublish}
                       isLoading={isInitiating}
                       isDisabled={isProcessing}
@@ -321,7 +341,14 @@ export const PublishDialog = ({ isOpen, onOpenChange, projectId, onSuccess }: Pu
       </Modal>
 
       {/* Unpublish Confirmation Dialog */}
-      <Modal isOpen={showUnpublishConfirm} onOpenChange={setShowUnpublishConfirm} size="sm">
+      <Modal
+        isOpen={showUnpublishConfirm}
+        onOpenChange={setShowUnpublishConfirm}
+        size="sm"
+        classNames={{
+          base: "glass-card border-white/30",
+        }}
+      >
         <ModalContent>
           {(onClose) => (
             <>
@@ -342,7 +369,7 @@ export const PublishDialog = ({ isOpen, onOpenChange, projectId, onSuccess }: Pu
                   Cancel
                 </Button>
                 <Button
-                  color="danger"
+                  className="bg-gradient-failed text-white"
                   onPress={handleUnpublish}
                   isLoading={isInitiating}
                   size="sm"

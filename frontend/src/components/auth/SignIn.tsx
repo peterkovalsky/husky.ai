@@ -35,10 +35,10 @@ export const SignIn = () => {
   }
 
   return (
-    <AuthLayout title="Log In">
+    <AuthLayout title="Welcome back" subtitle="Sign in to continue building amazing apps">
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && (
-          <div className="flex items-center gap-3 p-4 rounded-lg bg-red-50 border border-red-200 text-red-700">
+          <div className="flex items-center gap-3 p-4 rounded-xl bg-red-50/80 backdrop-blur-sm border border-red-200 text-red-700">
             <AlertCircle className="h-4 w-4 flex-shrink-0" />
             <span className="text-sm">{error}</span>
           </div>
@@ -49,12 +49,19 @@ export const SignIn = () => {
             type="email"
             id="email"
             name="email"
+            label="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="Enter your email"
+            placeholder="you@example.com"
             classNames={{
-              input: "bg-transparent placeholder:text-gray-600",
-              inputWrapper: "bg-white/30 backdrop-blur-sm border-white/30"
+              inputWrapper: [
+                'bg-white/50',
+                'backdrop-blur-sm',
+                'border-white/50',
+                'hover:bg-white/70',
+                'group-data-[focus=true]:bg-white/70',
+                'group-data-[focus=true]:border-husky-400',
+              ].join(' '),
             }}
             required
           />
@@ -63,12 +70,19 @@ export const SignIn = () => {
             type="password"
             id="password"
             name="password"
+            label="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Enter your password"
             classNames={{
-              input: "bg-transparent placeholder:text-gray-600",
-              inputWrapper: "bg-white/30 backdrop-blur-sm border-white/30"
+              inputWrapper: [
+                'bg-white/50',
+                'backdrop-blur-sm',
+                'border-white/50',
+                'hover:bg-white/70',
+                'group-data-[focus=true]:bg-white/70',
+                'group-data-[focus=true]:border-husky-400',
+              ].join(' '),
             }}
             required
           />
@@ -78,12 +92,15 @@ export const SignIn = () => {
               size="sm"
               isSelected={rememberMe}
               onValueChange={setRememberMe}
+              classNames={{
+                label: 'text-default-600',
+              }}
             >
               Remember me
             </Checkbox>
             <Link
               to="/forgot-password"
-              className="text-sm text-default-500 hover:text-default-700"
+              className="text-sm text-husky-600 hover:text-husky-700 font-medium"
             >
               Forgot password?
             </Link>
@@ -94,9 +111,8 @@ export const SignIn = () => {
           <Button
             type="submit"
             isDisabled={loading}
-            className="w-full"
+            className="w-full btn-primary"
             size="lg"
-            color="primary"
           >
             {loading ? (
               <>
@@ -104,13 +120,13 @@ export const SignIn = () => {
                 Signing in...
               </>
             ) : (
-              'Log In'
+              'Sign In'
             )}
           </Button>
 
-          <div className="text-center text-sm text-default-500">
+          <div className="text-center text-sm text-default-600">
             Need to create an account?{' '}
-            <Link to="/signup" className="text-primary hover:underline font-medium">
+            <Link to="/signup" className="text-husky-600 hover:text-husky-700 font-medium">
               Sign Up
             </Link>
           </div>

@@ -8,7 +8,7 @@ export const CreditBalanceWidget = () => {
     return (
       <div className="w-full px-2">
         <div className="flex items-center justify-center py-4">
-          <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
+          <div className="w-5 h-5 rounded-full bg-gradient-husky animate-pulse"></div>
         </div>
       </div>
     );
@@ -30,38 +30,38 @@ export const CreditBalanceWidget = () => {
   return (
     <div className="w-full space-y-4 px-2">
       {/* Monthly Credits Usage */}
-      <div className="space-y-1.5">
-        <span className="text-xs text-default-500">Monthly credits</span>
+      <div className="space-y-1">
+        <span className="text-sm text-gray-600">Credits used</span>
         <Progress
           size="sm"
           value={monthlyPercentage}
           classNames={{
-            indicator: "bg-[#22C55F]",
-            track: "bg-[#22C55F]/20"
+            indicator: "bg-violet-500",
+            track: "bg-violet-100"
           }}
-          className="max-w-full"
+          className="max-w-full h-1.5"
         />
-        <div className="text-xs text-default-500">
+        <span className="text-sm text-gray-600">
           {monthlyUsed}/{creditBalance.monthlyAllocated}
-        </div>
+        </span>
       </div>
 
       {/* Purchased Credits Usage - Only show if user has ever purchased credits */}
       {hasPurchasedCredits && (
-        <div className="space-y-1.5">
-          <span className="text-xs text-default-500">Purchased credits</span>
+        <div className="space-y-1">
+          <span className="text-sm text-gray-600">Purchased</span>
           <Progress
             size="sm"
             value={purchasedPercentage}
             classNames={{
-              indicator: "bg-[#22C55F]",
-              track: "bg-[#22C55F]/20"
+              indicator: "bg-purple-500",
+              track: "bg-purple-100"
             }}
-            className="max-w-full"
+            className="max-w-full h-1.5"
           />
-          <div className="text-xs text-default-500">
+          <span className="text-sm text-gray-600">
             {creditBalance.purchasedUsed}/{creditBalance.purchasedTotal}
-          </div>
+          </span>
         </div>
       )}
     </div>

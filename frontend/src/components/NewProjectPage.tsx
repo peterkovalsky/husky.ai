@@ -2,12 +2,13 @@ import { useState, useRef } from 'react'
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ApiService, type JobStatus, type Project } from '../services/api'
-import { Button, Spinner } from '@heroui/react'
+import { Button } from '@heroui/react'
 import { PromptInput } from './PromptInput'
 import { useMediaUpload } from '../hooks/useMediaUpload'
 import ClarificationPanel from './ClarificationPanel'
 import FailedBuildOptions from './FailedBuildOptions'
 import type { ClarificationQuestion, ClarificationAnswer } from '../types/clarification'
+import { Loader2, AlertTriangle, Sparkles, Layout, BarChart3, Palette, FileText } from 'lucide-react'
 
 type AppState = 'initial' | 'ready' | 'error'
 
@@ -310,28 +311,39 @@ export const NewProjectPage = () => {
   }, [appState, createdProject, navigate])
 
   return (
-    <div className="h-full bg-background">
+    <div className="h-full">
       {/* Main Content */}
       {appState === 'initial' && (
         <div className="h-full flex items-center justify-center p-6">
           <div className="w-full max-w-3xl flex flex-col items-center">
             {/* Main Heading - hidden during clarification */}
             {!showClarification && (
-              <h1 className="text-4xl font-normal text-foreground mb-12 text-center">
-                What would you like to build?
-              </h1>
+              <div className="text-center mb-12">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-husky flex items-center justify-center mx-auto mb-6 shadow-husky animate-float">
+                  <Sparkles className="w-8 h-8 text-white" />
+                </div>
+                <h1 className="text-4xl font-bold mb-3 text-gray-900">
+                  What would you like to build?
+                </h1>
+                <p className="text-default-500">Describe your app idea and let AI bring it to life</p>
+              </div>
             )}
 
             {/* Loading Indicator - shown while generating */}
             {isGenerating && (
-              <div className="mb-8 flex items-center gap-3 text-primary">
-                <Spinner color="primary" />
-                <span className="text-sm font-medium">
-                  {jobStatus?.status === 'QUEUED' && 'Analyzing your idea...'}
-                  {jobStatus?.status === 'PROCESSING' && 'Generating your app...'}
-                  {jobStatus?.status === 'BUILDING' && 'Building your app...'}
-                  {!jobStatus?.status && 'Starting generation...'}
-                </span>
+              <div className="mb-8 p-4 rounded-2xl glass border border-white/30 flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl status-processing flex items-center justify-center">
+                  <Loader2 className="w-5 h-5 text-white animate-spin" />
+                </div>
+                <div>
+                  <span className="text-sm font-medium text-default-700">
+                    {jobStatus?.status === 'QUEUED' && 'Analyzing your idea...'}
+                    {jobStatus?.status === 'PROCESSING' && 'Generating your app...'}
+                    {jobStatus?.status === 'BUILDING' && 'Building your app...'}
+                    {!jobStatus?.status && 'Starting generation...'}
+                  </span>
+                  <p className="text-xs text-default-500">This may take a minute</p>
+                </div>
               </div>
             )}
 
@@ -385,40 +397,44 @@ export const NewProjectPage = () => {
             {!isGenerating && !showClarification && !showFailedBuildOptions && (
               <div className="flex flex-wrap items-center justify-center gap-3">
                 <Button
-                  variant="bordered"           
-                  className="rounded-full"
+                  variant="bordered"
+                  className="rounded-full border-husky-200 hover:border-husky-400 hover:bg-husky-50 transition-colors"
                   onPress={() => {
                     setPrompt("Create a landing page for a SaaS product");
                   }}
+                  startContent={<Layout className="w-4 h-4 text-husky-500" />}
                 >
-                  Create a landing page
+                  Landing page
                 </Button>
                 <Button
-                  variant="bordered"                  
-                  className="rounded-full"
+                  variant="bordered"
+                  className="rounded-full border-husky-200 hover:border-husky-400 hover:bg-husky-50 transition-colors"
                   onPress={() => {
                     setPrompt("Build a dashboard with charts");
                   }}
+                  startContent={<BarChart3 className="w-4 h-4 text-husky-500" />}
                 >
-                  Build a dashboard
+                  Dashboard
                 </Button>
                 <Button
-                  variant="bordered"             
-                  className="rounded-full"
+                  variant="bordered"
+                  className="rounded-full border-husky-200 hover:border-husky-400 hover:bg-husky-50 transition-colors"
                   onPress={() => {
                     setPrompt("Design a portfolio website");
                   }}
+                  startContent={<Palette className="w-4 h-4 text-husky-500" />}
                 >
-                  Design portfolio
+                  Portfolio
                 </Button>
                 <Button
-                  variant="bordered"       
-                  className="rounded-full"
+                  variant="bordered"
+                  className="rounded-full border-husky-200 hover:border-husky-400 hover:bg-husky-50 transition-colors"
                   onPress={() => {
                     setPrompt("Create a blog layout");
                   }}
+                  startContent={<FileText className="w-4 h-4 text-husky-500" />}
                 >
-                  Create blog
+                  Blog
                 </Button>
               </div>
             )}
@@ -430,19 +446,20 @@ export const NewProjectPage = () => {
       {appState === 'error' && (
         <div className="flex items-center justify-center h-full">
           <div className="text-center max-w-md">
-            <div className="w-16 h-16 bg-destructive/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <div className="w-8 h-8 bg-destructive rounded-full flex items-center justify-center">
-                <span className="text-destructive-foreground text-sm font-bold">!</span>
-              </div>
+            <div className="w-16 h-16 rounded-2xl status-failed flex items-center justify-center mx-auto mb-6">
+              <AlertTriangle className="w-8 h-8 text-white" />
             </div>
-            <h3 className="text-lg font-semibold mb-2">Generation Failed</h3>
-            <p className="text-muted-foreground mb-6">{error}</p>
-            <Button onPress={() => {
-              setAppState('initial')
-              setError(null)
-              setIsGenerating(false)
-              setCreatedProject(null)
-            }}>
+            <h3 className="text-xl font-semibold mb-2">Generation Failed</h3>
+            <p className="text-default-500 mb-6">{error}</p>
+            <Button
+              className="btn-primary"
+              onPress={() => {
+                setAppState('initial')
+                setError(null)
+                setIsGenerating(false)
+                setCreatedProject(null)
+              }}
+            >
               Try Again
             </Button>
           </div>
