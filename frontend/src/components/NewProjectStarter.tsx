@@ -253,9 +253,7 @@ export const NewProjectStarter = ({ projectId, onBuildComplete }: NewProjectStar
             {/* Main Heading */}
             {!showClarification && (
               <div className="text-center mb-12">
-                <div className="w-16 h-16 rounded-2xl bg-gradient-husky flex items-center justify-center mx-auto mb-6 shadow-husky animate-float">
-                  <Sparkles className="w-8 h-8 text-white" />
-                </div>
+                <Sparkles className="w-12 h-12 text-husky-500 mx-auto mb-6 animate-float" />
                 <h1 className="text-4xl font-bold mb-3 text-gray-900">
                   How can I help you today?
                 </h1>
@@ -383,7 +381,7 @@ export const NewProjectStarter = ({ projectId, onBuildComplete }: NewProjectStar
             <h3 className="text-xl font-semibold mb-2">Generation Failed</h3>
             <p className="text-default-500 mb-6">{error}</p>
             <Button
-              className="btn-primary"
+              color="primary"
               onPress={() => {
                 setAppState('initial')
                 setError(null)

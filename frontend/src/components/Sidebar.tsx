@@ -99,13 +99,11 @@ export const Sidebar = () => {
       <div className={`${isCollapsed && !isMobile ? 'p-3 pt-4' : 'p-6'}`}>
         <div className={`flex items-center ${isCollapsed && !isMobile ? 'justify-center' : 'justify-between'}`}>
           <div className={`flex items-center ${isCollapsed && !isMobile ? 'flex-col' : 'gap-3'}`}>
-            <div className="w-14 h-14 rounded-lg bg-husky-600 flex items-center justify-center">
-              <img
-                src="/husky-logo.png"
-                alt="Husky AI Logo"
-                className="w-10 h-10 object-contain"
-              />
-            </div>
+            <img
+              src="/husky-logo.png"
+              alt="Husky AI Logo"
+              className="w-10 h-10 object-contain"
+            />
             {(!isCollapsed || isMobile) && (
               <h1 className="text-xl font-bold text-gray-900">Husky AI</h1>
             )}
@@ -144,10 +142,14 @@ export const Sidebar = () => {
             path="/billing"
           />
         </div>
-
-        {/* Credit Balance Widget */}
-        {(!isCollapsed || isMobile) && <CreditBalanceWidget />}
       </nav>
+
+      {/* Credit Balance Widget - Bottom of sidebar */}
+      {(!isCollapsed || isMobile) && (
+        <div className={`${isCollapsed && !isMobile ? 'p-2' : 'px-4 pb-2'}`}>
+          <CreditBalanceWidget />
+        </div>
+      )}
 
       {/* User Menu */}
       <div className={`${isCollapsed && !isMobile ? 'p-2' : 'p-4'}`}>
@@ -155,22 +157,18 @@ export const Sidebar = () => {
           <DropdownTrigger>
             {isCollapsed && !isMobile ? (
               <button className="flex flex-col items-center justify-center w-full py-2 px-2 rounded-xl text-gray-600 hover:bg-gray-100 transition-colors">
-                <div className="w-10 h-10 bg-husky-600 rounded-full flex items-center justify-center text-white text-sm font-medium mb-1">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-medium mb-1 bg-husky-500">
                   {(user?.user_metadata?.display_name || user?.email || 'U').charAt(0).toUpperCase()}
                 </div>
               </button>
             ) : (
-              <Button
-                size="sm"
-                variant="bordered"
-                className="w-full justify-start h-12 border-husky-200 hover:border-husky-400 hover:bg-husky-50/50 transition-colors"
-                startContent={
-                  <div className="w-8 h-8 bg-gradient-husky rounded-full flex items-center justify-center text-white text-sm font-medium shadow-husky">
-                    {(user?.user_metadata?.display_name || user?.email || 'U').charAt(0).toUpperCase()}
-                  </div>
-                }
+              <button
+                className="w-full flex items-center gap-3 h-12 px-3 rounded-xl border border-husky-200 hover:border-husky-400 hover:bg-husky-50/50 transition-colors"
               >
-                <div className="flex flex-col items-start overflow-hidden max-w-[130px]">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium flex-shrink-0 bg-husky-500">
+                  {(user?.user_metadata?.display_name || user?.email || 'U').charAt(0).toUpperCase()}
+                </div>
+                <div className="flex flex-col items-start overflow-hidden min-w-0">
                   <span className="text-sm font-medium truncate w-full text-left">
                     {user?.user_metadata?.display_name || 'User'}
                   </span>
@@ -178,7 +176,7 @@ export const Sidebar = () => {
                     {user?.email}
                   </span>
                 </div>
-              </Button>
+              </button>
             )}
           </DropdownTrigger>
           <DropdownMenu aria-label="User menu">

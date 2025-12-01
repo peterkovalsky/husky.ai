@@ -1,6 +1,5 @@
 // Husky AI Design System Components
 
-export { HuskyButton, type HuskyButtonProps } from './HuskyButton';
 export { GlassCard, type GlassCardProps } from './GlassCard';
 export { CategoryChip, type CategoryChipProps } from './CategoryChip';
 export { AIPromptInput, type AIPromptInputProps } from './AIPromptInput';

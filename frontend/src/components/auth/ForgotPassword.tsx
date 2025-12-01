@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
-import { AuthLayout } from './AuthLayout'
+import { Button, Input, Form } from '@heroui/react'
+import { AlertCircle, Mail, ArrowLeft, RefreshCw, CheckCircle } from 'lucide-react'
 
 export const ForgotPassword = () => {
   const [email, setEmail] = useState('')
@@ -12,7 +13,7 @@ export const ForgotPassword = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!email) {
       setError('Please enter your email address')
       return
@@ -32,147 +33,129 @@ export const ForgotPassword = () => {
 
   if (success) {
     return (
-      <AuthLayout title="Check Your Email" subtitle="Password reset instructions sent">
-        <div className="text-center space-y-6">
-          <div className="bg-green-50 border border-green-200 rounded-xl p-8">
-            <div className="flex items-center justify-center mb-6">
-              <div className="size-16 bg-green-100 rounded-full flex items-center justify-center">
-                <svg className="size-8 text-green-600" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                  <polyline points="22,6 12,13 2,6"/>
-                </svg>
-              </div>
-            </div>
-            <h3 className="text-lg font-semibold text-green-800 mb-3">Email Sent!</h3>
-            <p className="text-green-700 leading-relaxed">
-              We've sent password reset instructions to<br/>
-              <span className="font-medium">{email}</span>
-            </p>
-          </div>
-          
-          <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
-            <p className="text-sm text-gray-600">Didn't receive the email? Check your spam folder or try again.</p>
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <div className="flex w-full max-w-sm flex-col gap-4 rounded-large px-8 pt-6 pb-10">
+          <div className="flex items-center gap-3 mb-2">
+            <img
+              src="/husky-logo.png"
+              alt="Husky AI Logo"
+              className="w-10 h-10 object-contain"
+            />
+            <span className="text-xl font-semibold text-foreground">Husky AI</span>
           </div>
 
-          <div className="space-y-3">
-            <button
-              onClick={() => {
+          <p className="pb-2 text-left text-3xl font-semibold">
+            Check Your Email
+            <span aria-label="emoji" className="ml-2" role="img">
+              📧
+            </span>
+          </p>
+
+          <div className="flex flex-col items-center gap-4 p-6 rounded-xl bg-success-50 border border-success-200">
+            <div className="w-12 h-12 bg-success-100 rounded-full flex items-center justify-center">
+              <CheckCircle className="w-6 h-6 text-success-600" />
+            </div>
+            <div className="text-center">
+              <h3 className="text-base font-semibold text-success-800 mb-1">Email Sent!</h3>
+              <p className="text-sm text-success-700">
+                We've sent password reset instructions to<br/>
+                <span className="font-medium">{email}</span>
+              </p>
+            </div>
+          </div>
+
+          <p className="text-xs text-center text-default-500">
+            Didn't receive the email? Check your spam folder or try again.
+          </p>
+
+          <div className="flex flex-col gap-3">
+            <Button
+              className="w-full"
+              color="primary"
+              onPress={() => {
                 setSuccess(false)
                 setEmail('')
               }}
-              className="w-full py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+              startContent={<RefreshCw className="w-4 h-4" />}
             >
               Try Again
-              <svg className="size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="23,4 23,10 17,10"/>
-                <polyline points="1,20 1,14 7,14"/>
-                <path d="M20.49,9A9,9,0,0,0,5.64,5.64L1,10"/>
-                <path d="M3.51,15A9,9,0,0,0,18.36,18.36L23,14"/>
-              </svg>
-            </button>
-            
-            <Link 
+            </Button>
+
+            <Button
+              as={Link}
               to="/signin"
-              className="w-full py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full"
+              variant="bordered"
+              startContent={<ArrowLeft className="w-4 h-4" />}
             >
-              <svg className="size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="m12 19-7-7 7-7"/>
-                <path d="M19 12H5"/>
-              </svg>
               Back to Sign In
-            </Link>
+            </Button>
           </div>
         </div>
-      </AuthLayout>
+      </div>
     )
   }
 
   return (
-    <AuthLayout title="Reset Password" subtitle="Enter your email to receive reset instructions">
-      <form onSubmit={handleSubmit} className="space-y-6">
+    <div className="flex h-screen w-full items-center justify-center bg-background">
+      <div className="flex w-full max-w-sm flex-col gap-4 rounded-large px-8 pt-6 pb-10">
+        <div className="flex items-center gap-3 mb-2">
+          <img
+            src="/husky-logo.png"
+            alt="Husky AI Logo"
+            className="w-10 h-10 object-contain"
+          />
+          <span className="text-xl font-semibold text-foreground">Husky AI</span>
+        </div>
+
+        <p className="pb-2 text-left text-3xl font-semibold">
+          Reset Password
+          <span aria-label="emoji" className="ml-2" role="img">
+            🔑
+          </span>
+        </p>
+
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-4" role="alert">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <svg className="size-4 text-red-400 mt-0.5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10"/>
-                  <line x1="15" x2="9" y1="9" y2="15"/>
-                  <line x1="9" x2="15" y1="9" y2="15"/>
-                </svg>
-              </div>
-              <div className="ms-3">
-                <h3 className="text-sm text-red-800 font-medium">
-                  Reset Error
-                </h3>
-                <p className="text-sm text-red-700 mt-1">
-                  {error}
-                </p>
-              </div>
-            </div>
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-danger-50 border border-danger-200 text-danger-700">
+            <AlertCircle className="h-4 w-4 flex-shrink-0" />
+            <span className="text-sm">{error}</span>
           </div>
         )}
 
-        <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-            Email Address
-          </label>
-          <div className="relative">
-            <input
-              type="email"
-              id="email"
-              name="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="py-3 px-4 ps-11 block w-full border-gray-200 shadow-sm rounded-lg text-sm focus:z-10 focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none"
-              placeholder="Enter your email address"
-              required
-            />
-            <div className="absolute inset-y-0 start-0 flex items-center pointer-events-none ps-4">
-              <svg className="size-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                <polyline points="22,6 12,13 2,6"/>
-              </svg>
-            </div>
-          </div>
-          <p className="text-xs text-gray-500 mt-2">We'll send password reset instructions to this email</p>
-        </div>
-
-        <div className="space-y-3">
-          <button
+        <Form className="flex flex-col gap-4" validationBehavior="native" onSubmit={handleSubmit}>
+          <Input
+            isRequired
+            label="Email"
+            labelPlacement="outside"
+            name="email"
+            placeholder="Enter your email"
+            type="email"
+            variant="bordered"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            description="We'll send password reset instructions to this email"
+          />
+          <Button
+            className="w-full mt-2"
+            color="primary"
             type="submit"
-            disabled={loading}
-            className="w-full py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+            isLoading={loading}
+            startContent={!loading ? <Mail className="w-4 h-4" /> : undefined}
           >
-            {loading ? (
-              <>
-                <span className="animate-spin inline-block size-4 border-[3px] border-current border-t-transparent text-white rounded-full" role="status" aria-label="loading">
-                  <span className="sr-only">Loading</span>
-                </span>
-                Sending...
-              </>
-            ) : (
-              <>
-                Send Reset Instructions
-                <svg className="size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                  <polyline points="22,6 12,13 2,6"/>
-                </svg>
-              </>
-            )}
-          </button>
+            Send Reset Instructions
+          </Button>
+        </Form>
 
-          <Link 
-            to="/signin" 
-            className="w-full py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <svg className="size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="m12 19-7-7 7-7"/>
-              <path d="M19 12H5"/>
-            </svg>
-            Back to Sign In
-          </Link>
-        </div>
-      </form>
-    </AuthLayout>
+        <Button
+          as={Link}
+          to="/signin"
+          className="w-full"
+          variant="light"
+          startContent={<ArrowLeft className="w-4 h-4" />}
+        >
+          Back to Sign In
+        </Button>
+      </div>
+    </div>
   )
 }

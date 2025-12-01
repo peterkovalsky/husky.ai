@@ -120,7 +120,7 @@ export const PublishDialog = ({ isOpen, onOpenChange, projectId, onSuccess }: Pu
         return (
           <div className="space-y-4">
             {publishStatus?.subdomain && (
-              <Card shadow="none" className="glass-card border-husky-200/50">
+              <Card shadow="none" className="bg-gray-50 border border-gray-200">
                 <CardBody className="gap-2 p-4">
                   <div className="text-xs text-default-600">
                     Your project will be published to:
@@ -156,7 +156,7 @@ export const PublishDialog = ({ isOpen, onOpenChange, projectId, onSuccess }: Pu
       case PublishingStatus.PUBLISHED:
         return (
           <div className="space-y-4">
-            <Card shadow="none" className="glass-card border-green-200/50">
+            <Card shadow="none" className="bg-success-50 border border-success-200">
               <CardBody className="gap-3 p-4">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg status-ready flex items-center justify-center">
@@ -269,9 +269,9 @@ export const PublishDialog = ({ isOpen, onOpenChange, projectId, onSuccess }: Pu
         onOpenChange={onOpenChange}
         size="md"
         classNames={{
-          base: "glass-card border-white/30",
-          header: "border-b border-white/20",
-          footer: "border-t border-white/20",
+          base: "bg-white shadow-xl",
+          header: "border-b border-gray-100",
+          footer: "border-t border-gray-100",
         }}
       >
         <ModalContent>
@@ -280,9 +280,7 @@ export const PublishDialog = ({ isOpen, onOpenChange, projectId, onSuccess }: Pu
               <ModalHeader className="flex flex-col gap-2">
                 <div className="flex items-center justify-between pr-8">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-husky flex items-center justify-center shadow-husky">
-                      <Rocket className="w-5 h-5 text-white" />
-                    </div>
+                    <Rocket className="w-6 h-6 text-husky-500" />
                     <h3 className="text-lg font-semibold">Publish Website</h3>
                   </div>
                   <Chip
@@ -324,7 +322,7 @@ export const PublishDialog = ({ isOpen, onOpenChange, projectId, onSuccess }: Pu
                   </Button>
                   {(canPublish || canRepublish) && (
                     <Button
-                      className="btn-primary"
+                      color="primary"
                       onPress={publishStatus?.status === PublishingStatus.FAILED ? handleRetry : handlePublish}
                       isLoading={isInitiating}
                       isDisabled={isProcessing}
@@ -346,7 +344,7 @@ export const PublishDialog = ({ isOpen, onOpenChange, projectId, onSuccess }: Pu
         onOpenChange={setShowUnpublishConfirm}
         size="sm"
         classNames={{
-          base: "glass-card border-white/30",
+          base: "bg-white shadow-xl",
         }}
       >
         <ModalContent>
@@ -369,7 +367,7 @@ export const PublishDialog = ({ isOpen, onOpenChange, projectId, onSuccess }: Pu
                   Cancel
                 </Button>
                 <Button
-                  className="bg-gradient-failed text-white"
+                  color="danger"
                   onPress={handleUnpublish}
                   isLoading={isInitiating}
                   size="sm"

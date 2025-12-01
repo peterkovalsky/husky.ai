@@ -8,7 +8,7 @@ export const CreditBalanceWidget = () => {
     return (
       <div className="w-full px-2">
         <div className="flex items-center justify-center py-4">
-          <div className="w-5 h-5 rounded-full bg-gradient-husky animate-pulse"></div>
+          <div className="w-5 h-5 rounded-full bg-husky-500 animate-pulse"></div>
         </div>
       </div>
     );
@@ -28,10 +28,15 @@ export const CreditBalanceWidget = () => {
     : 0;
 
   return (
-    <div className="w-full space-y-4 px-2">
+    <div className="w-full space-y-2">
       {/* Monthly Credits Usage */}
-      <div className="space-y-1">
-        <span className="text-sm text-gray-600">Credits used</span>
+      <div className="space-y-0.5">
+        <div className="flex justify-between items-center">
+          <span className="text-xs text-gray-500">Credits used</span>
+          <span className="text-xs text-gray-500">
+            {monthlyUsed}/{creditBalance.monthlyAllocated}
+          </span>
+        </div>
         <Progress
           size="sm"
           value={monthlyPercentage}
@@ -39,17 +44,19 @@ export const CreditBalanceWidget = () => {
             indicator: "bg-violet-500",
             track: "bg-violet-100"
           }}
-          className="max-w-full h-1.5"
+          className="max-w-full h-1"
         />
-        <span className="text-sm text-gray-600">
-          {monthlyUsed}/{creditBalance.monthlyAllocated}
-        </span>
       </div>
 
       {/* Purchased Credits Usage - Only show if user has ever purchased credits */}
       {hasPurchasedCredits && (
-        <div className="space-y-1">
-          <span className="text-sm text-gray-600">Purchased</span>
+        <div className="space-y-0.5">
+          <div className="flex justify-between items-center">
+            <span className="text-xs text-gray-500">Purchased</span>
+            <span className="text-xs text-gray-500">
+              {creditBalance.purchasedUsed}/{creditBalance.purchasedTotal}
+            </span>
+          </div>
           <Progress
             size="sm"
             value={purchasedPercentage}
@@ -57,11 +64,8 @@ export const CreditBalanceWidget = () => {
               indicator: "bg-purple-500",
               track: "bg-purple-100"
             }}
-            className="max-w-full h-1.5"
+            className="max-w-full h-1"
           />
-          <span className="text-sm text-gray-600">
-            {creditBalance.purchasedUsed}/{creditBalance.purchasedTotal}
-          </span>
         </div>
       )}
     </div>

@@ -4,6 +4,20 @@
 @source '../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}';
 @custom-variant dark (&:is(.dark *));
 
+/* Tailwind v4 Theme Configuration */
+@theme {
+  --color-husky-50: #f5f3ff;
+  --color-husky-100: #ede9fe;
+  --color-husky-200: #ddd6fe;
+  --color-husky-300: #c4b5fd;
+  --color-husky-400: #a78bfa;
+  --color-husky-500: #8b5cf6;
+  --color-husky-600: #7c3aed;
+  --color-husky-700: #6d28d9;
+  --color-husky-800: #5b21b6;
+  --color-husky-900: #4c1d95;
+}
+
 /* ============================================================================
    HUSKY AI DESIGN SYSTEM - CSS CUSTOM PROPERTIES
    ============================================================================ */
@@ -162,66 +176,6 @@
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
-}
-
-/* ============================================================================
-   BUTTON STYLES - Solid Colors
-   ============================================================================ */
-
-/* Primary Button: Solid purple */
-.btn-primary {
-  background: var(--husky-600);
-  color: white;
-  font-weight: 500;
-  padding: 0.625rem 1.25rem;
-  border-radius: 0.75rem;
-  transition: all 0.2s ease;
-  border: none;
-}
-
-.btn-primary:hover {
-  background: var(--husky-700);
-}
-
-.btn-primary:active {
-  background: var(--husky-800);
-}
-
-/* Secondary Button: Light background with border */
-.btn-secondary {
-  background: white;
-  color: #1e293b;
-  font-weight: 500;
-  padding: 0.625rem 1.25rem;
-  border-radius: 0.75rem;
-  border: 1px solid #e2e8f0;
-  transition: all 0.2s ease;
-}
-
-.btn-secondary:hover {
-  background: #f8fafc;
-  border-color: #cbd5e1;
-}
-
-.btn-secondary:active {
-  background: #f1f5f9;
-}
-
-
-.btn-glass {
-  background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid var(--glass-border);
-  color: var(--husky-700);
-  font-weight: 500;
-  padding: 0.625rem 1.25rem;
-  border-radius: 0.75rem;
-  transition: all var(--transition-default) var(--timing-default);
-}
-
-.btn-glass:hover {
-  background: var(--glass-bg-light);
-  border-color: var(--husky-300);
 }
 
 /* ============================================================================

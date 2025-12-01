@@ -89,16 +89,14 @@ export const EditProjectDialog = ({
       size="2xl"
       placement="center"
       classNames={{
-        base: "glass-card border-white/30",
-        header: "border-b border-white/20",
-        footer: "border-t border-white/20",
+        base: "bg-white shadow-xl",
+        header: "border-b border-gray-100",
+        footer: "border-t border-gray-100",
       }}
     >
       <ModalContent>
         <ModalHeader className="flex items-center gap-3 text-xl">
-          <div className="w-10 h-10 rounded-xl bg-gradient-husky flex items-center justify-center shadow-husky">
-            <Edit className="w-5 h-5 text-white" />
-          </div>
+          <Edit className="w-6 h-6 text-husky-500" />
           Edit Project
         </ModalHeader>
 
@@ -111,16 +109,7 @@ export const EditProjectDialog = ({
             isDisabled={isUpdating}
             isRequired
             size="lg"
-            classNames={{
-              inputWrapper: [
-                'bg-white/50',
-                'backdrop-blur-sm',
-                'border-white/50',
-                'hover:bg-white/70',
-                'group-data-[focus=true]:bg-white/70',
-                'group-data-[focus=true]:border-husky-400',
-              ].join(' '),
-            }}
+            variant="bordered"
           />
 
           <Textarea
@@ -130,25 +119,16 @@ export const EditProjectDialog = ({
             onValueChange={setDescription}
             isDisabled={isUpdating}
             minRows={4}
-            classNames={{
-              inputWrapper: [
-                'bg-white/50',
-                'backdrop-blur-sm',
-                'border-white/50',
-                'hover:bg-white/70',
-                'group-data-[focus=true]:bg-white/70',
-                'group-data-[focus=true]:border-husky-400',
-              ].join(' '),
-            }}
+            variant="bordered"
           />
 
           {error && (
-            <div className="p-4 rounded-2xl bg-gradient-to-r from-red-500/10 to-red-600/10 border border-red-200 backdrop-blur-sm">
+            <div className="p-4 rounded-xl bg-danger-50 border border-danger-200">
               <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-xl status-failed flex items-center justify-center flex-shrink-0">
+                <div className="w-8 h-8 rounded-lg bg-danger flex items-center justify-center flex-shrink-0">
                   <span className="text-white text-xs font-bold">!</span>
                 </div>
-                <p className="text-sm text-red-700 font-medium pt-1">{error}</p>
+                <p className="text-sm text-danger font-medium pt-1">{error}</p>
               </div>
             </div>
           )}
@@ -164,7 +144,7 @@ export const EditProjectDialog = ({
             Cancel
           </Button>
           <Button
-            className="btn-primary"
+            color="primary"
             onPress={handleSubmit}
             isDisabled={!name.trim() || !hasChanges() || isUpdating}
             isLoading={isUpdating}

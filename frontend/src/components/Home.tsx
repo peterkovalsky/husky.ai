@@ -131,7 +131,7 @@ export const Home = () => {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="w-12 h-12 rounded-full bg-gradient-husky animate-pulse-husky mx-auto mb-4"></div>
+          <div className="w-12 h-12 rounded-full bg-husky-500 animate-pulse-husky mx-auto mb-4"></div>
           <p className="text-default-500">Loading projects...</p>
         </div>
       </div>
@@ -151,7 +151,7 @@ export const Home = () => {
           </div>
           {sortedProjects.length > 0 && (
             <Button
-              className="btn-primary"
+              color="primary"
               onPress={() => navigate('/project/new')}
               startContent={<Plus className="h-4 w-4" />}
             >
@@ -162,16 +162,14 @@ export const Home = () => {
 
         {!loading && sortedProjects.length === 0 ? (
           <div className="text-center py-16">
-            <div className="w-20 h-20 bg-gradient-husky-accent rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-husky">
-              <Sparkles className="w-10 h-10 text-husky-600" />
-            </div>
+            <Sparkles className="w-12 h-12 text-husky-500 mx-auto mb-6" />
             <h3 className="text-xl font-semibold mb-2">No projects yet</h3>
             <p className="text-default-500 mb-8 max-w-md mx-auto">
               Create your first project and let AI build a beautiful app for you
             </p>
             <Button
               size="lg"
-              className="btn-primary"
+              color="primary"
               onPress={() => navigate('/project/new')}
               startContent={<Plus className="h-5 w-5" />}
             >
