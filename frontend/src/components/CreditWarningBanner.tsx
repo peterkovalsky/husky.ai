@@ -1,4 +1,4 @@
-import { Alert } from '@heroui/react';
+import { Button } from '@heroui/react';
 import { AlertTriangle, TrendingUp, CreditCard } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useNavigate } from 'react-router-dom';
@@ -41,71 +41,75 @@ export const CreditWarningBanner = ({ showWhen = 'always' }: CreditWarningBanner
   // Out of credits - critical alert
   if (creditBalance.isOut) {
     return (
-      <Alert
-        color="danger"
-        variant="flat"
-        className="mb-4"
-        startContent={<AlertTriangle className="w-5 h-5" />}
-        title="You're out of credits"
-        description={
-          <div className="flex flex-col gap-2">
-            <p>
+      <div className="mb-4 p-4 rounded-2xl bg-gradient-to-r from-red-500/10 to-red-600/10 border border-red-200 backdrop-blur-sm">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl status-failed flex items-center justify-center flex-shrink-0">
+            <AlertTriangle className="w-5 h-5 text-white" />
+          </div>
+          <div className="flex-1">
+            <h4 className="font-semibold text-red-700 mb-1">You're out of credits</h4>
+            <p className="text-sm text-red-600/80 mb-3">
               You've used all your credits. Upgrade your plan or purchase additional credits to continue building.
             </p>
-            <div className="flex gap-2 mt-2">
-              <button
-                onClick={() => navigate('/billing')}
-                className="px-3 py-1.5 bg-danger-600 hover:bg-danger-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5"
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                className="bg-gradient-failed text-white shadow-sm hover:shadow-md transition-shadow"
+                onPress={() => navigate('/billing')}
+                startContent={<TrendingUp className="w-4 h-4" />}
               >
-                <TrendingUp className="w-4 h-4" />
                 Upgrade Plan
-              </button>
-              <button
-                onClick={() => navigate('/billing')}
-                className="px-3 py-1.5 bg-danger-600/10 hover:bg-danger-600/20 text-danger-700 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5"
+              </Button>
+              <Button
+                size="sm"
+                variant="bordered"
+                className="border-red-300 text-red-700 hover:bg-red-50"
+                onPress={() => navigate('/billing')}
+                startContent={<CreditCard className="w-4 h-4" />}
               >
-                <CreditCard className="w-4 h-4" />
                 Buy Credits
-              </button>
+              </Button>
             </div>
           </div>
-        }
-      />
+        </div>
+      </div>
     );
   }
 
   // Low credits - warning alert
   return (
-    <Alert
-      color="warning"
-      variant="flat"
-      className="mb-4"
-      startContent={<AlertTriangle className="w-5 h-5" />}
-      title="Low credit balance"
-      description={
-        <div className="flex flex-col gap-2">
-          <p>
+    <div className="mb-4 p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 to-amber-600/10 border border-amber-200 backdrop-blur-sm">
+      <div className="flex items-start gap-3">
+        <div className="w-10 h-10 rounded-xl status-queued flex items-center justify-center flex-shrink-0">
+          <AlertTriangle className="w-5 h-5 text-white" />
+        </div>
+        <div className="flex-1">
+          <h4 className="font-semibold text-amber-700 mb-1">Low credit balance</h4>
+          <p className="text-sm text-amber-600/80 mb-3">
             You have {creditBalance.totalCredits} credits remaining ({Math.round((creditBalance.totalCredits / creditBalance.monthlyAllocated) * 100)}% of your monthly allocation).
             Consider upgrading or purchasing additional credits.
           </p>
-          <div className="flex gap-2 mt-2">
-            <button
-              onClick={() => navigate('/billing')}
-              className="px-3 py-1.5 bg-warning-600 hover:bg-warning-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5"
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              className="status-queued text-white shadow-sm hover:shadow-md transition-shadow"
+              onPress={() => navigate('/billing')}
+              startContent={<TrendingUp className="w-4 h-4" />}
             >
-              <TrendingUp className="w-4 h-4" />
               Upgrade Plan
-            </button>
-            <button
-              onClick={() => navigate('/billing')}
-              className="px-3 py-1.5 bg-warning-600/10 hover:bg-warning-600/20 text-warning-700 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5"
+            </Button>
+            <Button
+              size="sm"
+              variant="bordered"
+              className="border-amber-300 text-amber-700 hover:bg-amber-50"
+              onPress={() => navigate('/billing')}
+              startContent={<CreditCard className="w-4 h-4" />}
             >
-              <CreditCard className="w-4 h-4" />
               Buy Credits
-            </button>
+            </Button>
           </div>
         </div>
-      }
-    />
+      </div>
+    </div>
   );
 };

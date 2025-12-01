@@ -136,7 +136,7 @@ export const CustomDomainSection = ({ projectId, customDomain, onUpdate }: Custo
           />
           <Button
             size="sm"
-            color="primary"
+            color="secondary"
             onPress={handleSetCustomDomain}
             isLoading={isLoading}
           >

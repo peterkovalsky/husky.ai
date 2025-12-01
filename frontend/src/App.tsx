@@ -6,8 +6,7 @@ import { ForgotPassword } from './components/auth/ForgotPassword'
 import { Home } from './components/Home'
 import { NewProjectPage } from './components/NewProjectPage'
 import { ProjectPage } from './components/ProjectPage'
-import { SubscriptionPage } from './components/SubscriptionPage'
-import { TransactionsPage } from './components/TransactionsPage'
+import { BillingPage } from './components/BillingPage'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { ConfigurationNotice } from './components/ConfigurationNotice'
 import { AppLayout } from './components/AppLayout'
@@ -107,32 +106,19 @@ function App() {
       />
       <Route
         path="/billing"
-        element={<Navigate to="/subscription" replace />}
-      />
-      <Route
-        path="/subscription"
         element={
           <ProtectedRoute>
             <ProjectProvider>
               <AppLayout>
-                <SubscriptionPage />
+                <BillingPage />
               </AppLayout>
             </ProjectProvider>
           </ProtectedRoute>
         }
       />
-      <Route
-        path="/transactions"
-        element={
-          <ProtectedRoute>
-            <ProjectProvider>
-              <AppLayout>
-                <TransactionsPage />
-              </AppLayout>
-            </ProjectProvider>
-          </ProtectedRoute>
-        }
-      />
+      {/* Redirect old routes to /billing */}
+      <Route path="/subscription" element={<Navigate to="/billing" replace />} />
+      <Route path="/transactions" element={<Navigate to="/billing" replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>

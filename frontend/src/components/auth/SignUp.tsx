@@ -2,19 +2,21 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { useToast } from '../../contexts/ToastContext'
-import { AuthLayout } from './AuthLayout'
-import { Button, Input } from '@heroui/react'
-import { Loader2, AlertCircle } from 'lucide-react'
+import { Button, Input, Form } from '@heroui/react'
+import { Eye, EyeOff, AlertCircle } from 'lucide-react'
 
 export const SignUp = () => {
   const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [isVisible, setIsVisible] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { signUp } = useAuth()
   const navigate = useNavigate()
   const { showToast } = useToast()
+
+  const toggleVisibility = () => setIsVisible(!isVisible)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -55,85 +57,91 @@ export const SignUp = () => {
   }
 
   return (
-    <AuthLayout title="Sign Up">
-      <form onSubmit={handleSubmit} className="space-y-6">
+    <div className="flex h-screen w-full items-center justify-center bg-background">
+      <div className="flex w-full max-w-sm flex-col gap-4 rounded-large px-8 pt-6 pb-10">
+        <div className="flex items-center gap-3 mb-2">
+          <img
+            src="/husky-logo.png"
+            alt="Husky AI Logo"
+            className="w-10 h-10 object-contain"
+          />
+          <span className="text-xl font-semibold text-foreground">Husky AI</span>
+        </div>
+
+        <p className="pb-2 text-left text-3xl font-semibold">
+          Create Account
+          <span aria-label="emoji" className="ml-2" role="img">
+            ✨
+          </span>
+        </p>
+
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center gap-2 text-red-700">
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-danger-50 border border-danger-200 text-danger-700">
             <AlertCircle className="h-4 w-4 flex-shrink-0" />
             <span className="text-sm">{error}</span>
           </div>
         )}
 
-        <div className="space-y-4">
+        <Form className="flex flex-col gap-4" validationBehavior="native" onSubmit={handleSubmit}>
           <Input
-            type="text"
-            id="displayName"
+            isRequired
+            label="Full Name"
+            labelPlacement="outside"
             name="displayName"
+            placeholder="Enter your full name"
+            type="text"
+            variant="bordered"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="Enter your full name"
-            classNames={{
-              input: "bg-transparent placeholder:text-gray-600",
-              inputWrapper: "bg-white/30 backdrop-blur-sm border-white/30"
-            }}
-            isRequired
           />
-
           <Input
-            type="email"
-            id="email"
+            isRequired
+            label="Email"
+            labelPlacement="outside"
             name="email"
+            placeholder="Enter your email"
+            type="email"
+            variant="bordered"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="Enter your email"
-            classNames={{
-              input: "bg-transparent placeholder:text-gray-600",
-              inputWrapper: "bg-white/30 backdrop-blur-sm border-white/30"
-            }}
-            isRequired
           />
-
           <Input
-            type="password"
-            id="password"
+            isRequired
+            endContent={
+              <button type="button" onClick={toggleVisibility} className="focus:outline-none">
+                {isVisible ? (
+                  <EyeOff className="text-default-400 pointer-events-none text-xl" />
+                ) : (
+                  <Eye className="text-default-400 pointer-events-none text-xl" />
+                )}
+              </button>
+            }
+            label="Password"
+            labelPlacement="outside"
             name="password"
+            placeholder="Min. 6 characters"
+            type={isVisible ? 'text' : 'password'}
+            variant="bordered"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Enter your password (min. 6 characters)"
-            classNames={{
-              input: "bg-transparent placeholder:text-gray-600",
-              inputWrapper: "bg-white/30 backdrop-blur-sm border-white/30"
-            }}
-            isRequired
           />
-        </div>
-
-        <div className="space-y-4">
           <Button
-            type="submit"
-            isDisabled={loading}
-            className="w-full"
-            size="lg"
+            className="w-full mt-2"
             color="primary"
+            type="submit"
+            isLoading={loading}
           >
-            {loading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Creating account...
-              </>
-            ) : (
-              'Sign Up'
-            )}
+            Create Account
           </Button>
+        </Form>
 
-          <div className="text-center text-sm text-default-500">
-            Already have an account?{' '}
-            <Link to="/signin" className="text-primary hover:underline font-medium">
-              Log In
-            </Link>
-          </div>
-        </div>
-      </form>
-    </AuthLayout>
+        <p className="text-small text-center text-default-500">
+          Already have an account?{' '}
+          <Link to="/signin" className="text-primary hover:underline">
+            Sign In
+          </Link>
+        </p>
+      </div>
+    </div>
   )
 }

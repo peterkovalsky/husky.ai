@@ -1,18 +1,20 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
-import { AuthLayout } from './AuthLayout'
-import { Button, Input, Checkbox } from '@heroui/react'
-import { Loader2, AlertCircle } from 'lucide-react'
+import { Button, Input, Checkbox, Form } from '@heroui/react'
+import { Eye, EyeOff, AlertCircle } from 'lucide-react'
 
 export const SignIn = () => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [rememberMe, setRememberMe] = useState(false)
+  const [isVisible, setIsVisible] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { signIn } = useAuth()
   const navigate = useNavigate()
+
+  const toggleVisibility = () => setIsVisible(!isVisible)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -35,87 +37,93 @@ export const SignIn = () => {
   }
 
   return (
-    <AuthLayout title="Log In">
-      <form onSubmit={handleSubmit} className="space-y-6">
+    <div className="flex h-screen w-full items-center justify-center bg-background">
+      <div className="flex w-full max-w-sm flex-col gap-4 rounded-large px-8 pt-6 pb-10">
+        <div className="flex items-center gap-3 mb-2">
+          <img
+            src="/husky-logo.png"
+            alt="Husky AI Logo"
+            className="w-10 h-10 object-contain"
+          />
+          <span className="text-xl font-semibold text-foreground">Husky AI</span>
+        </div>
+
+        <p className="pb-2 text-left text-3xl font-semibold">
+          Log In
+          <span aria-label="emoji" className="ml-2" role="img">
+            👋
+          </span>
+        </p>
+
         {error && (
-          <div className="flex items-center gap-3 p-4 rounded-lg bg-red-50 border border-red-200 text-red-700">
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-danger-50 border border-danger-200 text-danger-700">
             <AlertCircle className="h-4 w-4 flex-shrink-0" />
             <span className="text-sm">{error}</span>
           </div>
         )}
 
-        <div className="space-y-4">
+        <Form className="flex flex-col gap-4" validationBehavior="native" onSubmit={handleSubmit}>
           <Input
-            type="email"
-            id="email"
+            isRequired
+            label="Email"
+            labelPlacement="outside"
             name="email"
+            placeholder="Enter your email"
+            type="email"
+            variant="bordered"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="Enter your email"
-            classNames={{
-              input: "bg-transparent placeholder:text-gray-600",
-              inputWrapper: "bg-white/30 backdrop-blur-sm border-white/30"
-            }}
-            required
           />
-
           <Input
-            type="password"
-            id="password"
+            isRequired
+            endContent={
+              <button type="button" onClick={toggleVisibility} className="focus:outline-none">
+                {isVisible ? (
+                  <EyeOff className="text-default-400 pointer-events-none text-xl" />
+                ) : (
+                  <Eye className="text-default-400 pointer-events-none text-xl" />
+                )}
+              </button>
+            }
+            label="Password"
+            labelPlacement="outside"
             name="password"
+            placeholder="Enter your password"
+            type={isVisible ? 'text' : 'password'}
+            variant="bordered"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Enter your password"
-            classNames={{
-              input: "bg-transparent placeholder:text-gray-600",
-              inputWrapper: "bg-white/30 backdrop-blur-sm border-white/30"
-            }}
-            required
           />
-
-          <div className="flex items-center justify-between">
+          <div className="flex w-full items-center justify-between px-1 py-2">
             <Checkbox
+              name="remember"
               size="sm"
               isSelected={rememberMe}
               onValueChange={setRememberMe}
             >
               Remember me
             </Checkbox>
-            <Link
-              to="/forgot-password"
-              className="text-sm text-default-500 hover:text-default-700"
-            >
+            <Link to="/forgot-password" className="text-sm text-default-500 hover:text-primary">
               Forgot password?
             </Link>
           </div>
-        </div>
-
-        <div className="space-y-4">
           <Button
-            type="submit"
-            isDisabled={loading}
             className="w-full"
-            size="lg"
             color="primary"
+            type="submit"
+            isLoading={loading}
           >
-            {loading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Signing in...
-              </>
-            ) : (
-              'Log In'
-            )}
+            Log In
           </Button>
+        </Form>
 
-          <div className="text-center text-sm text-default-500">
-            Need to create an account?{' '}
-            <Link to="/signup" className="text-primary hover:underline font-medium">
-              Sign Up
-            </Link>
-          </div>
-        </div>
-      </form>
-    </AuthLayout>
+        <p className="text-small text-center text-default-500">
+          Need to create an account?{' '}
+          <Link to="/signup" className="text-primary hover:underline">
+            Sign Up
+          </Link>
+        </p>
+      </div>
+    </div>
   )
 }

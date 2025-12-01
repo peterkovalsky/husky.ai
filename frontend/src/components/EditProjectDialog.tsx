@@ -88,12 +88,15 @@ export const EditProjectDialog = ({
       onOpenChange={onOpenChange}
       size="2xl"
       placement="center"
+      classNames={{
+        base: "bg-white shadow-xl",
+        header: "border-b border-gray-100",
+        footer: "border-t border-gray-100",
+      }}
     >
       <ModalContent>
         <ModalHeader className="flex items-center gap-3 text-xl">
-          <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-            <Edit className="w-5 h-5 text-primary-foreground" />
-          </div>
+          <Edit className="w-6 h-6 text-husky-500" />
           Edit Project
         </ModalHeader>
 
@@ -105,8 +108,8 @@ export const EditProjectDialog = ({
             onValueChange={setName}
             isDisabled={isUpdating}
             isRequired
-            variant="bordered"
             size="lg"
+            variant="bordered"
           />
 
           <Textarea
@@ -115,17 +118,17 @@ export const EditProjectDialog = ({
             value={description}
             onValueChange={setDescription}
             isDisabled={isUpdating}
-            variant="bordered"
             minRows={4}
+            variant="bordered"
           />
 
           {error && (
-            <div className="bg-danger-50 border border-danger-200 rounded-lg p-4">
+            <div className="p-4 rounded-xl bg-danger-50 border border-danger-200">
               <div className="flex items-start gap-3">
-                <div className="w-5 h-5 rounded-full bg-danger flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <span className="text-danger-foreground text-xs font-bold">!</span>
+                <div className="w-8 h-8 rounded-lg bg-danger flex items-center justify-center flex-shrink-0">
+                  <span className="text-white text-xs font-bold">!</span>
                 </div>
-                <p className="text-sm text-danger font-medium">{error}</p>
+                <p className="text-sm text-danger font-medium pt-1">{error}</p>
               </div>
             </div>
           )}
@@ -136,6 +139,7 @@ export const EditProjectDialog = ({
             variant="light"
             onPress={onOpenChange}
             isDisabled={isUpdating}
+            size="sm"
           >
             Cancel
           </Button>
@@ -145,6 +149,7 @@ export const EditProjectDialog = ({
             isDisabled={!name.trim() || !hasChanges() || isUpdating}
             isLoading={isUpdating}
             startContent={!isUpdating ? <Edit className="h-4 w-4" /> : undefined}
+            size="sm"
           >
             {isUpdating ? 'Saving...' : 'Save Changes'}
           </Button>
