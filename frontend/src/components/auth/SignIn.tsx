@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { Button, Input, Checkbox, Form } from '@heroui/react'
 import { Eye, EyeOff, AlertCircle } from 'lucide-react'
+import { GoogleSignInButton } from './GoogleSignInButton'
 
 export const SignIn = () => {
   const [email, setEmail] = useState('')
@@ -11,7 +12,8 @@ export const SignIn = () => {
   const [isVisible, setIsVisible] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const { signIn } = useAuth()
+  const [googleLoading, setGoogleLoading] = useState(false)
+  const { signIn, signInWithGoogle } = useAuth()
   const navigate = useNavigate()
 
   const toggleVisibility = () => setIsVisible(!isVisible)
@@ -33,6 +35,18 @@ export const SignIn = () => {
       setError(error instanceof Error ? error.message : 'Failed to sign in')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleGoogleSignIn = async () => {
+    try {
+      setError('')
+      setGoogleLoading(true)
+      await signInWithGoogle()
+      // Redirect happens automatically via OAuth flow
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to sign in with Google')
+      setGoogleLoading(false)
     }
   }
 
@@ -116,6 +130,12 @@ export const SignIn = () => {
             Log In
           </Button>
         </Form>
+
+        <GoogleSignInButton
+          onPress={handleGoogleSignIn}
+          loading={googleLoading}
+          label="Sign in with Google"
+        />
 
         <p className="text-small text-center text-default-500">
           Need to create an account?{' '}

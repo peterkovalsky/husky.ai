@@ -138,6 +138,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     if (error) throw error
   }
 
+  const signInWithGoogle = async () => {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase is not configured. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env file.')
+    }
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/`,
+      },
+    })
+    if (error) throw error
+  }
+
   const value = {
     user,
     session,
@@ -146,6 +159,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     signUp,
     signOut,
     resetPassword,
+    signInWithGoogle,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
