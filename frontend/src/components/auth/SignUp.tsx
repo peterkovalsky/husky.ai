@@ -4,6 +4,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { useToast } from '../../contexts/ToastContext'
 import { Button, Input, Form } from '@heroui/react'
 import { Eye, EyeOff, AlertCircle } from 'lucide-react'
+import { GoogleSignInButton } from './GoogleSignInButton'
 
 export const SignUp = () => {
   const [displayName, setDisplayName] = useState('')
@@ -12,7 +13,8 @@ export const SignUp = () => {
   const [isVisible, setIsVisible] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const { signUp } = useAuth()
+  const [googleLoading, setGoogleLoading] = useState(false)
+  const { signUp, signInWithGoogle } = useAuth()
   const navigate = useNavigate()
   const { showToast } = useToast()
 
@@ -53,6 +55,18 @@ export const SignUp = () => {
       console.error('Signup error:', error)
       setError(error instanceof Error ? error.message : 'Failed to create account')
       setLoading(false)
+    }
+  }
+
+  const handleGoogleSignUp = async () => {
+    try {
+      setError('')
+      setGoogleLoading(true)
+      await signInWithGoogle()
+      // Redirect happens automatically via OAuth flow
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to sign up with Google')
+      setGoogleLoading(false)
     }
   }
 
@@ -134,6 +148,12 @@ export const SignUp = () => {
             Create Account
           </Button>
         </Form>
+
+        <GoogleSignInButton
+          onPress={handleGoogleSignUp}
+          loading={googleLoading}
+          label="Sign up with Google"
+        />
 
         <p className="text-small text-center text-default-500">
           Already have an account?{' '}
