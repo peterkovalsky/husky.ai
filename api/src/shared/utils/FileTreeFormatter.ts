@@ -1,31 +1,31 @@
+import { FencedBlockParser } from './FencedBlockParser';
+
 /**
  * Utility for formatting file trees for inclusion in AI prompts
- * Uses plain text format to avoid JSON escaping issues with quotes in file content
+ * Uses fenced block format to eliminate all escaping issues
  */
 export class FileTreeFormatter {
   /**
-   * Format file tree for inclusion in prompts using plain text format
+   * Format file tree for inclusion in prompts using fenced block format
    *
    * Output format:
    * ```
-   * src/App.tsx:
+   * <<<FILE:src/App.tsx>>>
    * import React from 'react';
    * ...
+   * <<<END>>>
    *
-   * ---
-   *
-   * src/components/Header.tsx:
+   * <<<FILE:src/components/Header.tsx>>>
    * ...
+   * <<<END>>>
    * ```
    *
-   * This avoids JSON double-escaping issues with quotes, template literals,
-   * and data URIs in file content.
+   * Benefits:
+   * - Zero escaping needed - code appears exactly as written
+   * - Clear boundaries prevent parsing issues
+   * - Supports partial recovery from truncated responses
    */
   static formatForPrompt(fileTree: Record<string, string>): string {
-    return Object.entries(fileTree)
-      .map(([path, content]) => {
-        return `${path}:\n${content}`;
-      })
-      .join("\n\n---\n\n");
+    return FencedBlockParser.format(fileTree);
   }
 }
