@@ -2,6 +2,7 @@ import { IAIProvider, AIProviderResponse } from '../../domain/services/IAIProvid
 import { BuildLogger } from '../../shared/logger/BuildLogger';
 import { IAILogRepository } from '../../domain/repositories/IAILogRepository';
 import { FileTreeFormatter } from '../../shared/utils/FileTreeFormatter';
+import { FencedBlockParser } from '../../shared/utils/FencedBlockParser';
 
 /**
  * Base class for AI providers with common file tree management logic
@@ -35,52 +36,37 @@ export abstract class BaseAIProvider implements IAIProvider {
   }
 
   /**
-   * Extract JSON from AI response, handling markdown code blocks and explanatory text
+   * Extract files from AI response in fenced block format
+   * This is the primary parsing method - no JSON fallback needed
    */
-  protected extractJSON(content: string): any {
-    // Step 1: Try to parse content as-is (cleanest case)
-    try {
-      return JSON.parse(content);
-    } catch {
-      // Continue to extraction attempts
+  protected extractFiles(content: string): Record<string, string> {
+    // Validate fenced block format
+    if (!FencedBlockParser.isFencedFormat(content)) {
+      throw new Error(`AI response is not in fenced block format. Expected <<<FILE:...>>> blocks. Content preview: ${content.substring(0, 300)}...`);
     }
 
-    // Step 2: Try to extract JSON by finding { and } braces first
-    // This is more reliable than regex for code blocks that may contain backticks
-    const firstBrace = content.indexOf('{');
-    const lastBrace = content.lastIndexOf('}');
+    const validation = FencedBlockParser.validate(content);
 
-    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-      const jsonString = content.slice(firstBrace, lastBrace + 1);
-      try {
-        const parsed = JSON.parse(jsonString);
+    if (validation.valid) {
+      console.log(`[BaseAIProvider] Parsed ${validation.fileCount} files from fenced block format`);
+      return FencedBlockParser.parse(content);
+    }
 
-        // Log warning if we had to extract (model didn't follow instructions)
-        if (firstBrace > 0 || lastBrace < content.length - 1) {
-          console.warn('[BaseAIProvider] AI response contained prose/markdown. First 200 chars:', content.substring(0, 200));
+    // Try partial recovery if validation failed (e.g., truncated response)
+    if (validation.errors.length > 0) {
+      console.warn(`[BaseAIProvider] Fenced block validation errors:`, validation.errors);
+      const partial = FencedBlockParser.parsePartial(content);
+
+      if (Object.keys(partial.complete).length > 0) {
+        console.warn(`[BaseAIProvider] Recovered ${Object.keys(partial.complete).length} complete files from partial response`);
+        if (partial.incomplete) {
+          console.warn(`[BaseAIProvider] Incomplete file discarded: ${partial.incomplete.path}`);
         }
-
-        return parsed;
-      } catch (parseError) {
-        // JSON extraction found braces but parsing failed - this is the real error
-        // Don't fall through, throw with details
-        throw new Error(`Failed to parse extracted JSON from AI response. Error: ${parseError instanceof Error ? parseError.message : 'Unknown'}. Content preview: ${content.substring(0, 300)}...`);
+        return partial.complete;
       }
     }
 
-    // Step 3: Fallback - check for markdown code blocks (```json ... ```)
-    // Use a more specific pattern that looks for the closing ``` at a line boundary
-    const codeBlockMatch = content.match(/```(?:json)?\s*\n([\s\S]*)\n```\s*$/);
-    if (codeBlockMatch && codeBlockMatch[1]) {
-      try {
-        return JSON.parse(codeBlockMatch[1].trim());
-      } catch {
-        // Continue to error
-      }
-    }
-
-    // If all attempts fail, throw detailed error
-    throw new Error(`No valid JSON found in AI response. Response does not contain {...} structure. Content preview: ${content.substring(0, 300)}...`);
+    throw new Error(`Failed to parse fenced block response. Errors: ${validation.errors.join(', ')}. Content preview: ${content.substring(0, 300)}...`);
   }
 
   /**
@@ -91,47 +77,6 @@ export abstract class BaseAIProvider implements IAIProvider {
     return FileTreeFormatter.formatForPrompt(fileTree);
   }
 
-  /**
-   * Normalize AI response changes to handle different formats
-   *
-   * Handles two response formats:
-   * 1. Flat format: {"src/App.tsx": "content", "src/index.ts": "content"}
-   * 2. Wrapped format: {"fileTree": {"src/App.tsx": "content"}}
-   */
-  protected normalizeChanges(rawChanges: any): Record<string, string> {
-    // Handle wrapped fileTree format (used by auto-fix prompts)
-    // If the only key is "fileTree" and its value is an object, unwrap it
-    if (rawChanges.fileTree && typeof rawChanges.fileTree === 'object' && !Array.isArray(rawChanges.fileTree)) {
-      const keys = Object.keys(rawChanges);
-      if (keys.length === 1 && keys[0] === 'fileTree') {
-        console.log('[BaseAIProvider] Detected wrapped fileTree format, unwrapping...');
-        rawChanges = rawChanges.fileTree;
-      }
-    }
-
-    const normalized: Record<string, string> = {};
-
-    for (const [filePath, content] of Object.entries(rawChanges)) {
-      if (content === "__DELETE__") {
-        normalized[filePath] = "__DELETE__";
-      } else if (typeof content === "string") {
-        normalized[filePath] = content;
-      } else if (typeof content === "object" && content !== null) {
-        // Handle nested object responses
-        if ((content as any).__DELETE__ === true) {
-          normalized[filePath] = "__DELETE__";
-        } else {
-          // Convert object to JSON string
-          normalized[filePath] = JSON.stringify(content, null, 2);
-        }
-      } else {
-        // Convert other types to string
-        normalized[filePath] = String(content);
-      }
-    }
-
-    return normalized;
-  }
 
   /**
    * Update the file tree with changes from AI

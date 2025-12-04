@@ -82,13 +82,10 @@ IMPORTANT: Match implementation complexity to the aesthetic vision. Maximalist d
 Remember: You're capable of extraordinary creative work. Don't hold back, show what can truly be created when thinking outside the box and committing fully to a distinctive vision.
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-CRITICAL: Your ENTIRE response MUST be ONLY valid JSON starting with { and ending with }
-- NO explanations before the JSON
-- NO markdown code blocks (\`\`\`json)
-- NO commentary or reasoning
-- NO text after the JSON
-- The FIRST character of your response MUST be {
-- The LAST character of your response MUST be }
+CRITICAL: Use FENCED BLOCK format for your response. NO JSON. NO escaping needed.
+- NO explanations or commentary
+- NO markdown code blocks
+- ONLY fenced file blocks as shown below
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 IMPORTANT: Current year is ${currentYear}. Use ${currentYear} for all date-sensitive content (copyrights, testimonials, blog posts, etc.) unless user specifies otherwise.
@@ -167,42 +164,57 @@ COMPONENTS & REUSABILITY (CRITICAL):
 8. HASH LINKS: Use href="#section" NOT href="/#section" (breaks SPA navigation)
 
 ========================================
-RESPONSE FORMAT (CRITICAL - READ CAREFULLY):
+RESPONSE FORMAT - FENCED BLOCKS (NO ESCAPING NEEDED):
 ========================================
-Your response MUST start with { and end with }. Nothing else.
 
-CORRECT format:
-{"src/App.tsx": "import React from \\"react\\";\\n\\nfunction App() {\\n  return <div>Hello</div>\\n}"}
+Use this EXACT format for EACH file you create or modify:
 
-WRONG formats (DO NOT USE):
-❌ "I'll create..." followed by JSON
-❌ \`\`\`json followed by JSON followed by \`\`\`
-❌ Any text before or after the JSON object
-❌ Markdown formatting of any kind
+<<<FILE:path/to/file.tsx>>>
+your complete file content here
+write code exactly as it should appear
+no escaping needed - quotes, backticks, template literals all work naturally
+<<<END>>>
 
-Structure:
-- Key: file path (relative)
-- Value: COMPLETE file contents as STRING
-- Delete: value "__DELETE__"
+To DELETE a file:
+<<<DELETE:path/to/old-file.tsx>>>
 
-JSON STRING ESCAPING (CRITICAL - FOLLOW EXACTLY):
-All file contents are JSON strings. You MUST escape these characters:
-- Backslash: \\ becomes \\\\
-- Double quote: " becomes \\"
-- Newline: actual line break becomes \\n
-- Tab: actual tab becomes \\t
-- Carriage return: becomes \\r
+EXAMPLE RESPONSE:
+<<<FILE:src/App.tsx>>>
+import React from 'react';
+import { Header } from './components/Header';
 
-Common patterns to escape correctly:
-- Template literals: \`text\` becomes \\\`text\\\`
-- Regex: /pattern/ is fine, but \\d becomes \\\\d
-- Windows paths: C:\\\\Users\\\\... (double escape backslashes)
-- Escape sequences in code: \\n in your code becomes \\\\n in JSON
+function App() {
+  const name = "World";
+  return (
+    <div className="container">
+      <Header title={\`Hello \${name}\`} />
+    </div>
+  );
+}
 
-Example with template literal:
-{"src/App.tsx": "const msg = \\\`Hello \${name}\\\`;"}
+export default App;
+<<<END>>>
 
-Your response = ONE JSON object. Nothing more, nothing less.`;
+<<<FILE:src/components/Header.tsx>>>
+interface HeaderProps {
+  title: string;
+}
+
+export function Header({ title }: HeaderProps) {
+  return <header><h1>{title}</h1></header>;
+}
+<<<END>>>
+
+<<<DELETE:src/old-unused-file.tsx>>>
+
+RULES:
+1. Each file starts with <<<FILE:filepath>>> on its own line
+2. Each file ends with <<<END>>> on its own line
+3. Write code EXACTLY as it should appear - NO escaping needed
+4. Template literals, quotes, regex - write them naturally
+5. To delete: <<<DELETE:filepath>>>
+6. NO markdown, NO JSON, NO explanatory text
+7. Response contains ONLY fenced blocks`;
 
       console.log("Formatting file tree...");
       const fileTreeContent = this.formatFileTreeForPrompt(this.currentFileTree);
@@ -390,12 +402,9 @@ IMPORTANT: When the request mentions "this image" or "these images", use the EXA
         this.buildLogger.logAIResponse(this.currentProjectId, this.currentBuildId, rawContent);
       }
 
-      // Extract and validate JSON response
-      const rawChanges = this.extractJSON(rawContent);
-
-      // Parse and normalize the changes
-      console.log("Parsing and normalizing changes...");
-      const changes = this.normalizeChanges(rawChanges);
+      // Extract files from fenced block response
+      console.log("Parsing fenced block response...");
+      const changes = this.extractFiles(rawContent);
 
       // Log the changes to file
       const filesChanged = Object.keys(changes).map(filePath => {

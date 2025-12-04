@@ -4,6 +4,7 @@ import { IBuildRepository } from '../../../domain/repositories/IBuildRepository'
 import { IAIService } from '../../../domain/services/IAIService';
 import { FileTreeMerger } from '../../../shared/utils/FileTreeMerger';
 import { FileTreeFormatter } from '../../../shared/utils/FileTreeFormatter';
+import { FencedBlockParser } from '../../../shared/utils/FencedBlockParser';
 
 /**
  * AutoFixStep: Attempts to automatically fix build errors using AI
@@ -139,12 +140,14 @@ IMPORTANT INSTRUCTIONS:
 2. Do NOT modify files that are not related to the error
 3. Preserve all existing functionality - only fix the specific error
 4. Do NOT rewrite or reformat code that is working correctly
-5. To DELETE a file (e.g., when renaming), set its value to "__DELETE__"
-6. Return the response as JSON with file paths as keys and COMPLETE file content as values:
-{
-  "path/to/file.tsx": "complete fixed file content here",
-  "old/file/to/delete.ts": "__DELETE__"
-}
+
+RESPONSE FORMAT - Use fenced blocks (NO escaping needed):
+
+<<<FILE:path/to/file.tsx>>>
+complete fixed file content here
+<<<END>>>
+
+<<<DELETE:path/to/old-file.ts>>>
 
 CRITICAL RULES:
 - JSX syntax (<Component />) can ONLY be used in .tsx or .jsx files, NEVER in .ts files
@@ -159,60 +162,39 @@ Focus on common issues:
 - Syntax errors (invalid JSX, parsing errors)
 - Missing dependencies in package.json
 
-Return your response now as JSON.`;
+Return your response now using fenced blocks.`;
   }
 
   /**
-   * Parse AI response to extract fixed files
-   * Handles both flat format {"file.tsx": "content"} and wrapped format {"fileTree": {...}}
+   * Parse AI response to extract fixed files using fenced block format
    */
   private parseAIResponse(aiContent: string): Record<string, string> {
-    // Try to extract JSON from the response
-    let parsed: any;
+    // Validate fenced block format
+    if (!FencedBlockParser.isFencedFormat(aiContent)) {
+      throw new Error(`AI response is not in fenced block format. Expected <<<FILE:...>>> blocks. Content preview: ${aiContent.substring(0, 300)}...`);
+    }
 
-    try {
-      parsed = JSON.parse(aiContent);
-    } catch {
-      // Try to extract JSON from markdown code blocks
-      const jsonMatch = aiContent.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
-      if (jsonMatch) {
-        try {
-          parsed = JSON.parse(jsonMatch[1]);
-        } catch {
-          // Continue to brace extraction
-        }
-      }
+    const validation = FencedBlockParser.validate(aiContent);
 
-      // Try to extract JSON by finding outermost braces
-      if (!parsed) {
-        const firstBrace = aiContent.indexOf('{');
-        const lastBrace = aiContent.lastIndexOf('}');
-        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-          try {
-            parsed = JSON.parse(aiContent.slice(firstBrace, lastBrace + 1));
-          } catch {
-            throw new Error('Failed to parse AI response as JSON');
-          }
+    if (validation.valid) {
+      console.log(`[AutoFixStep] Parsed ${validation.fileCount} files from fenced block format`);
+      return FencedBlockParser.parse(aiContent);
+    }
+
+    // Try partial recovery if validation failed (e.g., truncated response)
+    if (validation.errors.length > 0) {
+      console.warn(`[AutoFixStep] Fenced block validation errors:`, validation.errors);
+      const partial = FencedBlockParser.parsePartial(aiContent);
+
+      if (Object.keys(partial.complete).length > 0) {
+        console.warn(`[AutoFixStep] Recovered ${Object.keys(partial.complete).length} complete files from partial response`);
+        if (partial.incomplete) {
+          console.warn(`[AutoFixStep] Incomplete file discarded: ${partial.incomplete.path}`);
         }
+        return partial.complete;
       }
     }
 
-    if (!parsed || typeof parsed !== 'object') {
-      throw new Error('AI response is not a valid JSON object');
-    }
-
-    // Handle wrapped fileTree format (backwards compatibility)
-    if (parsed.fileTree && typeof parsed.fileTree === 'object') {
-      return parsed.fileTree;
-    }
-
-    // Handle flat format: {"file.tsx": "content", ...}
-    // Verify it looks like a file tree (keys should be file paths)
-    const keys = Object.keys(parsed);
-    if (keys.length > 0 && keys.some(key => key.includes('/') || key.includes('.'))) {
-      return parsed;
-    }
-
-    throw new Error('AI response does not contain valid file tree structure');
+    throw new Error(`Failed to parse fenced block response. Errors: ${validation.errors.join(', ')}. Content preview: ${aiContent.substring(0, 300)}...`);
   }
 }
