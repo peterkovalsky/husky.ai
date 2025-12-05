@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { Button, Input, Checkbox, Form } from '@heroui/react'
 import { Eye, EyeOff, AlertCircle } from 'lucide-react'
@@ -15,6 +15,10 @@ export const SignIn = () => {
   const [googleLoading, setGoogleLoading] = useState(false)
   const { signIn, signInWithGoogle } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+
+  // Get prompt from query string to pass through to new project
+  const promptParam = searchParams.get('prompt')
 
   const toggleVisibility = () => setIsVisible(!isVisible)
 
@@ -30,7 +34,12 @@ export const SignIn = () => {
       setError('')
       setLoading(true)
       await signIn(email, password)
-      navigate('/')
+      // If we have a prompt param, redirect to new project page with prompt
+      if (promptParam) {
+        navigate('/project/new', { state: { initialPrompt: promptParam } })
+      } else {
+        navigate('/')
+      }
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to sign in')
     } finally {
@@ -42,7 +51,8 @@ export const SignIn = () => {
     try {
       setError('')
       setGoogleLoading(true)
-      await signInWithGoogle()
+      // Pass prompt param to Google OAuth so it can be preserved through the flow
+      await signInWithGoogle(promptParam || undefined)
       // Redirect happens automatically via OAuth flow
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to sign in with Google')
@@ -139,7 +149,7 @@ export const SignIn = () => {
 
         <p className="text-small text-center text-default-500">
           Need to create an account?{' '}
-          <Link to="/signup" className="text-primary hover:underline">
+          <Link to={promptParam ? `/signup?prompt=${encodeURIComponent(promptParam)}` : '/signup'} className="text-primary hover:underline">
             Sign Up
           </Link>
         </p>

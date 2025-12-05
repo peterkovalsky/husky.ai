@@ -114,17 +114,26 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     try {
       console.log('Attempting to sign out...')
-      const { error } = await supabase.auth.signOut()
+      // Use scope: 'local' to always clear local storage, even if server call fails
+      const { error } = await supabase.auth.signOut({ scope: 'local' })
       if (error) {
+        console.error('Sign out error:', error)
         errorTracking.captureUserActionError(error, 'sign_out');
-        throw error
+        // Don't throw - local session is already cleared with scope: 'local'
       }
+      // Clear React state
+      setSession(null)
+      setUser(null)
       console.log('Sign out successful')
     } catch (error) {
+      console.error('Sign out exception:', error)
+      // Even if there's an error, try to clear local state
+      setSession(null)
+      setUser(null)
       if (error instanceof Error) {
         errorTracking.captureUserActionError(error, 'sign_out');
       }
-      throw error
+      // Don't throw - we want logout to always succeed from user's perspective
     }
   }
 
@@ -138,14 +147,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     if (error) throw error
   }
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = async (prompt?: string) => {
     if (!isSupabaseConfigured()) {
       throw new Error('Supabase is not configured. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env file.')
     }
+    // Build redirect URL - if prompt is provided, redirect to /project/new with prompt param
+    // Otherwise redirect to home
+    const redirectTo = prompt
+      ? `${window.location.origin}/project/new?prompt=${encodeURIComponent(prompt)}`
+      : `${window.location.origin}/`
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/`,
+        redirectTo,
       },
     })
     if (error) throw error

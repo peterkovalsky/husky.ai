@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { useToast } from '../../contexts/ToastContext'
 import { Button, Input, Form } from '@heroui/react'
@@ -17,6 +17,10 @@ export const SignUp = () => {
   const { signUp, signInWithGoogle } = useAuth()
   const navigate = useNavigate()
   const { showToast } = useToast()
+  const [searchParams] = useSearchParams()
+
+  // Get prompt from query string to pass through to new project
+  const promptParam = searchParams.get('prompt')
 
   const toggleVisibility = () => setIsVisible(!isVisible)
 
@@ -49,7 +53,11 @@ export const SignUp = () => {
       })
 
       // Redirect new users directly to create their first project
-      navigate('/project/new', { replace: true })
+      // Pass along prompt if provided
+      navigate('/project/new', {
+        replace: true,
+        state: promptParam ? { initialPrompt: promptParam } : undefined
+      })
 
     } catch (error) {
       console.error('Signup error:', error)
@@ -62,7 +70,8 @@ export const SignUp = () => {
     try {
       setError('')
       setGoogleLoading(true)
-      await signInWithGoogle()
+      // Pass prompt param to Google OAuth so it can be preserved through the flow
+      await signInWithGoogle(promptParam || undefined)
       // Redirect happens automatically via OAuth flow
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to sign up with Google')
@@ -157,7 +166,7 @@ export const SignUp = () => {
 
         <p className="text-small text-center text-default-500">
           Already have an account?{' '}
-          <Link to="/signin" className="text-primary hover:underline">
+          <Link to={promptParam ? `/signin?prompt=${encodeURIComponent(promptParam)}` : '/signin'} className="text-primary hover:underline">
             Sign In
           </Link>
         </p>
