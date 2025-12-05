@@ -8,6 +8,7 @@ import { IStorageService } from '../../../domain/services/IStorageService';
 import { PrepareProjectEnvironmentUseCase } from '../../use-cases/PrepareProjectEnvironmentUseCase';
 import { BuildLogger } from '../../../shared/logger/BuildLogger';
 import { FileTreeMerger } from '../../../shared/utils/FileTreeMerger';
+import { loadAppConfig } from '../../../shared/config/AppConfig';
 import fs from 'fs';
 import path from 'path';
 
@@ -100,17 +101,21 @@ export class CodeGenerationStep implements IBuildStep {
       }
 
       // 4. Determine which AI model to use
+      const config = loadAppConfig();
       const hasSuccessfulBuilds = await this.buildRepository.findLatestSuccessfulByProjectId(context.projectId);
       const hasImages = context.mediaIds && context.mediaIds.length > 0;
       const isFirstBuild = !hasSuccessfulBuilds;
-      const useHaiku = !isFirstBuild && !hasImages;
+      const useFastModel = !isFirstBuild && !hasImages;
+
+      // Select model based on build type
+      const selectedModel = useFastModel ? config.ai.fast.model : config.ai.primary.model;
 
       const modelReason = isFirstBuild
-        ? 'first build (always use Sonnet for better quality initial setup)'
+        ? 'first build (always use primary model for better quality initial setup)'
         : hasImages
-          ? 'has media (use Sonnet for better image analysis)'
-          : 'no media (use Haiku for faster text-only iterations)';
-      console.log(`[${this.stepName}] Using ${useHaiku ? 'Haiku' : 'Sonnet'} - Reason: ${modelReason}`);
+          ? 'has media (use primary model for better image analysis)'
+          : 'no media (use fast model for quicker text-only iterations)';
+      console.log(`[${this.stepName}] Using ${selectedModel} - Reason: ${modelReason}`);
 
       // 5. Generate AI response
       const prompt = context.getStepData<string>('userPrompt');
@@ -128,7 +133,7 @@ export class CodeGenerationStep implements IBuildStep {
       const aiResponse = await this.aiService.generateResponse(
         prompt || '',
         context.promptId,
-        useHaiku,
+        selectedModel,
         publicMediaUrls
       );
       const aiGenerationTimeMs = Date.now() - aiStartTime;

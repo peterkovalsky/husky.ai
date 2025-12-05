@@ -35,6 +35,7 @@ import { SupabaseCreditPurchaseRepository } from '../../infrastructure/database/
 import { SupabaseAILogRepository } from '../../infrastructure/database/SupabaseAILogRepository';
 import { AnthropicProvider } from '../../infrastructure/ai/AnthropicProvider';
 import { OpenAIProvider } from '../../infrastructure/ai/OpenAIProvider';
+import { GeminiProvider } from '../../infrastructure/ai/GeminiProvider';
 import { AIService } from '../../infrastructure/ai/AIService';
 import { S3StorageService } from '../../infrastructure/storage/S3StorageService';
 import { SQSQueueService } from '../../infrastructure/queue/SQSQueueService';
@@ -138,22 +139,45 @@ export function setupContainer(): DIContainer {
     return new OpenAIProvider(aiLogRepository, config.ai.openaiApiKey);
   });
 
-  // Register AI Service (orchestrator with automatic logging)
+  container.registerFactory<IAIProvider>('geminiProvider', () => {
+    const aiLogRepository = container.get<IAILogRepository>('aiLogRepository');
+    return new GeminiProvider(aiLogRepository, config.ai.geminiApiKey);
+  });
+
+  // Register AI Service (orchestrator with all providers)
   container.registerFactory<IAIService>('aiService', () => {
     const promptRepository = container.get<IPromptRepository>('promptRepository');
     const aiLogRepository = container.get<IAILogRepository>('aiLogRepository');
 
-    // Select provider based on config
-    let provider: IAIProvider;
-    if (config.ai.provider === 'openai') {
-      provider = container.get<IAIProvider>('openaiProvider');
-      console.log('[Container] AI Service initialized with OpenAI provider');
-    } else {
-      provider = container.get<IAIProvider>('anthropicProvider');
-      console.log('[Container] AI Service initialized with Anthropic provider');
+    // Collect all available providers
+    const providers: IAIProvider[] = [];
+
+    // Add Anthropic provider if API key is configured
+    if (config.ai.anthropicApiKey) {
+      providers.push(container.get<IAIProvider>('anthropicProvider'));
+      console.log(`[Container] Registered Anthropic provider`);
     }
 
-    return new AIService(provider, promptRepository, aiLogRepository);
+    // Add OpenAI provider if API key is configured
+    if (config.ai.openaiApiKey) {
+      providers.push(container.get<IAIProvider>('openaiProvider'));
+      console.log(`[Container] Registered OpenAI provider`);
+    }
+
+    // Add Gemini provider if API key is configured
+    if (config.ai.geminiApiKey) {
+      providers.push(container.get<IAIProvider>('geminiProvider'));
+      console.log(`[Container] Registered Gemini provider`);
+    }
+
+    if (providers.length === 0) {
+      throw new Error('No AI providers configured. Please set at least one of: ANTHROPIC_API_KEY, OPENAI_API_KEY, or GEMINI_API_KEY');
+    }
+
+    console.log(`[Container] Primary model: ${config.ai.primary.model}`);
+    console.log(`[Container] Fast model: ${config.ai.fast.model}`);
+
+    return new AIService(providers, promptRepository, aiLogRepository);
   });
   
   container.registerFactory<IStorageService>('storageService', () => new S3StorageService());

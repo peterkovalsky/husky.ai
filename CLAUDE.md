@@ -74,17 +74,19 @@ The API follows Clean Architecture with four distinct layers:
 - **Fail Fast**: NEVER supply default values for missing required data. If a required value is missing, throw a clear exception immediately. Silent fallbacks mask bugs and create unpredictable behavior.
 
 ### AI Provider Architecture
-**Provider-agnostic architecture with automatic execution logging**
+**Provider-agnostic architecture with dual-provider support and automatic execution logging**
 
-The system uses a flexible AI provider architecture that supports multiple AI services:
+The system uses a flexible AI provider architecture that supports multiple AI services with configurable primary (first builds) and fast (iterations) providers.
 
 **Architecture Layers:**
 1. **IAIProvider Interface**: Defines contract for AI providers (generateResponse, setProjectContext, etc.)
 2. **BaseAIProvider**: Abstract class with common logic (file tree management, JSON parsing, response normalization)
-3. **Provider Implementations**:
+3. **Shared System Prompt**: `prompts/SystemPrompt.ts` - Centralized prompt used by all providers
+4. **Provider Implementations**:
    - `AnthropicProvider`: Claude Sonnet 4.5 & Haiku 4.5 integration
    - `OpenAIProvider`: GPT-5.1 & GPT-5.1-chat-latest integration
-4. **AIService Orchestrator**: Manages provider selection and automatic logging
+   - `GeminiProvider`: Gemini 3 Pro & Gemini 2.5 Flash integration
+5. **AIService Orchestrator**: Manages dual-provider selection and automatic logging
 
 **Supported Providers & Models:**
 - **Anthropic** (default):
@@ -93,11 +95,29 @@ The system uses a flexible AI provider architecture that supports multiple AI se
 - **OpenAI**:
   - `gpt-5.1` - Reasoning model (Sonnet equivalent)
   - `gpt-5.1-chat-latest` - Instant model (Haiku equivalent)
+- **Gemini**:
+  - `gemini-3-pro-preview` - Latest reasoning model ($2/$12 per million tokens)
+  - `gemini-2.5-flash` - Best price-performance ($0.30/$2.50 per million tokens)
 
-**Configuration:**
-- Set `AI_PROVIDER=anthropic` or `AI_PROVIDER=openai` in environment
-- Provide corresponding API key (`ANTHROPIC_API_KEY` or `OPENAI_API_KEY`)
-- Provider selection happens at container initialization in `ContainerSetup.ts`
+**Configuration (Dual-Provider Support):**
+```bash
+# Primary provider for first builds (sonnet-equivalent, higher quality)
+AI_PROVIDER_PRIMARY=gemini          # 'anthropic' | 'openai' | 'gemini'
+AI_MODEL_PRIMARY=gemini-3-pro-preview
+
+# Fast provider for iterations (haiku-equivalent, faster/cheaper)
+AI_PROVIDER_FAST=anthropic          # 'anthropic' | 'openai' | 'gemini'
+AI_MODEL_FAST=claude-haiku-4-5-20251001
+
+# API Keys
+ANTHROPIC_API_KEY=...
+OPENAI_API_KEY=...
+GEMINI_API_KEY=...
+```
+
+**Defaults (if env vars not set):**
+- Primary: Anthropic Claude Sonnet 4.5
+- Fast: Anthropic Claude Haiku 4.5
 
 **Automatic Logging:**
 - All AI executions are automatically logged to `ai_logs` table
@@ -105,10 +125,21 @@ The system uses a flexible AI provider architecture that supports multiple AI se
 - Dual tracking: `prompts` table (high-level) + `ai_logs` table (detailed execution)
 - No code changes needed in use cases - logging happens in AIService orchestrator
 
-**Cost Tracking:**
-- OpenAI GPT-5.1: $1.25 input / $10.00 output per million tokens
-- Anthropic pricing maintained in `CostCalculator.ts`
-- Automatic cost calculation for all executions
+**Cost Tracking (per million tokens):**
+| Provider | Model | Input | Output |
+|----------|-------|-------|--------|
+| Anthropic | claude-sonnet-4-5 | $3.00 | $15.00 |
+| Anthropic | claude-haiku-4-5 | $1.00 | $5.00 |
+| OpenAI | gpt-5.1 | $1.25 | $10.00 |
+| Gemini | gemini-3-pro-preview | $2.00 | $12.00 |
+| Gemini | gemini-2.5-flash | $0.30 | $2.50 |
+
+**Adding New Providers:**
+1. Create new provider class extending `BaseAIProvider`
+2. Import `getSystemPrompt()` from `./prompts/SystemPrompt.ts`
+3. Add pricing to `CostCalculator.ts`
+4. Register in `ContainerSetup.ts`
+5. Add provider type to `AppConfig.ts`
 
 ### Frontend Architecture
 - **React 19** with TypeScript and Vite
