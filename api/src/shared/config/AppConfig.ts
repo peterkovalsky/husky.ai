@@ -1,3 +1,10 @@
+export type AIProviderType = 'anthropic' | 'openai' | 'gemini';
+
+export interface AIProviderConfig {
+  provider: AIProviderType;
+  model: string;
+}
+
 export interface AppConfig {
   port: number;
   corsOrigins: string[];
@@ -17,9 +24,14 @@ export interface AppConfig {
     enabled: boolean;
   };
   ai: {
-    provider: 'anthropic' | 'openai';
+    // Primary provider for first builds (sonnet-equivalent)
+    primary: AIProviderConfig;
+    // Fast provider for iterations (haiku-equivalent)
+    fast: AIProviderConfig;
+    // API keys for all providers
     anthropicApiKey?: string;
     openaiApiKey?: string;
+    geminiApiKey?: string;
   };
 }
 
@@ -49,9 +61,17 @@ export function loadAppConfig(): AppConfig {
       enabled: !!process.env.POSTHOG_API_KEY,
     },
     ai: {
-      provider: (process.env.AI_PROVIDER || 'anthropic') as 'anthropic' | 'openai',
+      primary: {
+        provider: (process.env.AI_PROVIDER_PRIMARY || 'anthropic') as AIProviderType,
+        model: process.env.AI_MODEL_PRIMARY || 'claude-sonnet-4-5-20250929',
+      },
+      fast: {
+        provider: (process.env.AI_PROVIDER_FAST || 'anthropic') as AIProviderType,
+        model: process.env.AI_MODEL_FAST || 'claude-haiku-4-5-20251001',
+      },
       anthropicApiKey: process.env.ANTHROPIC_API_KEY,
       openaiApiKey: process.env.OPENAI_API_KEY,
+      geminiApiKey: process.env.GEMINI_API_KEY,
     }
   };
 }

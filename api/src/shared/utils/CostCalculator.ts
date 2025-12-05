@@ -53,6 +53,27 @@ const MODEL_PRICING: Record<string, ModelPricing> = {
     inputPricePerMillion: 1.25,
     outputPricePerMillion: 10.00,
   },
+  // Google Gemini Models
+  // Gemini 3 Pro Preview - Latest reasoning model
+  'gemini-3-pro-preview': {
+    inputPricePerMillion: 2.00,
+    outputPricePerMillion: 12.00,
+  },
+  // Gemini 2.5 Pro - State-of-the-art thinking model
+  'gemini-2.5-pro': {
+    inputPricePerMillion: 1.25,
+    outputPricePerMillion: 10.00,
+  },
+  // Gemini 2.5 Flash - Best price-performance
+  'gemini-2.5-flash': {
+    inputPricePerMillion: 0.30,
+    outputPricePerMillion: 2.50,
+  },
+  // Gemini 2.5 Flash-Lite - Fastest/cheapest
+  'gemini-2.5-flash-lite': {
+    inputPricePerMillion: 0.10,
+    outputPricePerMillion: 0.40,
+  },
 };
 
 export class CostCalculator {

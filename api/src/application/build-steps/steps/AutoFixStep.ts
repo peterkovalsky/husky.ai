@@ -4,7 +4,7 @@ import { IBuildRepository } from '../../../domain/repositories/IBuildRepository'
 import { IAIService } from '../../../domain/services/IAIService';
 import { FileTreeMerger } from '../../../shared/utils/FileTreeMerger';
 import { FileTreeFormatter } from '../../../shared/utils/FileTreeFormatter';
-import { FencedBlockParser } from '../../../shared/utils/FencedBlockParser';
+import { loadAppConfig } from '../../../shared/config/AppConfig';
 
 /**
  * AutoFixStep: Attempts to automatically fix build errors using AI
@@ -58,19 +58,21 @@ export class AutoFixStep implements IBuildStep {
       // Build fix prompt for AI
       const fixPrompt = this.buildFixPrompt(buildError, context.fileTree);
 
-      // Call AI to generate fixes (using Sonnet for better fix quality)
+      // Call AI to generate fixes (using primary model for better fix quality)
+      const config = loadAppConfig();
       const aiStartTime = Date.now();
       const aiResponse = await this.aiService.generateResponse(
         fixPrompt,
         context.promptId,
-        false // Use Sonnet for more reliable fixes
+        config.ai.primary.model // Use primary model for more reliable fixes
       );
       const aiFixTimeMs = Date.now() - aiStartTime;
 
       console.log(`[${this.stepName}] AI fix generation completed in ${aiFixTimeMs}ms (Model: ${aiResponse.model})`);
 
-      // Parse AI response
-      const fixedFiles = this.parseAIResponse(aiResponse.content);
+      // Extract fixed files from AI response
+      // AIService returns already-parsed JSON in content field with changes
+      const fixedFiles = this.extractChangesFromResponse(aiResponse.content);
 
       if (Object.keys(fixedFiles).length === 0) {
         console.warn(`[${this.stepName}] AI returned no fixes`);
@@ -166,35 +168,33 @@ Return your response now using fenced blocks.`;
   }
 
   /**
-   * Parse AI response to extract fixed files using fenced block format
+   * Extract changes from AIService response
+   * AIService returns JSON with already-parsed changes from fenced block format
    */
-  private parseAIResponse(aiContent: string): Record<string, string> {
-    // Validate fenced block format
-    if (!FencedBlockParser.isFencedFormat(aiContent)) {
-      throw new Error(`AI response is not in fenced block format. Expected <<<FILE:...>>> blocks. Content preview: ${aiContent.substring(0, 300)}...`);
-    }
+  private extractChangesFromResponse(content: string): Record<string, string> {
+    try {
+      const responseData = JSON.parse(content);
 
-    const validation = FencedBlockParser.validate(aiContent);
-
-    if (validation.valid) {
-      console.log(`[AutoFixStep] Parsed ${validation.fileCount} files from fenced block format`);
-      return FencedBlockParser.parse(aiContent);
-    }
-
-    // Try partial recovery if validation failed (e.g., truncated response)
-    if (validation.errors.length > 0) {
-      console.warn(`[AutoFixStep] Fenced block validation errors:`, validation.errors);
-      const partial = FencedBlockParser.parsePartial(aiContent);
-
-      if (Object.keys(partial.complete).length > 0) {
-        console.warn(`[AutoFixStep] Recovered ${Object.keys(partial.complete).length} complete files from partial response`);
-        if (partial.incomplete) {
-          console.warn(`[AutoFixStep] Incomplete file discarded: ${partial.incomplete.path}`);
-        }
-        return partial.complete;
+      if (!responseData.changes || typeof responseData.changes !== 'object') {
+        throw new Error('AI response missing changes object');
       }
-    }
 
-    throw new Error(`Failed to parse fenced block response. Errors: ${validation.errors.join(', ')}. Content preview: ${aiContent.substring(0, 300)}...`);
+      // Filter out __DELETE__ markers - those are for CodeGenerationStep file tree updates
+      // For auto-fix, we only care about actual file content changes
+      const fixes: Record<string, string> = {};
+      for (const [path, content] of Object.entries(responseData.changes)) {
+        if (content !== '__DELETE__' && typeof content === 'string') {
+          fixes[path] = content;
+        }
+      }
+
+      console.log(`[AutoFixStep] Extracted ${Object.keys(fixes).length} fixed files from AI response`);
+      return fixes;
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        throw new Error(`Failed to parse AI response as JSON. Content preview: ${content.substring(0, 300)}...`);
+      }
+      throw error;
+    }
   }
 }
