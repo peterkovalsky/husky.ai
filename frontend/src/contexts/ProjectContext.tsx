@@ -41,7 +41,6 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
   const [creditBalance, setCreditBalance] = useState<CreditBalanceResponse | null>(null);
   const [isLoadingCredits, setIsLoadingCredits] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [projectsLoaded, setProjectsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -92,11 +91,8 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
           const defaultProject = activeProjects.find(p => p.name === 'My Project') || activeProjects[0];
           setCurrentProject(defaultProject);
         }
-
-        setProjectsLoaded(true);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load projects');
-        setProjectsLoaded(true);
       } finally {
         // Projects have been loaded (or failed), we can stop showing loading state
         setLoading(false);
