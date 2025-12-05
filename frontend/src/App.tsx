@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation, useSearchParams } from 'react-router-dom'
 import { useEffect } from 'react'
 import { SignIn } from './components/auth/SignIn'
 import { SignUp } from './components/auth/SignUp'
@@ -17,6 +17,10 @@ import { CheckCircle, Loader2 } from 'lucide-react'
 function App() {
   const { user, loading } = useAuth()
   const location = useLocation()
+  const [searchParams] = useSearchParams()
+
+  // Get prompt from query string - if present, redirect to /project/new after auth
+  const promptParam = searchParams.get('prompt')
 
   useEffect(() => {
     // Initialize Preline UI components
@@ -42,11 +46,16 @@ function App() {
     <>
       <ConfigurationNotice />
       <Routes>
-      <Route 
-        path="/signin" 
+      <Route
+        path="/signin"
         element={
           user ? (
-            <Navigate to="/" replace />
+            // If user has prompt param, redirect to /project/new with prompt
+            promptParam ? (
+              <Navigate to="/project/new" state={{ initialPrompt: promptParam }} replace />
+            ) : (
+              <Navigate to="/" replace />
+            )
           ) : (
             <div>
               {message && (
@@ -60,11 +69,22 @@ function App() {
               <SignIn />
             </div>
           )
-        } 
+        }
       />
-      <Route 
-        path="/signup" 
-        element={user ? <Navigate to="/" replace /> : <SignUp />} 
+      <Route
+        path="/signup"
+        element={
+          user ? (
+            // If user has prompt param, redirect to /project/new with prompt
+            promptParam ? (
+              <Navigate to="/project/new" state={{ initialPrompt: promptParam }} replace />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          ) : (
+            <SignUp />
+          )
+        }
       />
       <Route 
         path="/forgot-password" 

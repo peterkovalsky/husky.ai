@@ -1,6 +1,6 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import React from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { ApiService, type JobStatus, type Project } from '../services/api'
 import { Button } from '@heroui/react'
 import { PromptInput } from './PromptInput'
@@ -22,6 +22,13 @@ export const NewProjectPage = () => {
   const [createdProject, setCreatedProject] = useState<Project | null>(null)
   const pollCleanupRef = useRef<(() => void) | null>(null)
   const navigate = useNavigate()
+  const location = useLocation()
+  const [searchParams] = useSearchParams()
+
+  // Get initial prompt from router state (email/password auth) or query param (Google OAuth)
+  const initialPromptFromState = (location.state as { initialPrompt?: string })?.initialPrompt
+  const initialPromptFromQuery = searchParams.get('prompt')
+  const initialPrompt = initialPromptFromState || initialPromptFromQuery
 
   // Clarification state
   const [showClarification, setShowClarification] = useState(false)
@@ -54,6 +61,17 @@ export const NewProjectPage = () => {
     onError: (message) => setError(message),
     maxFiles: 1,
   })
+
+  // Set initial prompt from auth flow if provided
+  useEffect(() => {
+    if (initialPrompt && !prompt) {
+      setPrompt(initialPrompt)
+      // Clean up URL query param after reading it (for Google OAuth flow)
+      if (initialPromptFromQuery) {
+        navigate('/project/new', { replace: true })
+      }
+    }
+  }, [initialPrompt, initialPromptFromQuery, navigate, prompt])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

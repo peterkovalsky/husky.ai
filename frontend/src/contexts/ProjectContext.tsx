@@ -49,20 +49,23 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
   useEffect(() => {
     const loadUserWorkspaces = async () => {
       if (!user?.id) return;
-      
+
       try {
         setLoading(true);
         // Get workspaces (backend will auto-setup if needed)
         const { workspaces } = await ApiService.getWorkspaces();
-        
+
         setWorkspaces(workspaces);
         if (workspaces.length > 0) {
           setCurrentWorkspace(workspaces[0]);
           // Projects will be loaded by the second useEffect when currentWorkspace changes
+          // Don't set loading to false here - wait for projects to load
+        } else {
+          // No workspaces means no projects to load, so we can finish loading
+          setLoading(false);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load workspaces');
-      } finally {
         setLoading(false);
       }
     };
@@ -77,7 +80,7 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
       try {
         const { projects } = await ApiService.getProjects(currentWorkspace.id);
         setProjects(projects);
-        
+
         // Check if user has any active projects (with successful builds)
         const activeProjects = projects.filter(p => p.currentVersion && p.currentVersion > 0);
 
@@ -89,23 +92,19 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
           const defaultProject = activeProjects.find(p => p.name === 'My Project') || activeProjects[0];
           setCurrentProject(defaultProject);
         }
-        
+
         setProjectsLoaded(true);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load projects');
         setProjectsLoaded(true);
+      } finally {
+        // Projects have been loaded (or failed), we can stop showing loading state
+        setLoading(false);
       }
     };
 
     loadProjects();
   }, [currentWorkspace]);
-
-  // Update loading state when projects are loaded
-  useEffect(() => {
-    if ((currentWorkspace !== null || workspaces.length === 0) && projectsLoaded) {
-      setLoading(false);
-    }
-  }, [currentWorkspace, workspaces.length, projectsLoaded]);
 
   // Fetch credit balance when workspace changes
   useEffect(() => {
