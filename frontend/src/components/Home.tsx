@@ -86,7 +86,8 @@ export const Home = () => {
         return (
           <Chip
             size="sm"
-            className="bg-gradient-ready text-white border-0"
+            color="success"
+            className="text-white"
             startContent={<Globe className="h-3 w-3" />}
           >
             Published
@@ -184,7 +185,7 @@ export const Home = () => {
                 <Card
                   isPressable
                   onPress={() => navigate(`/project/${project.id}`)}
-                  className="relative overflow-hidden border border-default-200 shadow-none hover:border-husky-300 transition-colors"
+                  className="group relative overflow-hidden border border-default-200 shadow-none"
                 >
                   {/* Action Menu - Overlaid on thumbnail */}
                   <div className="absolute top-2 right-2 z-10">
@@ -262,11 +263,11 @@ export const Home = () => {
 
                   {/* Thumbnail or fallback */}
                   {project.thumbnailUrl ? (
-                    <div className="w-full aspect-video bg-default-100">
+                    <div className="w-full aspect-video bg-default-100 overflow-hidden">
                       <img
                         src={project.thumbnailUrl}
                         alt={`${project.name} preview`}
-                        className="w-full h-full object-cover object-top"
+                        className="w-full h-full object-cover object-top transition-transform duration-300 group-hover:scale-105"
                         loading="lazy"
                       />
                     </div>
@@ -280,7 +281,7 @@ export const Home = () => {
                 {/* Project Info - Below the card */}
                 <div className="pt-3 px-1">
                   <h3
-                    className="text-base font-semibold cursor-pointer hover:text-husky-600 transition-colors truncate"
+                    className="text-base font-semibold cursor-pointer truncate"
                     onClick={() => navigate(`/project/${project.id}`)}
                   >
                     {project.name}
