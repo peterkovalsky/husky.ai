@@ -114,10 +114,6 @@ export const CustomDomainSection = ({ projectId, customDomain, onUpdate }: Custo
           Use your own domain for this project
         </div>
 
-        <Alert color="warning" variant="flat" className="text-xs">
-          ⚠️ Only subdomains are supported (www.example.com, app.example.com). Apex domains (example.com) require Cloudflare Enterprise.
-        </Alert>
-
         <div className="flex gap-2">
           <Input
             size="sm"
@@ -136,7 +132,6 @@ export const CustomDomainSection = ({ projectId, customDomain, onUpdate }: Custo
           />
           <Button
             size="sm"
-            color="secondary"
             onPress={handleSetCustomDomain}
             isLoading={isLoading}
           >
