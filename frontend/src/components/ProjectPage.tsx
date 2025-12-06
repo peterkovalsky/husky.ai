@@ -147,7 +147,11 @@ export const ProjectPage = () => {
     }
   }, [projectDetails, navigate])
 
-  // Poll for in-progress builds and reload when ready
+  // Poll for in-progress builds and reload iframe when ready
+  // Note: ChatWidget also polls and handles message status updates.
+  // This polling is for cases where user navigates to the page with a build already in progress.
+  // We should NOT trigger a full reload (setReloadCounter) because that causes ChatWidget
+  // to lose its in-session message state. Instead, just refresh the iframe.
   useEffect(() => {
     if (!projectDetails) return
 
@@ -168,11 +172,21 @@ export const ProjectPage = () => {
         (status) => {
           console.log('[ProjectPage] Poll status received:', status.status)
           if (status.status === 'READY' && status.previewUrl) {
-            console.log('[ProjectPage] Build ready, reloading project details')
-            // Trigger a reload of project details
-            setReloadCounter(c => c + 1)
+            console.log('[ProjectPage] Build ready, refreshing iframe only')
+            // Instead of full reload, just update the preview URL and refresh iframe
+            const cacheBustedUrl = getCacheBustedUrl(status.previewUrl)
+            setLatestJobStatus(status)
+            setCurrentPreviewUrl(cacheBustedUrl)
+            currentPreviewUrlRef.current = cacheBustedUrl
+            setIframeLoaded(false)
+
+            // Force iframe reload
+            if (iframeRef.current) {
+              iframeRef.current.src = cacheBustedUrl
+            }
           } else if (status.status === 'FAILED') {
-            console.log('[ProjectPage] Build failed, reloading project details')
+            console.log('[ProjectPage] Build failed')
+            // For failed builds, we do need to reload to update UI state
             setReloadCounter(c => c + 1)
           }
         },
@@ -226,9 +240,12 @@ export const ProjectPage = () => {
     )
   }
 
-  // Fully loaded when we have project details, preview URL, and iframe is loaded
-  const isFullyLoaded = projectDetails && hasReadyPreview && iframeLoaded
-  const shouldShowLoading = !isFullyLoaded
+  // Fully loaded when we have project details and preview URL
+  // Note: iframeLoaded is intentionally NOT included here to prevent ChatWidget from unmounting
+  // when the iframe is refreshed. ChatWidget needs to stay mounted to preserve message state.
+  const isFullyLoaded = projectDetails && hasReadyPreview
+  // Show loading overlay only during initial load, not during iframe refresh
+  const shouldShowLoading = !projectDetails || !hasReadyPreview
 
   // Debug logging
   console.log('[ProjectPage] State check:', {
@@ -314,6 +331,15 @@ export const ProjectPage = () => {
           marginLeft: isSidebarLocked && isSidebarOpen && isFullyLoaded ? `0px` : '0px'
         }}
       >
+        {/* Iframe loading overlay - shown when iframe is refreshing (but not during initial load) */}
+        {isFullyLoaded && !iframeLoaded && (
+          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-10">
+            <div className="text-center">
+              <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">Refreshing preview...</p>
+            </div>
+          </div>
+        )}
         {/* Iframe - ALWAYS rendered from the start, NEVER unmounts or remounts */}
         {/* No key prop = stable element, only src updates */}
         {/* Use undefined instead of empty string to avoid browser warning */}
