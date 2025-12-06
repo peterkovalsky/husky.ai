@@ -530,7 +530,7 @@ export class S3StorageService implements IStorageService {
    * Upload a thumbnail screenshot to S3
    * @param projectId The project ID
    * @param version The build version number
-   * @param buffer The screenshot image buffer (PNG)
+   * @param buffer The screenshot image buffer (PNG, compressed)
    * @returns The S3 key of the uploaded thumbnail (not a URL)
    */
   async uploadThumbnail(projectId: string, version: number, buffer: Buffer): Promise<string> {

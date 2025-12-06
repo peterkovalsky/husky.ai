@@ -1,4 +1,5 @@
 import puppeteer, { Browser } from 'puppeteer';
+import sharp from 'sharp';
 import { getPostHogErrorTracker } from '../monitoring/PostHogErrorTracker';
 
 export interface IScreenshotService {
@@ -9,7 +10,7 @@ export class ScreenshotService implements IScreenshotService {
   private readonly width = 1280;
   private readonly height = 720;
   private readonly pageLoadTimeout = 30000; // 30 seconds
-  private readonly screenshotTimeout = 5000; // 5 seconds
+  private readonly thumbnailWidth = 480; // Resize for thumbnails
 
   /**
    * Captures a screenshot of the given URL
@@ -24,8 +25,9 @@ export class ScreenshotService implements IScreenshotService {
       console.log(`[ScreenshotService] Capturing screenshot of ${url}`);
 
       // Use system Chromium in Docker (set via PUPPETEER_EXECUTABLE_PATH)
+      const isDev = process.env.NODE_ENV !== 'production';
       browser = await puppeteer.launch({
-        headless: true,
+        headless: isDev ? 'shell' : true, // Use shell mode in dev to avoid HTTPS auto-upgrade issues
         executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
         args: [
           '--no-sandbox',
@@ -89,19 +91,29 @@ export class ScreenshotService implements IScreenshotService {
       // Wait a bit for any animations to settle
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      // Take screenshot
-      const screenshot = await page.screenshot({
+      // Take screenshot as PNG first (lossless capture)
+      const rawScreenshot = await page.screenshot({
         type: 'png',
         fullPage: false,
       });
 
-      console.log(`[ScreenshotService] Screenshot captured successfully (${screenshot.length} bytes)`);
+      const rawBuffer = rawScreenshot instanceof Buffer ? rawScreenshot : Buffer.from(rawScreenshot);
+      console.log(`[ScreenshotService] Raw screenshot captured (${rawBuffer.length} bytes)`);
 
-      // Ensure we return a Buffer
-      if (screenshot instanceof Buffer) {
-        return screenshot;
-      }
-      return Buffer.from(screenshot);
+      // Resize using Sharp, keep as PNG
+      const compressedBuffer = await sharp(rawBuffer)
+        .resize(this.thumbnailWidth, null, {
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+        .png({
+          compressionLevel: 9, // Max compression
+        })
+        .toBuffer();
+
+      console.log(`[ScreenshotService] Screenshot compressed (${rawBuffer.length} -> ${compressedBuffer.length} bytes, ${Math.round((1 - compressedBuffer.length / rawBuffer.length) * 100)}% reduction)`);
+
+      return compressedBuffer;
 
     } catch (error) {
       console.error('[ScreenshotService] Failed to capture screenshot:', error);
