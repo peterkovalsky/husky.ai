@@ -111,11 +111,10 @@ export class JobProcessorService {
           await this.provisionHostnameUseCase.execute(provisionMessage.projectId, provisionMessage.subdomain);
         }
       } else {
-        // Handle regular job processing
+        // Handle regular job processing (builds)
         const jobMessage = message as JobMessage;
         console.log(`[JobProcessorService] Received job message:`, JSON.stringify(jobMessage, null, 2));
-        console.log(`[JobProcessorService] mediaIds in message:`, jobMessage.mediaIds);
-        this.logger.info(`Processing job message`, { promptId: jobMessage.promptId });
+        this.logger.info(`Processing job message`, { buildId: jobMessage.buildId });
         await this.processJobUseCase.execute(jobMessage);
       }
 
@@ -124,7 +123,7 @@ export class JobProcessorService {
     } catch (error) {
       const messageId = 'action' in message
         ? (message.action === 'DELETE_MEDIA' ? message.mediaId : message.projectId)
-        : (message as JobMessage).promptId;
+        : (message as JobMessage).buildId;
       this.logger.error(`Error processing message`, {
         messageId,
         error: error instanceof Error ? error.message : 'Unknown error'

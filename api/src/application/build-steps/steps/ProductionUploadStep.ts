@@ -22,7 +22,7 @@ export class ProductionUploadStep implements IBuildStep {
 
   async execute(context: BuildStepContext): Promise<StepResult> {
     const startTime = Date.now();
-    const buildId = context.requireBuildId();
+    const buildId = context.buildId;
 
     try {
       console.log(`[${this.stepName}] Uploading production build for project ${context.projectId}...`);

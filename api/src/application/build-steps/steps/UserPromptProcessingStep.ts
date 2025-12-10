@@ -28,7 +28,7 @@ export class UserPromptProcessingStep implements IBuildStep {
     const startTime = Date.now();
 
     try {
-      const buildId = context.requireBuildId();
+      const buildId = context.buildId;
       console.log(`[${this.stepName}] Processing user prompt images...`);
 
       // Update status to PROCESSING_PROMPT

@@ -1,6 +1,6 @@
 import { IAIService, AIResponse } from '../../domain/services/IAIService';
 import { IAIProvider, AIGenerationRequest } from '../../domain/services/IAIProvider';
-import { IPromptRepository } from '../../domain/repositories/IPromptRepository';
+import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
 import { IAILogRepository } from '../../domain/repositories/IAILogRepository';
 import { CostCalculator } from '../../shared/utils/CostCalculator';
 import { getSystemPrompt } from './prompts/SystemPrompt';
@@ -15,10 +15,11 @@ import { FileTreeFormatter } from '../../shared/utils/FileTreeFormatter';
  * - Response processing
  *
  * Delegates only the API communication to providers
+ * AI execution logs are stored in ai_logs table (via providers)
  */
 export class AIService implements IAIService {
   private providers: Map<string, IAIProvider> = new Map();
-  private promptRepository: IPromptRepository;
+  private buildRepository: IBuildRepository;
   private aiLogRepository: IAILogRepository;
 
   // File tree state management
@@ -28,14 +29,14 @@ export class AIService implements IAIService {
 
   constructor(
     providers: IAIProvider[],
-    promptRepository: IPromptRepository,
+    buildRepository: IBuildRepository,
     aiLogRepository: IAILogRepository
   ) {
     // Register all providers by name
     for (const provider of providers) {
       this.providers.set(provider.getName(), provider);
     }
-    this.promptRepository = promptRepository;
+    this.buildRepository = buildRepository;
     this.aiLogRepository = aiLogRepository;
   }
 
@@ -67,7 +68,7 @@ export class AIService implements IAIService {
 
   async generateResponse(
     prompt: string,
-    promptId: string,
+    buildId: string,
     model: string,
     mediaUrls?: string[]
   ): Promise<AIResponse> {
@@ -75,10 +76,10 @@ export class AIService implements IAIService {
     const provider = this.getProviderForModel(model);
     console.log(`[AIService] Delegating to ${provider.getName()} provider for model: ${model}...`);
 
-    // Get prompt from database to access user_id
-    const promptEntity = await this.promptRepository.findById(promptId);
-    if (!promptEntity) {
-      throw new Error(`Prompt not found: ${promptId}`);
+    // Get build from database to access project info
+    const build = await this.buildRepository.findById(buildId);
+    if (!build) {
+      throw new Error(`Build not found: ${buildId}`);
     }
 
     // Build the request with all business logic handled here
@@ -88,13 +89,14 @@ export class AIService implements IAIService {
       fileTreeContent: FileTreeFormatter.formatForPrompt(this.currentFileTree),
       mediaUrls,
       model,
-      userId: promptEntity.userId,
-      promptId,
+      userId: build.userId,
+      promptId: buildId, // Use buildId as promptId for AI logging
       projectId: this.currentProjectId,
-      buildId: this.currentBuildId
+      buildId: buildId
     };
 
     // Delegate to provider (provider only handles API communication)
+    // Provider automatically logs to ai_logs table
     const providerResponse = await provider.generateResponse(request);
 
     // Process response and update file tree
@@ -105,41 +107,11 @@ export class AIService implements IAIService {
       responseData.fileTree = this.currentFileTree;
     }
 
-    // Calculate cost for backward compatibility with prompts table
-    const cost = CostCalculator.calculateCost(
-      providerResponse.model,
-      providerResponse.usage.inputTokens,
-      providerResponse.usage.outputTokens
-    );
+    // AI metrics are now only logged to ai_logs table (via provider)
+    // No need to update prompts table anymore - it's been dropped
+    console.log(`[AIService] AI generation completed for build ${buildId} (${providerResponse.model})`);
 
-    // === BACKWARD COMPATIBILITY: Update prompts table ===
-    try {
-      await this.promptRepository.updateRawAiResponse(promptId, providerResponse.rawContent);
-      console.log(`[AIService] Stored raw AI response to prompts table for prompt ${promptId}`);
-    } catch (error) {
-      console.warn(`[AIService] Failed to store raw AI response to prompts table:`, error);
-    }
-
-    try {
-      await this.promptRepository.updateMetrics(
-        promptId,
-        providerResponse.usage.inputTokens,
-        providerResponse.usage.outputTokens,
-        providerResponse.durationMs
-      );
-      console.log(`[AIService] Stored metrics to prompts table for prompt ${promptId}`);
-    } catch (error) {
-      console.warn(`[AIService] Failed to store metrics to prompts table:`, error);
-    }
-
-    try {
-      await this.promptRepository.updateModelAndCost(promptId, providerResponse.model, cost);
-      console.log(`[AIService] Stored model and cost to prompts table for prompt ${promptId}`);
-    } catch (error) {
-      console.warn(`[AIService] Failed to store model and cost to prompts table:`, error);
-    }
-
-    // Return AIResponse format for backward compatibility
+    // Return AIResponse format
     return {
       content: JSON.stringify(responseData),
       rawContent: providerResponse.rawContent,

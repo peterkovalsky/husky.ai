@@ -6,7 +6,7 @@ import { GetProjectDetailsUseCase } from '../../application/use-cases/GetProject
 import { UpdateProjectUseCase } from '../../application/use-cases/UpdateProjectUseCase';
 import { UndoVersionUseCase } from '../../application/use-cases/UndoVersionUseCase';
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
-import { IPromptRepository } from '../../domain/repositories/IPromptRepository';
+import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
 import { IQueueService, DeleteProjectMessage } from '../../domain/services/IQueueService';
 import { IStorageService } from '../../domain/services/IStorageService';
 import { Project } from '../../domain/entities/Project';
@@ -19,25 +19,30 @@ export class ProjectController {
     private updateProjectUseCase: UpdateProjectUseCase,
     private undoVersionUseCase: UndoVersionUseCase,
     private projectRepository: IProjectRepository,
-    private promptRepository: IPromptRepository,
+    private buildRepository: IBuildRepository,
     private queueService: IQueueService,
     private storageService: IStorageService
   ) {}
 
   /**
-   * Convert thumbnail S3 keys to presigned URLs for a list of projects
+   * Construct thumbnail URLs for a list of projects from projectId and currentVersion
+   * The thumbnail key is derived: {projectId}/thumbnails/v{currentVersion}.png
+   * If the file doesn't exist in S3, thumbnailUrl will be null (frontend shows placeholder)
    */
   private async addThumbnailUrls(projects: Project[]): Promise<Project[]> {
     return Promise.all(
       projects.map(async (project) => {
-        if (project.thumbnailUrl) {
+        // Only generate thumbnail URL for projects with at least one successful build
+        if (project.currentVersion && project.currentVersion > 0) {
           try {
-            // Check if it's already a full URL (legacy data) or just a key
-            let s3Key = project.thumbnailUrl;
-            if (project.thumbnailUrl.startsWith('http')) {
-              // Extract key from full URL: https://bucket.s3.region.amazonaws.com/key
-              const url = new URL(project.thumbnailUrl);
-              s3Key = url.pathname.substring(1); // Remove leading slash
+            // Construct S3 key from projectId and currentVersion
+            const s3Key = `${project.id}/thumbnails/v${project.currentVersion}.png`;
+
+            // Check if the thumbnail exists in S3
+            const exists = await this.storageService.verifyFileExists(s3Key, process.env.S3_PROJECTS_BUCKET_NAME);
+            if (!exists) {
+              console.log(`[ProjectController] Thumbnail not found for project ${project.id} version ${project.currentVersion}`);
+              return { ...project, thumbnailUrl: null };
             }
 
             const presignedUrl = await this.storageService.getThumbnailPresignedUrl(
@@ -50,7 +55,7 @@ export class ProjectController {
             return { ...project, thumbnailUrl: null };
           }
         }
-        return project;
+        return { ...project, thumbnailUrl: null };
       })
     );
   }
@@ -197,7 +202,17 @@ export class ProjectController {
   getPromptsByProject = async (req: AuthRequest, res: Response) => {
     try {
       const { projectId } = req.params;
-      const prompts = await this.promptRepository.findByProjectId(projectId);
+      // Builds now contain user prompts (builds are the source of truth)
+      const builds = await this.buildRepository.findByProjectId(projectId);
+      // Map builds to prompt-like objects for API compatibility
+      const prompts = builds.map(build => ({
+        id: build.id,
+        prompt: build.userPrompt,
+        projectId: build.projectId,
+        status: build.status,
+        createdAt: build.createdAt,
+        modifiedAt: build.modifiedAt
+      }));
       res.json({ prompts });
     } catch (error) {
       console.error('Error fetching prompts:', error);

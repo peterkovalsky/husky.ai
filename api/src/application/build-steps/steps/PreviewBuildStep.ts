@@ -23,7 +23,7 @@ export class PreviewBuildStep implements IBuildStep {
 
   async execute(context: BuildStepContext): Promise<StepResult> {
     const startTime = Date.now();
-    const buildId = context.requireBuildId();
+    const buildId = context.buildId;
 
     try {
       console.log(`[${this.stepName}] Building preview app for project ${context.projectId}...`);

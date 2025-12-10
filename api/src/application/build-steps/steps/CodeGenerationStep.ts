@@ -1,6 +1,5 @@
 import { IBuildStep, StepResult, BuildStepStatus } from '../IBuildStep';
 import { BuildStepContext } from '../BuildStepContext';
-import { IPromptRepository } from '../../../domain/repositories/IPromptRepository';
 import { IBuildRepository } from '../../../domain/repositories/IBuildRepository';
 import { IMediaRepository } from '../../../domain/repositories/IMediaRepository';
 import { IAIService } from '../../../domain/services/IAIService';
@@ -35,7 +34,6 @@ export class CodeGenerationStep implements IBuildStep {
   private readonly buildLogger: BuildLogger;
 
   constructor(
-    private promptRepository: IPromptRepository,
     private buildRepository: IBuildRepository,
     private mediaRepository: IMediaRepository,
     private aiService: IAIService,
@@ -48,7 +46,7 @@ export class CodeGenerationStep implements IBuildStep {
 
   async execute(context: BuildStepContext): Promise<StepResult> {
     const stepStartTime = Date.now();
-    const buildId = context.requireBuildId();
+    const buildId = context.buildId;
 
     try {
       console.log(`[${this.stepName}] Starting code generation for project ${context.projectId}...`);
@@ -65,11 +63,11 @@ export class CodeGenerationStep implements IBuildStep {
       const fileTree = await this.loadFileTreeForProject(context.projectId);
       await this.aiService.setProjectContext(context.projectId, fileTree, buildId);
 
-      // Get conversation context from previous prompts
-      const previousPrompts = await this.promptRepository.findByProjectId(context.projectId);
-      const conversation = previousPrompts
-        .filter((p) => p.id !== context.promptId) // Exclude current prompt
-        .map((p) => `User: ${p.prompt}`)
+      // Get conversation context from previous builds (builds are now the source of truth)
+      const previousBuilds = await this.buildRepository.findByProjectId(context.projectId);
+      const conversation = previousBuilds
+        .filter((b) => b.id !== context.buildId && b.status === BuildStepStatus.COMPLETED) // Exclude current and failed builds
+        .map((b) => `User: ${b.userPrompt}`)
         .join("\n\n");
 
       // 3. Upload media to public S3 bucket
@@ -118,21 +116,16 @@ export class CodeGenerationStep implements IBuildStep {
       console.log(`[${this.stepName}] Using ${selectedModel} - Reason: ${modelReason}`);
 
       // 5. Generate AI response
-      const prompt = context.getStepData<string>('userPrompt');
+      const prompt = context.getStepData<string>('userPrompt') || context.userPrompt;
       if (!prompt) {
-        // Fallback: get from prompt repository
-        const promptRecord = await this.promptRepository.findById(context.promptId);
-        if (!promptRecord) {
-          throw new Error(`Prompt ${context.promptId} not found`);
-        }
-        context.setStepData('userPrompt', promptRecord.prompt);
+        throw new Error(`User prompt not found in context for build ${context.buildId}`);
       }
 
       console.log(`[${this.stepName}] [PARALLEL] Running AI generation...`);
       const aiStartTime = Date.now();
       const aiResponse = await this.aiService.generateResponse(
-        prompt || '',
-        context.promptId,
+        prompt,
+        context.buildId,
         selectedModel,
         publicMediaUrls
       );
@@ -183,9 +176,9 @@ export class CodeGenerationStep implements IBuildStep {
       this.buildLogger.logMergedResult(context.projectId, buildId, mergeResult.mergedFileTree);
       this.buildLogger.logMergeDetails(context.projectId, buildId, mergeResult);
       this.buildLogger.logBuildInfo(context.projectId, buildId, {
-        promptId: context.promptId,
-        prompt: prompt || '',
-        contextPrompt: prompt || '',
+        promptId: context.buildId,  // Using buildId for backward compatibility
+        prompt: prompt,
+        contextPrompt: prompt,
         hasConversationHistory: !!conversation,
         fileTreeSize: Object.keys(mergeResult.mergedFileTree).length,
         aiGenerationTimeMs,

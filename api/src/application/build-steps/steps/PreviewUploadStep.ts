@@ -27,7 +27,7 @@ export class PreviewUploadStep implements IBuildStep {
 
   async execute(context: BuildStepContext): Promise<StepResult> {
     const startTime = Date.now();
-    const buildId = context.requireBuildId();
+    const buildId = context.buildId;
 
     try {
       console.log(`[${this.stepName}] Uploading preview build for project ${context.projectId}...`);
@@ -53,7 +53,7 @@ export class PreviewUploadStep implements IBuildStep {
       const previewUploadStartTime = Date.now();
       const uploadResult = await this.storageService.uploadReactApp(
         appDirectory,
-        context.promptId,
+        context.buildId,
         context.projectId
       );
       metrics.s3UploadTimeMs = Date.now() - previewUploadStartTime;

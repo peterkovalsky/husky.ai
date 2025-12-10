@@ -1,4 +1,3 @@
-import { IPromptRepository } from '../../domain/repositories/IPromptRepository';
 import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
 import { IWorkspaceRepository } from '../../domain/repositories/IWorkspaceRepository';
@@ -43,7 +42,6 @@ import { IScreenshotService } from '../../infrastructure/screenshot/ScreenshotSe
  */
 export class ProcessJobUseCase {
   constructor(
-    private promptRepository: IPromptRepository,
     private buildRepository: IBuildRepository,
     private projectRepository: IProjectRepository,
     private workspaceRepository: IWorkspaceRepository,
@@ -57,36 +55,43 @@ export class ProcessJobUseCase {
   ) {}
 
   async execute(jobMessage: JobMessage): Promise<void> {
-    const { promptId, jobId, prompt, projectId, userId, mediaIds } = jobMessage;
-    const actualPromptId = promptId || jobId; // Support both old and new message format
+    const { buildId } = jobMessage;
 
-    if (!actualPromptId) {
-      throw new Error('No prompt ID found in job message');
+    if (!buildId) {
+      throw new Error('No build ID found in job message');
     }
 
-    if (!projectId) {
-      throw new Error('Project ID is required for job processing');
+    // Fetch build record to get all required data
+    const build = await this.buildRepository.findById(buildId);
+    if (!build) {
+      throw new Error(`Build ${buildId} not found`);
+    }
+
+    // Verify project exists
+    const project = await this.projectRepository.findById(build.projectId);
+    if (!project) {
+      throw new Error(`Project ${build.projectId} not found for build ${buildId}`);
     }
 
     console.log(`\n========================================`);
-    console.log(`Starting build for prompt ${actualPromptId}`);
+    console.log(`Starting build ${buildId}`);
     console.log(`========================================\n`);
 
-    // Initialize build context
+    // Initialize build context with data from build record
     const context = new BuildStepContext({
-      promptId: actualPromptId,
-      projectId,
-      userId
+      buildId: build.id,
+      projectId: build.projectId,
+      userId: build.userId
     });
 
-    // Set initial data
-    context.mediaIds = mediaIds;
-    context.setStepData('userPrompt', prompt);
+    // Set initial data from build record
+    context.mediaIds = build.mediaIds;
+    context.userPrompt = build.userPrompt;
+    context.setStepData('userPrompt', build.userPrompt);
     context.setStepData('jobStartTime', Date.now());
 
     // Create build steps
     const initStep = new InitializationStep(
-      this.promptRepository,
       this.buildRepository
     );
     const promptProcessingStep = new UserPromptProcessingStep(
@@ -95,7 +100,6 @@ export class ProcessJobUseCase {
       this.imageProcessingService
     );
     const codeGenStep = new CodeGenerationStep(
-      this.promptRepository,
       this.buildRepository,
       this.mediaRepository,
       this.aiService,
@@ -237,25 +241,23 @@ export class ProcessJobUseCase {
    */
   private async handleBuildFailure(context: BuildStepContext, error: any): Promise<void> {
     console.error(`\n========================================`);
-    console.error(`Build failed for prompt ${context.promptId}`);
+    console.error(`Build failed: ${context.buildId}`);
     console.error(`Error:`, error);
     console.error(`========================================\n`);
 
-    // Update build status if build was created
-    if (context.buildId) {
-      try {
-        await this.buildRepository.updateStatus(context.buildId, BuildStepStatus.FAILED);
+    // Update build status
+    try {
+      await this.buildRepository.updateStatus(context.buildId, BuildStepStatus.FAILED);
 
-        // Save metrics even for failed builds (for debugging)
-        const metrics = context.getMetrics();
-        if (Object.keys(metrics).length > 0) {
-          await this.buildRepository.updateMetrics(context.buildId, metrics);
-        }
-
-        console.log(`Build ${context.buildId} marked as FAILED`);
-      } catch (updateError) {
-        console.error(`Failed to update build status:`, updateError);
+      // Save metrics even for failed builds (for debugging)
+      const metrics = context.getMetrics();
+      if (Object.keys(metrics).length > 0) {
+        await this.buildRepository.updateMetrics(context.buildId, metrics);
       }
+
+      console.log(`Build ${context.buildId} marked as FAILED`);
+    } catch (updateError) {
+      console.error(`Failed to update build status:`, updateError);
     }
 
     // Update project status to FAILED if it's currently NEW (no successful builds yet)

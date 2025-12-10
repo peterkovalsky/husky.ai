@@ -6,7 +6,6 @@ import { ILogger, ConsoleLogger } from '../logger/Logger';
 // Domain Repositories
 import { IWorkspaceRepository } from '../../domain/repositories/IWorkspaceRepository';
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
-import { IPromptRepository } from '../../domain/repositories/IPromptRepository';
 import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
 import { IMediaRepository } from '../../domain/repositories/IMediaRepository';
 import { ICreditPurchaseRepository } from '../../domain/repositories/ICreditPurchaseRepository';
@@ -28,7 +27,6 @@ import { IImageProcessingService } from '../../domain/services/IImageProcessingS
 // Infrastructure Implementations
 import { SupabaseWorkspaceRepository } from '../../infrastructure/database/SupabaseWorkspaceRepository';
 import { SupabaseProjectRepository } from '../../infrastructure/database/SupabaseProjectRepository';
-import { SupabasePromptRepository } from '../../infrastructure/database/SupabasePromptRepository';
 import { SupabaseBuildRepository } from '../../infrastructure/database/SupabaseBuildRepository';
 import { SupabaseMediaRepository } from '../../infrastructure/database/SupabaseMediaRepository';
 import { SupabaseCreditPurchaseRepository } from '../../infrastructure/database/SupabaseCreditPurchaseRepository';
@@ -122,7 +120,6 @@ export function setupContainer(): DIContainer {
   // Register Repositories
   container.registerFactory<IWorkspaceRepository>('workspaceRepository', () => new SupabaseWorkspaceRepository());
   container.registerFactory<IProjectRepository>('projectRepository', () => new SupabaseProjectRepository());
-  container.registerFactory<IPromptRepository>('promptRepository', () => new SupabasePromptRepository());
   container.registerFactory<IBuildRepository>('buildRepository', () => new SupabaseBuildRepository());
   container.registerFactory<IMediaRepository>('mediaRepository', () => new SupabaseMediaRepository());
   container.registerFactory<ICreditPurchaseRepository>('creditPurchaseRepository', () => new SupabaseCreditPurchaseRepository());
@@ -146,7 +143,7 @@ export function setupContainer(): DIContainer {
 
   // Register AI Service (orchestrator with all providers)
   container.registerFactory<IAIService>('aiService', () => {
-    const promptRepository = container.get<IPromptRepository>('promptRepository');
+    const buildRepository = container.get<IBuildRepository>('buildRepository');
     const aiLogRepository = container.get<IAILogRepository>('aiLogRepository');
 
     // Collect all available providers
@@ -177,7 +174,7 @@ export function setupContainer(): DIContainer {
     console.log(`[Container] Primary model: ${config.ai.primary.model}`);
     console.log(`[Container] Fast model: ${config.ai.fast.model}`);
 
-    return new AIService(providers, promptRepository, aiLogRepository);
+    return new AIService(providers, buildRepository, aiLogRepository);
   });
   
   container.registerFactory<IStorageService>('storageService', () => new S3StorageService());
@@ -226,7 +223,7 @@ export function setupContainer(): DIContainer {
 
   // Register Use Cases
   container.registerFactory<CreatePromptUseCase>('createPromptUseCase', () => new CreatePromptUseCase(
-    container.get<IPromptRepository>('promptRepository'),
+    container.get<IBuildRepository>('buildRepository'),
     container.get<IProjectRepository>('projectRepository'),
     container.get<IWorkspaceRepository>('workspaceRepository'),
     container.get<IQueueService>('queueService'),
@@ -234,7 +231,6 @@ export function setupContainer(): DIContainer {
   ));
 
   container.registerFactory<GetPromptStatusUseCase>('getPromptStatusUseCase', () => new GetPromptStatusUseCase(
-    container.get<IPromptRepository>('promptRepository'),
     container.get<IProjectRepository>('projectRepository'),
     container.get<IBuildRepository>('buildRepository')
   ));
@@ -262,7 +258,6 @@ export function setupContainer(): DIContainer {
   container.registerFactory<GetProjectDetailsUseCase>('getProjectDetailsUseCase', () => new GetProjectDetailsUseCase(
     container.get<IProjectRepository>('projectRepository'),
     container.get<IWorkspaceRepository>('workspaceRepository'),
-    container.get<IPromptRepository>('promptRepository'),
     container.get<IBuildRepository>('buildRepository')
   ));
 
@@ -281,7 +276,6 @@ export function setupContainer(): DIContainer {
   ));
 
   container.registerFactory<ProcessJobUseCase>('processJobUseCase', () => new ProcessJobUseCase(
-    container.get<IPromptRepository>('promptRepository'),
     container.get<IBuildRepository>('buildRepository'),
     container.get<IProjectRepository>('projectRepository'),
     container.get<IWorkspaceRepository>('workspaceRepository'),
@@ -296,7 +290,6 @@ export function setupContainer(): DIContainer {
 
   container.registerFactory<DeleteProjectUseCase>('deleteProjectUseCase', () => new DeleteProjectUseCase(
     container.get<IProjectRepository>('projectRepository'),
-    container.get<IPromptRepository>('promptRepository'),
     container.get<IBuildRepository>('buildRepository'),
     container.get<IStorageService>('storageService'),
     container.get<R2PublishedAppsService>('r2PublishedAppsService'),
@@ -317,7 +310,7 @@ export function setupContainer(): DIContainer {
   container.registerFactory<WorkspaceAccessMiddleware>('workspaceAccessMiddleware', () => new WorkspaceAccessMiddleware(
     container.get<IWorkspaceRepository>('workspaceRepository'),
     container.get<IProjectRepository>('projectRepository'),
-    container.get<IPromptRepository>('promptRepository')
+    container.get<IBuildRepository>('buildRepository')
   ));
 
   // Register Controllers
@@ -334,7 +327,7 @@ export function setupContainer(): DIContainer {
     container.get<UpdateProjectUseCase>('updateProjectUseCase'),
     container.get<UndoVersionUseCase>('undoVersionUseCase'),
     container.get<IProjectRepository>('projectRepository'),
-    container.get<IPromptRepository>('promptRepository'),
+    container.get<IBuildRepository>('buildRepository'),
     container.get<IQueueService>('queueService'),
     container.get<IStorageService>('storageService')
   ));

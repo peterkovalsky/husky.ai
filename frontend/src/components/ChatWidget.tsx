@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ApiService, type JobStatus } from '../services/api'
 import { useProject } from '../contexts/ProjectContext'
 import { Button, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Alert, Divider } from '@heroui/react'
-import { MessageCircle, Loader2, CheckCircle, AlertCircle, RotateCcw, ArrowLeft, CircleChevronLeft, PanelLeft } from 'lucide-react'
+import { MessageCircle, Loader2, CheckCircle, AlertCircle, Undo2, ArrowLeft, CircleChevronLeft, PanelLeft } from 'lucide-react'
 import { PromptInput } from './PromptInput'
 import { useMediaUpload } from '../hooks/useMediaUpload'
 
@@ -43,7 +43,7 @@ export const ChatWidget = ({
   const [isUndoing, setIsUndoing] = useState(false)
   const [undoError, setUndoError] = useState<string | null>(null)
   const [successfulBuildsCount, setSuccessfulBuildsCount] = useState(0)
-  const [currentVersion, setCurrentVersion] = useState<number>(0)
+  const [lastPromptText, setLastPromptText] = useState<string | null>(null)
   const { currentProject } = useProject()
   const navigate = useNavigate()
 
@@ -94,7 +94,6 @@ export const ChatWidget = ({
     const fetchProjectDetails = async () => {
       if (!activeProjectId) {
         setSuccessfulBuildsCount(0)
-        setCurrentVersion(0)
         return
       }
 
@@ -103,11 +102,9 @@ export const ChatWidget = ({
         // Count builds with status READY
         const readyBuilds = details.builds.filter(build => build.version > 0).length
         setSuccessfulBuildsCount(readyBuilds)
-        setCurrentVersion(details.stats.currentVersion)
       } catch (error) {
         console.error('Failed to fetch project details:', error)
         setSuccessfulBuildsCount(0)
-        setCurrentVersion(0)
       }
     }
 
@@ -119,6 +116,7 @@ export const ChatWidget = ({
     const fetchConversationHistory = async () => {
       if (!activeProjectId) {
         setConversationHistory([])
+        setLastPromptText(null)
         return
       }
 
@@ -139,9 +137,18 @@ export const ChatWidget = ({
         historyMessages.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
 
         setConversationHistory(historyMessages)
+
+        // Find the last completed prompt for undo modal
+        const completedPrompts = historyMessages.filter(m => m.status === 'completed')
+        if (completedPrompts.length > 0) {
+          setLastPromptText(completedPrompts[completedPrompts.length - 1].content)
+        } else {
+          setLastPromptText(null)
+        }
       } catch (error) {
         console.error('Failed to fetch conversation history:', error)
         setConversationHistory([])
+        setLastPromptText(null)
       }
     }
 
@@ -249,9 +256,11 @@ export const ChatWidget = ({
             setIsProcessing(false)
             setCurrentLoadingStatus(null)
 
-            // Update builds count and current version after successful build
+            // Update builds count after successful build
             setSuccessfulBuildsCount(prev => prev + 1)
-            setCurrentVersion(prev => prev + 1)
+
+            // Update last prompt text for undo modal
+            setLastPromptText(userMessage.content)
 
             // Cache-busting iframe reload
             setTimeout(() => {
@@ -315,9 +324,39 @@ export const ChatWidget = ({
     try {
       const result = await ApiService.undoVersion(activeProjectId)
 
-      // Update successful builds count and current version
+      // Update successful builds count
       setSuccessfulBuildsCount(prev => Math.max(0, prev - 1))
-      setCurrentVersion(result.version)
+
+      // Remove the last completed prompt from conversation history
+      setConversationHistory(prev => {
+        const completedPrompts = prev.filter(m => m.status === 'completed')
+        if (completedPrompts.length > 0) {
+          const lastCompletedId = completedPrompts[completedPrompts.length - 1].id
+          return prev.filter(m => m.id !== lastCompletedId)
+        }
+        return prev
+      })
+
+      // Also remove from current session messages if it was there
+      setMessages(prev => {
+        const userMessages = prev.filter(m => m.type === 'user' && m.status === 'completed')
+        if (userMessages.length > 0) {
+          const lastCompletedId = userMessages[userMessages.length - 1].id
+          return prev.filter(m => m.id !== lastCompletedId)
+        }
+        return prev
+      })
+
+      // Update lastPromptText to the new last completed prompt
+      setConversationHistory(prev => {
+        const completedPrompts = prev.filter(m => m.status === 'completed')
+        if (completedPrompts.length > 0) {
+          setLastPromptText(completedPrompts[completedPrompts.length - 1].content)
+        } else {
+          setLastPromptText(null)
+        }
+        return prev
+      })
 
       // Close modal
       setIsUndoModalOpen(false)
@@ -388,18 +427,6 @@ export const ChatWidget = ({
 
           {/* Right side: Control buttons */}
           <div className="flex items-center gap-1">
-            {successfulBuildsCount >= 2 && (
-              <Button
-                variant="light"
-                size="sm"
-                onPress={() => setIsUndoModalOpen(true)}
-                title="Undo last version"
-                isIconOnly
-                isDisabled={isProcessing || isSubmitting}
-              >
-                <RotateCcw className="h-4 w-4" />
-              </Button>
-            )}
             {isSidebarLocked && isSidebarOpen ? (
               /* Locked and open: Show circle-chevron-left to collapse */
               <Button
@@ -443,40 +470,88 @@ export const ChatWidget = ({
           )}
 
           {/* Display conversation history */}
-          {conversationHistory.map((message) => (
-            <div
-              key={message.id}
-              className="flex justify-end"
-            >
-              <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-[#2d2d2d] text-white shadow-sm">
-                <div className="flex items-start gap-2">
-                  <span className="flex-1 leading-relaxed break-words text-sm">{message.content}</span>
-                  {getStatusIcon(message.status)}
-                </div>
-                <div className="opacity-60 mt-2 text-xs">
-                  {formatTime(message.timestamp)}
-                </div>
-              </div>
-            </div>
-          ))}
+          {(() => {
+            // Determine which message is the last completed one (eligible for undo)
+            const sessionUserMessages = messages.filter(msg => msg.type === 'user')
+            const allCompletedMessages = [
+              ...conversationHistory.filter(m => m.status === 'completed'),
+              ...sessionUserMessages.filter(m => m.status === 'completed')
+            ]
+            const lastCompletedId = allCompletedMessages.length > 0
+              ? allCompletedMessages[allCompletedMessages.length - 1].id
+              : null
 
-          {/* Display current session messages */}
-          {messages.filter(msg => msg.type === 'user').map((message) => (
-            <div
-              key={message.id}
-              className="flex justify-end"
-            >
-              <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-[#2d2d2d] text-white shadow-sm">
-                <div className="flex items-start gap-2">
-                  <span className="flex-1 leading-relaxed break-words text-sm">{message.content}</span>
-                  {getStatusIcon(message.status)}
-                </div>
-                <div className="opacity-60 mt-2 text-xs">
-                  {formatTime(message.timestamp)}
-                </div>
-              </div>
-            </div>
-          ))}
+            return (
+              <>
+                {conversationHistory.map((message) => {
+                  const isLastCompleted = message.id === lastCompletedId
+                  const showUndoButton = isLastCompleted && successfulBuildsCount >= 2 && !isProcessing && !isSubmitting
+
+                  return (
+                    <div
+                      key={message.id}
+                      className="flex justify-end"
+                    >
+                      <div className="relative group max-w-[85%]">
+                        <div className="rounded-2xl px-4 py-3 bg-[#2d2d2d] text-white shadow-sm">
+                          <div className="flex items-start gap-2">
+                            <span className="flex-1 leading-relaxed break-words text-sm">{message.content}</span>
+                            {getStatusIcon(message.status)}
+                          </div>
+                          <div className="opacity-60 mt-2 text-xs">
+                            {formatTime(message.timestamp)}
+                          </div>
+                        </div>
+                        {showUndoButton && (
+                          <button
+                            className="absolute -bottom-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-default-100 hover:bg-default-200 rounded-full p-1.5 text-default-500 shadow-sm cursor-pointer"
+                            onClick={() => setIsUndoModalOpen(true)}
+                            title="Undo this version"
+                          >
+                            <Undo2 className="h-3 w-3" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+
+                {/* Display current session messages */}
+                {sessionUserMessages.map((message) => {
+                  const isLastCompleted = message.id === lastCompletedId
+                  const showUndoButton = isLastCompleted && successfulBuildsCount >= 2 && !isProcessing && !isSubmitting
+
+                  return (
+                    <div
+                      key={message.id}
+                      className="flex justify-end"
+                    >
+                      <div className="relative group max-w-[85%]">
+                        <div className="rounded-2xl px-4 py-3 bg-[#2d2d2d] text-white shadow-sm">
+                          <div className="flex items-start gap-2">
+                            <span className="flex-1 leading-relaxed break-words text-sm">{message.content}</span>
+                            {getStatusIcon(message.status)}
+                          </div>
+                          <div className="opacity-60 mt-2 text-xs">
+                            {formatTime(message.timestamp)}
+                          </div>
+                        </div>
+                        {showUndoButton && (
+                          <button
+                            className="absolute -bottom-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-default-100 hover:bg-default-200 rounded-full p-1.5 text-default-500 shadow-sm cursor-pointer"
+                            onClick={() => setIsUndoModalOpen(true)}
+                            title="Undo this version"
+                          >
+                            <Undo2 className="h-3 w-3" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </>
+            )
+          })()}
 
           <div ref={messagesEndRef} />
         </div>
@@ -528,11 +603,21 @@ export const ChatWidget = ({
                 className="mb-4"
               />
             )}
+            <p className="mb-3">
+              This will undo the following prompt:
+            </p>
+            {lastPromptText && (
+              <div className="bg-default-100 rounded-lg p-3 mb-3">
+                <p className="text-sm italic break-words">
+                  "{lastPromptText.length > 150 ? lastPromptText.substring(0, 150) + '...' : lastPromptText}"
+                </p>
+              </div>
+            )}
             <p>
-              This will permanently delete the latest version (v{currentVersion}) and restore the previous version. This action cannot be undone.
+              This version will be permanently deleted and the previous version restored.
             </p>
             <p className="text-sm opacity-70 mt-2">
-              Are you sure you want to continue?
+              This action cannot be undone. Are you sure?
             </p>
           </ModalBody>
           <ModalFooter>

@@ -24,7 +24,7 @@ export class FilePrepStep implements IBuildStep {
 
   async execute(context: BuildStepContext): Promise<StepResult> {
     const startTime = Date.now();
-    const buildId = context.requireBuildId();
+    const buildId = context.buildId;
 
     try {
       console.log(`[${this.stepName}] Preparing files for project ${context.projectId}...`);

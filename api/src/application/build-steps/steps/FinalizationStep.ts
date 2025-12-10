@@ -31,7 +31,7 @@ export class FinalizationStep implements IBuildStep {
 
   async execute(context: BuildStepContext): Promise<StepResult> {
     const startTime = Date.now();
-    const buildId = context.requireBuildId();
+    const buildId = context.buildId;
 
     try {
       console.log(`[${this.stepName}] Finalizing build for project ${context.projectId}...`);

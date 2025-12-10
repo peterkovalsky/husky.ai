@@ -1,5 +1,4 @@
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
-import { IPromptRepository } from '../../domain/repositories/IPromptRepository';
 import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
 import { IStorageService } from '../../domain/services/IStorageService';
 import { DeleteProjectMessage } from '../../domain/services/IQueueService';
@@ -13,7 +12,6 @@ export class DeleteProjectUseCase {
 
   constructor(
     private projectRepository: IProjectRepository,
-    private promptRepository: IPromptRepository,
     private buildRepository: IBuildRepository,
     private storageService: IStorageService,
     private r2PublishedAppsService: R2PublishedAppsService,
@@ -157,15 +155,11 @@ export class DeleteProjectUseCase {
     try {
       // Delete in order of foreign key dependencies
 
-      // 1. Delete builds (references project)
+      // 1. Delete builds (references project) - builds now contain user prompts
       await this.buildRepository.deleteByProjectId(projectId);
       console.log(`Deleted builds for project ${projectId}`);
 
-      // 2. Delete prompts (references project)
-      await this.promptRepository.deleteByProjectId(projectId);
-      console.log(`Deleted prompts for project ${projectId}`);
-
-      // 3. Finally delete the project itself
+      // 2. Finally delete the project itself
       await this.projectRepository.deleteById(projectId);
       console.log(`Deleted project record ${projectId}`);
 

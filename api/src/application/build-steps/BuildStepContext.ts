@@ -6,16 +6,16 @@ import { FileTree } from '../../domain/entities/Build';
  */
 export class BuildStepContext {
   // Job identifiers (immutable)
-  readonly promptId: string;
+  readonly buildId: string;
   readonly projectId: string;
   readonly userId: string;
 
   // Build state (mutable, set by steps)
-  buildId?: string;
   workingDirectory?: string;
   fileTree?: FileTree;
   version?: number;
   mediaIds?: string[];
+  userPrompt?: string;
 
   // Performance metrics (accumulated across steps)
   private readonly metricsData: Record<string, number> = {};
@@ -23,8 +23,8 @@ export class BuildStepContext {
   // Step-specific data storage (for passing data between steps)
   private readonly stepData: Map<string, any> = new Map();
 
-  constructor(jobMessage: { promptId: string; projectId: string; userId: string }) {
-    this.promptId = jobMessage.promptId;
+  constructor(jobMessage: { buildId: string; projectId: string; userId: string }) {
+    this.buildId = jobMessage.buildId;
     this.projectId = jobMessage.projectId;
     this.userId = jobMessage.userId;
   }
@@ -66,13 +66,9 @@ export class BuildStepContext {
   }
 
   /**
-   * Check if a required field is set
-   * Throws an error if the field is missing
+   * Get the build ID (always available since it's set in constructor)
    */
-  requireBuildId(): string {
-    if (!this.buildId) {
-      throw new Error('BuildStepContext: buildId is required but not set');
-    }
+  getBuildId(): string {
     return this.buildId;
   }
 

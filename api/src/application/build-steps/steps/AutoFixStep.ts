@@ -30,7 +30,7 @@ export class AutoFixStep implements IBuildStep {
 
   async execute(context: BuildStepContext): Promise<StepResult> {
     const startTime = Date.now();
-    const buildId = context.requireBuildId();
+    const buildId = context.buildId;
 
     try {
       console.log(`[${this.stepName}] Attempting to auto-fix build error...`);
@@ -63,7 +63,7 @@ export class AutoFixStep implements IBuildStep {
       const aiStartTime = Date.now();
       const aiResponse = await this.aiService.generateResponse(
         fixPrompt,
-        context.promptId,
+        context.buildId,
         config.ai.primary.model // Use primary model for more reliable fixes
       );
       const aiFixTimeMs = Date.now() - aiStartTime;
