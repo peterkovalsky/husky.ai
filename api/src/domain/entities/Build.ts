@@ -42,6 +42,8 @@ export interface Build {
   id: string;
   fileTree: Record<string, string>;
   projectId: string;
+  userId: string; // The user who initiated this build
+  userPrompt: string; // The user's prompt that triggered this build
   version: number;
   status: BuildStatus;
   metrics: BuildMetrics;
@@ -57,6 +59,8 @@ export interface Build {
 export interface CreateBuildRequest {
   fileTree: Record<string, string>;
   projectId: string;
+  userId: string; // Required: the user who initiated this build
+  userPrompt: string; // Required: the user's prompt
   status?: BuildStatus;
   metrics?: BuildMetrics;
   mediaIds?: string[];

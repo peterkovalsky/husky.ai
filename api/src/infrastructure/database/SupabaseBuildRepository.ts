@@ -19,6 +19,8 @@ export class SupabaseBuildRepository implements IBuildRepository {
       .insert({
         file_tree: request.fileTree,
         project_id: request.projectId,
+        user_id: request.userId,
+        user_prompt: request.userPrompt,
         version: 0,
         status: request.status || BuildStepStatus.INITIALIZING,
         metrics: request.metrics || {},
@@ -160,6 +162,7 @@ export class SupabaseBuildRepository implements IBuildRepository {
 
     if (updates.fileTree !== undefined) dbUpdates.file_tree = updates.fileTree;
     if (updates.projectId !== undefined) dbUpdates.project_id = updates.projectId;
+    if (updates.userPrompt !== undefined) dbUpdates.user_prompt = updates.userPrompt;
     if (updates.version !== undefined) dbUpdates.version = updates.version;
     if (updates.status !== undefined) dbUpdates.status = updates.status;
     if (updates.metrics !== undefined) dbUpdates.metrics = updates.metrics;
@@ -275,6 +278,8 @@ export class SupabaseBuildRepository implements IBuildRepository {
       id: data.id,
       fileTree: data.file_tree,
       projectId: data.project_id,
+      userId: data.user_id,
+      userPrompt: data.user_prompt,
       version: data.version,
       status: data.status,
       metrics: data.metrics || {},

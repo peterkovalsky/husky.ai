@@ -11,6 +11,15 @@ export class SupabaseAILogRepository implements IAILogRepository {
   }
 
   async create(request: CreateAILogRequest): Promise<AILog> {
+    // Convert empty strings to null for UUID fields (empty string is invalid UUID)
+    const projectId = request.projectId && request.projectId.trim() !== '' ? request.projectId : null;
+    const buildId = request.buildId && request.buildId.trim() !== '' ? request.buildId : null;
+    const userId = request.userId && request.userId.trim() !== '' ? request.userId : null;
+
+    if (!userId) {
+      throw new Error('userId is required for AI log creation');
+    }
+
     const { data, error } = await this.supabase
       .from('ai_logs')
       .insert({
@@ -20,9 +29,9 @@ export class SupabaseAILogRepository implements IAILogRepository {
         output_tokens: request.outputTokens,
         cost_usd: request.costUsd,
         duration_ms: request.durationMs,
-        project_id: request.projectId,
-        build_id: request.buildId,
-        user_id: request.userId,
+        project_id: projectId,
+        build_id: buildId,
+        user_id: userId,
         prompt: request.prompt,
         system_prompt: request.systemPrompt,
         ai_response: request.aiResponse

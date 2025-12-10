@@ -1,17 +1,15 @@
 import { IBuildStep, StepResult, BuildStepStatus } from '../IBuildStep';
 import { BuildStepContext } from '../BuildStepContext';
-import { IPromptRepository } from '../../../domain/repositories/IPromptRepository';
 import { IBuildRepository } from '../../../domain/repositories/IBuildRepository';
 import path from 'path';
 
 /**
- * InitializationStep: Validates job message and creates build record
+ * InitializationStep: Validates build exists and prepares context
  *
  * Responsibilities:
- * - Validate prompt ID and project ID exist
- * - Check for duplicate processing (prompt already has a build)
- * - Create build record with PROCESSING status and INITIALIZING step_status
- * - Link prompt to build
+ * - Validate build exists (created by CreatePromptUseCase)
+ * - Check for duplicate processing (build already past INITIALIZING status)
+ * - Update build status to PROCESSING_PROMPT
  * - Initialize working directory path in context
  */
 export class InitializationStep implements IBuildStep {
@@ -19,7 +17,6 @@ export class InitializationStep implements IBuildStep {
   readonly stepStatus = BuildStepStatus.INITIALIZING;
 
   constructor(
-    private promptRepository: IPromptRepository,
     private buildRepository: IBuildRepository
   ) {}
 
@@ -27,41 +24,32 @@ export class InitializationStep implements IBuildStep {
     const startTime = Date.now();
 
     try {
-      console.log(`[${this.stepName}] Validating prompt ${context.promptId}...`);
+      console.log(`[${this.stepName}] Validating build ${context.buildId}...`);
 
-      // Validate prompt exists
-      const existingPrompt = await this.promptRepository.findById(context.promptId);
-      if (!existingPrompt) {
-        throw new Error(`Prompt ${context.promptId} not found`);
+      // Validate build exists (already created by CreatePromptUseCase)
+      const build = await this.buildRepository.findById(context.buildId);
+      if (!build) {
+        throw new Error(`Build ${context.buildId} not found`);
       }
 
       // Check for duplicate processing
-      if (existingPrompt.buildId) {
-        console.log(`[${this.stepName}] Prompt ${context.promptId} already has build ${existingPrompt.buildId}, skipping duplicate processing`);
+      if (build.status !== BuildStepStatus.INITIALIZING) {
+        console.log(`[${this.stepName}] Build ${context.buildId} already being processed (status: ${build.status}), skipping duplicate processing`);
         return {
           success: false,
-          error: new Error(`Prompt already processed with build ${existingPrompt.buildId}`)
+          error: new Error(`Build already being processed with status ${build.status}`)
         };
       }
 
-      console.log(`[${this.stepName}] Creating build record...`);
+      console.log(`[${this.stepName}] Build validated, updating status...`);
 
-      // Create build with INITIALIZING status
-      const createdBuild = await this.buildRepository.create({
-        fileTree: {},
-        projectId: context.projectId,
-        status: BuildStepStatus.INITIALIZING,
-        mediaIds: context.mediaIds || []
-      });
+      // Update status to indicate processing has started
+      await this.buildRepository.updateStatus(context.buildId, BuildStepStatus.PROCESSING_PROMPT);
 
-      console.log(`[${this.stepName}] Build created with ID: ${createdBuild.id}`);
-
-      // Link prompt to build
-      await this.promptRepository.updateBuildId(context.promptId, createdBuild.id);
-      console.log(`[${this.stepName}] Linked prompt ${context.promptId} to build ${createdBuild.id}`);
-
-      // Set build ID in context for subsequent steps
-      context.buildId = createdBuild.id;
+      // Set context data from build record
+      context.mediaIds = build.mediaIds;
+      context.userPrompt = build.userPrompt;
+      context.setStepData('userPrompt', build.userPrompt);
 
       // Initialize working directory path
       context.workingDirectory = path.join(process.cwd(), 'projects', context.projectId, 'web');

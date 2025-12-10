@@ -92,8 +92,8 @@ export class PromptController {
       console.error('Error getting prompt status:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       
-      if (errorMessage === 'Prompt not found') {
-        return res.status(404).json({ error: errorMessage });
+      if (errorMessage === 'Build not found') {
+        return res.status(404).json({ error: 'Prompt not found' }); // Keep error message for API compatibility
       }
       
       res.status(500).json({

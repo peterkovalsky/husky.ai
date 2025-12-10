@@ -2,14 +2,14 @@ import { Response, NextFunction } from 'express';
 import { AuthRequest } from './AuthMiddleware';
 import { IWorkspaceRepository } from '../../domain/repositories/IWorkspaceRepository';
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
-import { IPromptRepository } from '../../domain/repositories/IPromptRepository';
+import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
 import { ValidationError, AuthorizationError, NotFoundError } from '../../shared/errors/AppErrors';
 
 export class WorkspaceAccessMiddleware {
   constructor(
     private workspaceRepository: IWorkspaceRepository,
     private projectRepository: IProjectRepository,
-    private promptRepository: IPromptRepository
+    private buildRepository: IBuildRepository
   ) {}
 
   checkWorkspaceAccess = (paramName: string) => {
@@ -67,27 +67,27 @@ export class WorkspaceAccessMiddleware {
   checkPromptAccess = (paramName: string) => {
     return async (req: AuthRequest, res: Response, next: NextFunction) => {
       try {
-        const promptId = req.params[paramName];
+        const buildId = req.params[paramName];  // Now using buildId (same as promptId for compatibility)
         const userId = req.user?.id;
 
-        if (!userId || !promptId) {
+        if (!userId || !buildId) {
           throw new ValidationError('Missing user or prompt information');
         }
 
-        // Get prompt to find its project
-        const prompt = await this.promptRepository.findById(promptId);
-        if (!prompt) {
-          throw new NotFoundError('Prompt not found', { promptId });
+        // Get build to find its project (builds are now the source of truth)
+        const build = await this.buildRepository.findById(buildId);
+        if (!build) {
+          throw new NotFoundError('Prompt not found', { promptId: buildId });
         }
 
         // Check if user has access to the project
-        const hasAccess = await this.projectRepository.checkUserAccess(userId, prompt.projectId);
+        const hasAccess = await this.projectRepository.checkUserAccess(userId, build.projectId);
 
         if (!hasAccess) {
           throw new AuthorizationError('Access denied to prompt', {
             userId,
-            promptId,
-            projectId: prompt.projectId,
+            promptId: buildId,
+            projectId: build.projectId,
           });
         }
 

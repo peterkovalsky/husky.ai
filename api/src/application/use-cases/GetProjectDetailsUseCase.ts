@@ -1,6 +1,5 @@
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
 import { IWorkspaceRepository } from '../../domain/repositories/IWorkspaceRepository';
-import { IPromptRepository } from '../../domain/repositories/IPromptRepository';
 import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
 import { ProjectDetailsDto } from '../dto/ProjectDto';
 import { User } from '../../domain/entities/User';
@@ -9,14 +8,13 @@ export class GetProjectDetailsUseCase {
   constructor(
     private projectRepository: IProjectRepository,
     private workspaceRepository: IWorkspaceRepository,
-    private promptRepository: IPromptRepository,
     private buildRepository: IBuildRepository
   ) {}
 
   async execute(projectId: string, user: User): Promise<ProjectDetailsDto> {
     // Get project details
     const project = await this.projectRepository.findById(projectId);
-    
+
     if (!project) {
       throw new Error('Project not found');
     }
@@ -24,32 +22,17 @@ export class GetProjectDetailsUseCase {
     // Get workspace details
     const workspaces = await this.workspaceRepository.findByUserId(user.id);
     const workspace = workspaces.find(w => w.id === project.workspaceId);
-    
-    // Get recent prompts (last 10)
-    const allPrompts = await this.promptRepository.findByProjectId(projectId);
-    const recentPrompts = allPrompts.slice(-10).reverse();
-    
-    // Get builds for status mapping
-    const buildIds = recentPrompts.map(p => p.buildId).filter(Boolean) as string[];
-    const buildsMap = new Map();
-    if (buildIds.length > 0) {
-      const buildsForPrompts = await Promise.all(
-        buildIds.map(id => this.buildRepository.findById(id))
-      );
-      buildsForPrompts.forEach((build, index) => {
-        if (build) {
-          buildsMap.set(buildIds[index], build);
-        }
-      });
-    }
-    
-    // Get builds/versions
+
+    // Get all builds (builds are now the source of truth for prompts)
     const builds = await this.buildRepository.findByProjectId(projectId);
-    
-    
+
+    // Get recent builds as "prompts" (last 10, sorted by creation date desc)
+    // Builds are already ordered by version desc, so we take the first 10
+    const recentBuilds = builds.slice(0, 10);
+
     // Get latest build for current version info
     const latestBuild = await this.buildRepository.findLatestByProjectId(projectId);
-    
+
     return {
       project: {
         id: project.id,
@@ -64,21 +47,18 @@ export class GetProjectDetailsUseCase {
         name: workspace.name
       } : null,
       stats: {
-        totalPrompts: allPrompts.length,
+        totalPrompts: builds.length,  // Now builds count as prompts
         totalBuilds: builds.length,
         totalPreviews: project.previewUrl ? 1 : 0,
         currentVersion: latestBuild?.version || 0
       },
-      recentPrompts: recentPrompts.map(prompt => {
-        const build = prompt.buildId ? buildsMap.get(prompt.buildId) : null;
-        return {
-          id: prompt.id,
-          prompt: prompt.prompt.length > 100 ? prompt.prompt.substring(0, 100) + '...' : prompt.prompt,
-          status: build?.status || 'QUEUED',
-          createdAt: prompt.createdAt,
-          modifiedAt: prompt.modifiedAt
-        };
-      }),
+      recentPrompts: recentBuilds.map(build => ({
+        id: build.id,
+        prompt: build.userPrompt.length > 100 ? build.userPrompt.substring(0, 100) + '...' : build.userPrompt,
+        status: build.status,
+        createdAt: build.createdAt,
+        modifiedAt: build.modifiedAt
+      })),
       builds: builds.slice(0, 5).map(build => ({
         id: build.id,
         version: build.version,

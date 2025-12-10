@@ -1,4 +1,3 @@
-import { IPromptRepository } from '../../domain/repositories/IPromptRepository';
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
 import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
 import { mapBuildStatusToFrontend } from '../../domain/utils/statusMapper';
@@ -17,61 +16,52 @@ export interface GetPromptStatusResponse {
 
 export class GetPromptStatusUseCase {
   constructor(
-    private promptRepository: IPromptRepository,
     private projectRepository: IProjectRepository,
     private buildRepository: IBuildRepository
   ) {}
 
-  async execute(promptId: string): Promise<GetPromptStatusResponse> {
-    if (!promptId) {
-      throw new Error('Prompt ID is required');
+  async execute(buildId: string): Promise<GetPromptStatusResponse> {
+    if (!buildId) {
+      throw new Error('Build ID is required');
     }
 
-    // Get prompt from database
-    const prompt = await this.promptRepository.findById(promptId);
+    // Get build from database (builds are now the source of truth)
+    const build = await this.buildRepository.findById(buildId);
 
-    if (!prompt) {
-      throw new Error('Prompt not found');
+    if (!build) {
+      throw new Error('Build not found');
     }
 
-    // Get build status if build exists
-    let status = 'QUEUED'; // Default status for frontend
+    // Map detailed build status to frontend-compatible status
+    console.log(`[GetPromptStatusUseCase] Build status from DB: '${build.status}', mapping to frontend...`);
+    const status = mapBuildStatusToFrontend(build.status);
+    console.log(`[GetPromptStatusUseCase] Mapped status: '${status}'`);
+
+    // Get preview URL from project if build has reached production/finalization stage
+    // These statuses map to READY on the frontend
     let previewUrl = null;
+    const previewReadyStatuses = [
+      BuildStepStatus.BUILDING_PRODUCTION,
+      BuildStepStatus.UPLOADING_PRODUCTION,
+      BuildStepStatus.FINALIZING,
+      BuildStepStatus.COMPLETED
+    ];
 
-    if (prompt.buildId) {
-      const build = await this.buildRepository.findById(prompt.buildId);
-      if (build) {
-        // Map detailed build status to frontend-compatible status
-        console.log(`[GetPromptStatusUseCase] Build status from DB: '${build.status}', mapping to frontend...`);
-        status = mapBuildStatusToFrontend(build.status);
-        console.log(`[GetPromptStatusUseCase] Mapped status: '${status}'`);
-
-        // Get preview URL from project if build has reached production/finalization stage
-        // These statuses map to READY on the frontend
-        const previewReadyStatuses = [
-          BuildStepStatus.BUILDING_PRODUCTION,
-          BuildStepStatus.UPLOADING_PRODUCTION,
-          BuildStepStatus.FINALIZING,
-          BuildStepStatus.COMPLETED
-        ];
-
-        if (previewReadyStatuses.includes(build.status)) {
-          const project = await this.projectRepository.findById(prompt.projectId);
-          previewUrl = project?.previewUrl || null;
-          console.log(`[GetPromptStatusUseCase] Preview URL from project: '${previewUrl}'`);
-        }
-      }
+    if (previewReadyStatuses.includes(build.status)) {
+      const project = await this.projectRepository.findById(build.projectId);
+      previewUrl = project?.previewUrl || null;
+      console.log(`[GetPromptStatusUseCase] Preview URL from project: '${previewUrl}'`);
     }
 
     return {
-      promptId: prompt.id,
-      jobId: prompt.id, // Keep for backward compatibility
+      promptId: build.id,  // For backward compatibility
+      jobId: build.id,
       status,
-      projectId: prompt.projectId,
-      createdAt: prompt.createdAt,
-      updatedAt: prompt.modifiedAt,
+      projectId: build.projectId,
+      createdAt: build.createdAt,
+      updatedAt: build.modifiedAt,
       previewUrl,
-      prompt: prompt.prompt
+      prompt: build.userPrompt
     };
   }
 }

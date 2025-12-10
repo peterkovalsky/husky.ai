@@ -11,10 +11,10 @@ import { IScreenshotService } from '../../../infrastructure/screenshot/Screensho
  * Responsibilities:
  * - Update step_status to CAPTURING_SCREENSHOT
  * - Capture screenshot of the preview URL
- * - Upload screenshot to S3
- * - Update project thumbnail URL
+ * - Upload screenshot to S3 (key: {projectId}/thumbnails/v{version}.png)
  *
  * Note: This step is non-blocking - failures are logged but don't fail the build
+ * Note: Thumbnail URL is constructed on-the-fly from projectId and currentVersion, not stored in DB
  */
 export class ScreenshotStep implements IBuildStep {
   readonly stepName = 'Screenshot';
@@ -29,7 +29,7 @@ export class ScreenshotStep implements IBuildStep {
 
   async execute(context: BuildStepContext): Promise<StepResult> {
     const startTime = Date.now();
-    const buildId = context.requireBuildId();
+    const buildId = context.buildId;
 
     try {
       console.log(`[${this.stepName}] Capturing screenshot for project ${context.projectId}...`);
@@ -73,17 +73,14 @@ export class ScreenshotStep implements IBuildStep {
         // Upload to S3
         console.log(`[${this.stepName}] Uploading thumbnail to S3...`);
         const uploadStartTime = Date.now();
-        const thumbnailUrl = await this.storageService.uploadThumbnail(
+        const thumbnailKey = await this.storageService.uploadThumbnail(
           context.projectId,
           context.version,
           screenshotBuffer
         );
         metrics.screenshotUploadTimeMs = Date.now() - uploadStartTime;
-        console.log(`[${this.stepName}] Thumbnail uploaded in ${metrics.screenshotUploadTimeMs}ms: ${thumbnailUrl}`);
-
-        // Update project thumbnail URL
-        await this.projectRepository.updateThumbnailUrl(context.projectId, thumbnailUrl);
-        console.log(`[${this.stepName}] Updated project thumbnail URL`);
+        console.log(`[${this.stepName}] Thumbnail uploaded in ${metrics.screenshotUploadTimeMs}ms: ${thumbnailKey}`);
+        // Note: No need to update project thumbnail_url - URL is constructed on-the-fly from projectId and currentVersion
 
         metrics.screenshotSuccess = 1;
       } catch (screenshotError) {

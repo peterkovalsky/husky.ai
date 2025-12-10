@@ -1,10 +1,5 @@
 export interface JobMessage {
-  promptId: string;
-  jobId?: string; // for backward compatibility
-  prompt: string;
-  projectId: string;
-  userId: string;
-  mediaIds?: string[];
+  buildId: string;  // Only buildId needed - all other data is in the build record
   timestamp: string;
 }
 

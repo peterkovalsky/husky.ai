@@ -569,4 +569,26 @@ export class S3StorageService implements IStorageService {
     const signedUrl = await getSignedUrl(this.s3Client, command, { expiresIn });
     return signedUrl;
   }
+
+  /**
+   * Delete a thumbnail from S3
+   * @param projectId The project ID
+   * @param version The build version number
+   */
+  async deleteThumbnail(projectId: string, version: number): Promise<void> {
+    const key = `${projectId}/thumbnails/v${version}.png`;
+
+    try {
+      const command = new DeleteObjectCommand({
+        Bucket: this.projectsBucketName,
+        Key: key,
+      });
+
+      await this.s3Client.send(command);
+      console.log(`[S3StorageService] Deleted thumbnail: ${key}`);
+    } catch (error) {
+      // Log warning but don't throw - per requirements, continue if deletion fails
+      console.warn(`[S3StorageService] Warning: Failed to delete thumbnail ${key}:`, error instanceof Error ? error.message : 'Unknown error');
+    }
+  }
 }

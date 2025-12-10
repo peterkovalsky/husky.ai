@@ -44,11 +44,17 @@ export class UndoVersionUseCase {
     // Try to delete version from S3 (don't throw if fails - per requirements)
     await this.storageService.deleteVersion(projectId, latestBuild.version);
 
+    // Delete thumbnail for the version being undone
+    await this.storageService.deleteThumbnail(projectId, latestBuild.version);
+    console.log(`[UndoVersionUseCase] Deleted thumbnail for version ${latestBuild.version}`);
+
     // Copy previous version preview-build to preview bucket
     const previewUrl = await this.storageService.copyVersionToPreview(projectId, previousBuild.version);
     console.log(`[UndoVersionUseCase] Restored version ${previousBuild.version} to preview`);
 
     // Update project's currentVersion
+    // Note: Thumbnail URL is constructed on-the-fly from projectId and currentVersion, so updating
+    // currentVersion automatically points to the correct thumbnail
     await this.projectRepository.updateCurrentVersion(projectId, previousBuild.version);
     console.log(`[UndoVersionUseCase] Updated project currentVersion to ${previousBuild.version}`);
 

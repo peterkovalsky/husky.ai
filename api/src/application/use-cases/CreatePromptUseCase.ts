@@ -1,4 +1,4 @@
-import { IPromptRepository } from '../../domain/repositories/IPromptRepository';
+import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
 import { IWorkspaceRepository } from '../../domain/repositories/IWorkspaceRepository';
 import { IMediaRepository } from '../../domain/repositories/IMediaRepository';
@@ -6,10 +6,11 @@ import { IQueueService } from '../../domain/services/IQueueService';
 import { CreatePromptDto, CreatePromptResponseDto } from '../dto/CreatePromptDto';
 import { ClarificationAnswer } from '../dto/AnalyzePromptDto';
 import { User } from '../../domain/entities/User';
+import { BuildStepStatus } from '../build-steps/IBuildStep';
 
 export class CreatePromptUseCase {
   constructor(
-    private promptRepository: IPromptRepository,
+    private buildRepository: IBuildRepository,
     private projectRepository: IProjectRepository,
     private workspaceRepository: IWorkspaceRepository,
     private queueService: IQueueService,
@@ -70,36 +71,36 @@ export class CreatePromptUseCase {
     // Enhance prompt with clarification data if provided
     const enhancedPrompt = this.buildEnhancedPrompt(dto.prompt, dto.clarificationAnswers, dto.skippedClarification);
 
-    // Create prompt in database (store original prompt, enhanced version goes to AI)
-    const prompt = await this.promptRepository.create({
-      prompt: dto.prompt,
-      projectId,
-      userId: user.id
-    });
-
-    // Send message to queue with media IDs and enhanced prompt
-    const message = {
-      promptId: prompt.id,
-      jobId: prompt.id, // Keep for backward compatibility
-      prompt: enhancedPrompt, // Use enhanced prompt for AI
+    // Create build directly with user prompt (builds are now the source of truth)
+    const build = await this.buildRepository.create({
+      fileTree: {},
       projectId,
       userId: user.id,
-      mediaIds: dto.mediaIds || [],
+      userPrompt: enhancedPrompt,
+      status: BuildStepStatus.INITIALIZING,
+      mediaIds: dto.mediaIds || []
+    });
+
+    console.log(`[CreatePromptUseCase] Created build ${build.id} with status INITIALIZING`);
+
+    // Send message to queue with just buildId - all data is in the build record
+    const message = {
+      buildId: build.id,
       timestamp: new Date().toISOString()
     };
 
-    console.log(`[CreatePromptUseCase] Sending message to queue with mediaIds:`, message.mediaIds);
+    console.log(`[CreatePromptUseCase] Sending message to queue for build:`, build.id);
     await this.queueService.sendMessage(message);
     console.log(`[CreatePromptUseCase] Message sent to queue successfully`);
 
     // Note: Credit consumption moved to FinalizationStep (only charged on successful build)
 
     return {
-      promptId: prompt.id,
-      jobId: prompt.id, // Keep for backward compatibility
-      status: 'QUEUED', // Default status since build hasn't been created yet
+      promptId: build.id,  // For backward compatibility, return build.id as promptId
+      jobId: build.id,
+      status: 'QUEUED',
       projectId,
-      timestamp: prompt.createdAt
+      timestamp: build.createdAt
     };
   }
 
