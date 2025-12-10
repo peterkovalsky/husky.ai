@@ -1,11 +1,20 @@
 -- Migration: Add user_prompt and user_id columns to builds table and migrate from prompts table
 -- This consolidates prompts and builds into a single table (builds as source of truth)
+-- Made idempotent: safe to run even if prompts table doesn't exist (already dropped in dev)
 
 -- Step 1: Add user_prompt column to builds (nullable initially for backfill)
 ALTER TABLE builds ADD COLUMN IF NOT EXISTS user_prompt TEXT;
 
 -- Step 2: Add user_id column to builds (nullable initially for backfill)
-ALTER TABLE builds ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'builds' AND column_name = 'user_id'
+  ) THEN
+    ALTER TABLE builds ADD COLUMN user_id UUID REFERENCES auth.users(id);
+  END IF;
+END $$;
 
 -- Step 3: Create index for querying builds by project and creation time
 CREATE INDEX IF NOT EXISTS idx_builds_project_created ON builds(project_id, created_at DESC);
@@ -13,12 +22,17 @@ CREATE INDEX IF NOT EXISTS idx_builds_project_created ON builds(project_id, crea
 -- Step 4: Create index for querying builds by user
 CREATE INDEX IF NOT EXISTS idx_builds_user_id ON builds(user_id);
 
--- Step 5: Backfill user_prompt from prompts table
-UPDATE builds b
-SET user_prompt = p.prompt
-FROM prompts p
-WHERE p.build_id = b.id
-  AND b.user_prompt IS NULL;
+-- Step 5: Backfill user_prompt from prompts table (only if prompts table exists)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'prompts') THEN
+    UPDATE builds b
+    SET user_prompt = p.prompt
+    FROM prompts p
+    WHERE p.build_id = b.id
+      AND b.user_prompt IS NULL;
+  END IF;
+END $$;
 
 -- Step 6: For any builds without a linked prompt, set a default message
 UPDATE builds
@@ -38,8 +52,20 @@ SET user_id = (
 WHERE b.user_id IS NULL;
 
 -- Step 8: Add NOT NULL constraints now that all rows have values
-ALTER TABLE builds ALTER COLUMN user_prompt SET NOT NULL;
-ALTER TABLE builds ALTER COLUMN user_id SET NOT NULL;
+-- Use DO block to handle case where constraint already exists
+DO $$
+BEGIN
+  ALTER TABLE builds ALTER COLUMN user_prompt SET NOT NULL;
+EXCEPTION
+  WHEN others THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE builds ALTER COLUMN user_id SET NOT NULL;
+EXCEPTION
+  WHEN others THEN NULL;
+END $$;
 
 -- Step 9: Make ai_logs.project_id nullable (for pre-project AI calls like prompt analysis)
 ALTER TABLE ai_logs ALTER COLUMN project_id DROP NOT NULL;
