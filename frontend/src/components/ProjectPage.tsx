@@ -128,24 +128,11 @@ export const ProjectPage = () => {
     }
   }, [latestJobStatus, currentPreviewUrl])
 
-  // Handle redirect case when no valid preview exists
-  useEffect(() => {
-    if (!projectDetails) return
-
-    const hasNoBuilds = projectDetails.stats.totalBuilds === 0
-    const allBuildsFailed = projectDetails.recentPrompts.length > 0 &&
-      projectDetails.recentPrompts.every(p => p.status === 'FAILED')
-    const latestReadyPrompt = projectDetails.recentPrompts.find(p => p.status === 'READY' || p.status === 'COMPLETED')
-    const hasInProgressPrompt = projectDetails.recentPrompts.some(
-      p => p.status === 'QUEUED' || p.status === 'PROCESSING' || p.status === 'BUILDING'
-    )
-
-    // If there are prompts but no ready preview and not in special cases, redirect
-    // BUT don't redirect if there's a build in progress - wait for it to complete
-    if (!hasNoBuilds && !allBuildsFailed && !latestReadyPrompt && !hasInProgressPrompt) {
-      navigate('/')
-    }
-  }, [projectDetails, navigate])
+  // Note: Removed aggressive redirect logic that was causing users to be redirected
+  // to home page after a build completed. The page now stays on ProjectPage and either:
+  // 1. Shows NewProjectStarter when there are no builds or all builds failed
+  // 2. Shows the preview iframe when there's a ready build
+  // 3. Shows loading state while waiting for builds to complete
 
   // Poll for in-progress builds and reload iframe when ready
   // Note: ChatWidget also polls and handles message status updates.
