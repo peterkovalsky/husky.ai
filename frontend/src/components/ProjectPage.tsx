@@ -18,6 +18,9 @@ export const ProjectPage = () => {
   const { project_id } = useParams<{ project_id: string }>()
   const navigate = useNavigate()
   const { setCurrentProject } = useProject()
+
+  // Debug: log project_id on every render
+  console.log('[ProjectPage] Render - project_id from useParams:', project_id, 'type:', typeof project_id)
   const [projectDetails, setProjectDetails] = useState<ProjectDetails | null>(null)
   const [latestJobStatus, setLatestJobStatus] = useState<JobStatus | null>(null)
   const [iframeLoaded, setIframeLoaded] = useState(false)
@@ -47,15 +50,33 @@ export const ProjectPage = () => {
   }, [project_id])
 
   useEffect(() => {
-    const loadProject = async () => {
-      if (!project_id) return
+    let isMounted = true
 
-      console.log('[ProjectPage] loadProject starting for project_id:', project_id)
+    const loadProject = async () => {
+      if (!project_id) {
+        console.log('[ProjectPage] loadProject skipped - no project_id')
+        return
+      }
+
+      console.log('[ProjectPage] loadProject starting for project_id:', project_id, 'reloadCounter:', reloadCounter)
       try {
         // Get all project details in one API call
+        console.log('[ProjectPage] Calling ApiService.getProjectDetails...')
+        const startTime = Date.now()
         const details = await ApiService.getProjectDetails(project_id)
-        console.log('[ProjectPage] loadProject got details:', details)
+        const duration = Date.now() - startTime
+        console.log('[ProjectPage] loadProject got details in', duration, 'ms:', details)
+        console.log('[ProjectPage] recentPrompts:', details.recentPrompts)
+
+        // Check if component is still mounted before updating state
+        if (!isMounted) {
+          console.log('[ProjectPage] Component unmounted during API call, skipping state update')
+          return
+        }
+
+        console.log('[ProjectPage] Setting projectDetails state...')
         setProjectDetails(details)
+        console.log('[ProjectPage] projectDetails state set')
 
         // Find the latest READY or COMPLETED prompt for preview
         const readyPrompts = details.recentPrompts.filter(p => p.status === 'READY' || p.status === 'COMPLETED')
@@ -65,6 +86,10 @@ export const ProjectPage = () => {
           // Get job status for the latest prompt to get preview URL
           try {
             const jobStatus = await ApiService.getJobStatus(latest.id)
+            if (!isMounted) {
+              console.log('[ProjectPage] Component unmounted during job status fetch, skipping state update')
+              return
+            }
             if (jobStatus.previewUrl) {
               const cacheBustedUrl = getCacheBustedUrl(jobStatus.previewUrl)
               setLatestJobStatus(jobStatus)
@@ -79,11 +104,24 @@ export const ProjectPage = () => {
         console.log('[ProjectPage] loadProject completed successfully')
       } catch (err) {
         console.error('[ProjectPage] Failed to load project:', err)
-        setError(err instanceof Error ? err.message : 'Failed to load project')
+        console.error('[ProjectPage] Error details:', {
+          name: err instanceof Error ? err.name : 'unknown',
+          message: err instanceof Error ? err.message : String(err),
+          stack: err instanceof Error ? err.stack : undefined
+        })
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : 'Failed to load project')
+        }
       }
     }
 
+    console.log('[ProjectPage] useEffect triggered, calling loadProject()')
     loadProject()
+
+    return () => {
+      console.log('[ProjectPage] useEffect cleanup - marking as unmounted')
+      isMounted = false
+    }
   }, [project_id, reloadCounter])
 
   // Set current project in context when project details are loaded
