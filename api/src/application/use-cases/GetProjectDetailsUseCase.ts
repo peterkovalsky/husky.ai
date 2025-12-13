@@ -3,6 +3,7 @@ import { IWorkspaceRepository } from '../../domain/repositories/IWorkspaceReposi
 import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
 import { ProjectDetailsDto } from '../dto/ProjectDto';
 import { User } from '../../domain/entities/User';
+import { mapBuildStatusToFrontend } from '../../domain/utils/statusMapper';
 
 export class GetProjectDetailsUseCase {
   constructor(
@@ -55,7 +56,7 @@ export class GetProjectDetailsUseCase {
       recentPrompts: recentBuilds.map(build => ({
         id: build.id,
         prompt: build.userPrompt.length > 100 ? build.userPrompt.substring(0, 100) + '...' : build.userPrompt,
-        status: build.status,
+        status: mapBuildStatusToFrontend(build.status),
         createdAt: build.createdAt,
         modifiedAt: build.modifiedAt
       })),

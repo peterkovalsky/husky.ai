@@ -79,26 +79,36 @@ export const ProjectPage = () => {
         console.log('[ProjectPage] projectDetails state set')
 
         // Find the latest READY or COMPLETED prompt for preview
+        console.log('[ProjectPage] All prompt statuses:', details.recentPrompts.map(p => ({ id: p.id, status: p.status })))
         const readyPrompts = details.recentPrompts.filter(p => p.status === 'READY' || p.status === 'COMPLETED')
+        console.log('[ProjectPage] Ready prompts found:', readyPrompts.length)
         if (readyPrompts.length > 0) {
           const latest = readyPrompts[0] // recentPrompts are already sorted by createdAt desc
+          console.log('[ProjectPage] Latest ready prompt:', latest.id, latest.status)
 
           // Get job status for the latest prompt to get preview URL
           try {
+            console.log('[ProjectPage] Fetching job status for prompt:', latest.id)
             const jobStatus = await ApiService.getJobStatus(latest.id)
+            console.log('[ProjectPage] Job status response:', jobStatus)
             if (!isMounted) {
               console.log('[ProjectPage] Component unmounted during job status fetch, skipping state update')
               return
             }
             if (jobStatus.previewUrl) {
+              console.log('[ProjectPage] Setting preview URL:', jobStatus.previewUrl)
               const cacheBustedUrl = getCacheBustedUrl(jobStatus.previewUrl)
               setLatestJobStatus(jobStatus)
               setCurrentPreviewUrl(cacheBustedUrl)
               currentPreviewUrlRef.current = cacheBustedUrl
+            } else {
+              console.log('[ProjectPage] No preview URL in job status')
             }
-          } catch {
-            console.warn('Could not fetch job status for prompt:', latest.id)
+          } catch (jobErr) {
+            console.warn('[ProjectPage] Could not fetch job status for prompt:', latest.id, jobErr)
           }
+        } else {
+          console.log('[ProjectPage] No ready prompts found, will show loading or NewProjectStarter')
         }
 
         console.log('[ProjectPage] loadProject completed successfully')
@@ -275,6 +285,8 @@ export const ProjectPage = () => {
   // Debug logging
   console.log('[ProjectPage] State check:', {
     projectDetails: !!projectDetails,
+    latestReadyPrompt: latestReadyPrompt ? { id: latestReadyPrompt.id, status: latestReadyPrompt.status } : null,
+    latestJobStatus: latestJobStatus ? { previewUrl: !!latestJobStatus.previewUrl, status: latestJobStatus.status } : null,
     hasReadyPreview: !!hasReadyPreview,
     currentPreviewUrl,
     iframeLoaded,
