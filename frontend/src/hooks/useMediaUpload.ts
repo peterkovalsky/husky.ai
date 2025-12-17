@@ -37,12 +37,6 @@ export const useMediaUpload = ({ projectId, onError, maxFiles = 1 }: UseMediaUpl
   }
 
   const uploadFile = async (file: File) => {
-    if (!projectId) {
-      console.error('No active project for file upload')
-      onError?.('No active project for file upload')
-      return
-    }
-
     const fileId = Date.now().toString()
     const preview = URL.createObjectURL(file)
 
@@ -56,11 +50,11 @@ export const useMediaUpload = ({ projectId, onError, maxFiles = 1 }: UseMediaUpl
     setAttachedImages(prev => [...prev, newImage])
 
     try {
-      // Step 1: Get presigned upload URL
+      // Step 1: Get presigned upload URL (projectId is optional - new project flow doesn't have one yet)
       const { mediaId, uploadUrl } = await ApiService.generatePresignedUpload(
         file.name,
         file.type,
-        projectId
+        projectId // Can be undefined for new project flow
       )
 
       // Step 2: Upload to S3

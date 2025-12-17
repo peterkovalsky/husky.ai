@@ -1,7 +1,7 @@
 export interface GeneratePresignedUploadDto {
   fileName: string;
   mimeType: string;
-  projectId: string;
+  projectId?: string; // Optional - when not provided, uses user-based path for uploads before project creation
 }
 
 export interface GeneratePresignedUploadResponseDto {

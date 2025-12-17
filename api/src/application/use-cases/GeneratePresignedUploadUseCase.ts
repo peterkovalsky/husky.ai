@@ -31,18 +31,24 @@ export class GeneratePresignedUploadUseCase {
       throw new Error(`Unsupported mime type: ${dto.mimeType}. Allowed types: ${allowedMimeTypes.join(', ')}`);
     }
 
-    // Validate project exists and user has access
-    const project = await this.projectRepository.findById(dto.projectId);
-    if (!project) {
-      throw new Error('Project not found');
+    // Validate project exists if projectId is provided
+    if (dto.projectId) {
+      const project = await this.projectRepository.findById(dto.projectId);
+      if (!project) {
+        throw new Error('Project not found');
+      }
     }
 
     // Extract file extension
     const ext = path.extname(dto.fileName) || this.getExtensionFromMimeType(dto.mimeType);
 
-    // Generate unique S3 key: {projectId}/media/{uuid}.{ext}
+    // Generate unique S3 key
+    // When projectId is provided: {projectId}/media/{uuid}.{ext}
+    // When no projectId (new project flow): uploads/{userId}/media/{uuid}.{ext}
     const mediaUuid = uuidv4();
-    const s3Key = `${dto.projectId}/media/${mediaUuid}${ext}`;
+    const s3Key = dto.projectId
+      ? `${dto.projectId}/media/${mediaUuid}${ext}`
+      : `uploads/${userId}/media/${mediaUuid}${ext}`;
 
     // Get projects bucket name
     const s3Bucket = process.env.S3_PROJECTS_BUCKET_NAME!;
