@@ -33,9 +33,7 @@ export class GetPromptStatusUseCase {
     }
 
     // Map detailed build status to frontend-compatible status
-    console.log(`[GetPromptStatusUseCase] Build status from DB: '${build.status}', mapping to frontend...`);
     const status = mapBuildStatusToFrontend(build.status);
-    console.log(`[GetPromptStatusUseCase] Mapped status: '${status}'`);
 
     // Get preview URL from project if build has reached production/finalization stage
     // These statuses map to READY on the frontend
@@ -50,7 +48,6 @@ export class GetPromptStatusUseCase {
     if (previewReadyStatuses.includes(build.status)) {
       const project = await this.projectRepository.findById(build.projectId);
       previewUrl = project?.previewUrl || null;
-      console.log(`[GetPromptStatusUseCase] Preview URL from project: '${previewUrl}'`);
     }
 
     return {

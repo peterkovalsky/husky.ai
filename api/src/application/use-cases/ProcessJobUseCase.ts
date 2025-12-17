@@ -23,6 +23,7 @@ import { ProductionBuildStep } from '../build-steps/steps/ProductionBuildStep';
 import { ProductionUploadStep } from '../build-steps/steps/ProductionUploadStep';
 import { FinalizationStep } from '../build-steps/steps/FinalizationStep';
 import { IScreenshotService } from '../../infrastructure/screenshot/ScreenshotService';
+import { loadAppConfig } from '../../shared/config/AppConfig';
 
 /**
  * ProcessJobUseCase - Step-based Build Orchestrator
@@ -157,39 +158,57 @@ export class ProcessJobUseCase {
       // Step 4: File Preparation
       await this.executeStep(context, filePrepStep);
 
-      // Step 5: Preview Build (with auto-fix retry)
-      try {
-        await this.executeStep(context, previewBuildStep);
-      } catch (buildError) {
-        // Build failed - attempt auto-fix
-        console.log(`\n⚠️  Preview build failed, attempting auto-fix...`);
+      // Step 5: Preview Build (with auto-fix retry loop)
+      const config = loadAppConfig();
+      const maxAttempts = config.ai.autofixMaxAttempts;
+      let attempt = 0;
+      let lastError: Error | null = null;
+      let buildSucceeded = false;
 
-        // Store build error in context for AutoFixStep
-        const errorMessage = buildError instanceof Error ? buildError.message : String(buildError);
-        context.setStepData('buildError', errorMessage);
-
+      while (attempt <= maxAttempts && !buildSucceeded) {
         try {
-          // Run auto-fix step
-          await this.executeStep(context, autoFixStep);
-
-          // Re-run file prep and build with fixed code
-          console.log(`\n🔄 Retrying build with auto-fixed code...`);
-          await this.executeStep(context, filePrepStep);
           await this.executeStep(context, previewBuildStep);
+          buildSucceeded = true;
 
-          // Success! Mark auto-fix as successful
-          await this.buildRepository.update(context.buildId!, {
-            autoFixSuccessful: true
-          });
-          console.log(`\n✅ Auto-fix successful! Build completed after fix.`);
+          // If we got here after auto-fix attempts, mark as successful
+          if (attempt > 0) {
+            await this.buildRepository.update(context.buildId!, {
+              autoFixSuccessful: true,
+              autoFixAttemptCount: attempt
+            });
+            console.log(`\n✅ Auto-fix successful! Build completed after ${attempt} attempt(s).`);
+          }
+        } catch (buildError) {
+          lastError = buildError instanceof Error ? buildError : new Error(String(buildError));
+          attempt++;
 
-        } catch (fixError) {
-          // Auto-fix failed
-          await this.buildRepository.update(context.buildId!, {
-            autoFixSuccessful: false,
-            errorMessage: fixError instanceof Error ? fixError.message : String(fixError)
-          });
-          throw fixError;
+          // Check if we've exhausted all attempts
+          if (attempt > maxAttempts) {
+            await this.buildRepository.update(context.buildId!, {
+              autoFixSuccessful: false,
+              autoFixAttemptCount: attempt - 1,
+              errorMessage: lastError.message
+            });
+            console.log(`\n❌ Auto-fix failed after ${attempt - 1} attempt(s). Giving up.`);
+            throw lastError;
+          }
+
+          // Attempt auto-fix
+          console.log(`\n⚠️ Preview build failed. Auto-fix attempt ${attempt}/${maxAttempts}...`);
+          context.setStepData('buildError', lastError.message);
+
+          try {
+            // Run auto-fix step
+            await this.executeStep(context, autoFixStep);
+
+            // Re-run file prep with fixed code
+            console.log(`\n🔄 Retrying build with auto-fixed code...`);
+            await this.executeStep(context, filePrepStep);
+            // Loop will continue and retry previewBuildStep
+          } catch (fixError) {
+            // Auto-fix step itself failed - continue to next attempt
+            lastError = fixError instanceof Error ? fixError : new Error(String(fixError));
+          }
         }
       }
 
@@ -265,7 +284,6 @@ export class ProcessJobUseCase {
       const project = await this.projectRepository.findById(context.projectId);
       if (project && project.status === ProjectStatus.NEW) {
         await this.projectRepository.update(context.projectId, { status: ProjectStatus.FAILED });
-        console.log(`[ProcessJobUseCase] Updated project ${context.projectId} status to FAILED`);
       }
     } catch (projectUpdateError) {
       console.error(`[ProcessJobUseCase] Failed to update project status:`, projectUpdateError);

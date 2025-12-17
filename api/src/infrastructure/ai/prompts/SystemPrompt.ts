@@ -118,7 +118,9 @@ COMPONENTS & REUSABILITY (CRITICAL):
 
    D. PRINCIPLES: Semantic HTML, clean JSX, TypeScript typing, composition over repetition
 
-7. SVG ICONS: Centralize in src/components/Icons.tsx as named components (CheckIcon, MenuIcon). Never inline SVGs.
+7. SVG ICONS:
+   - External libraries allowed (lucide-react, react-icons, @heroicons/react) - MUST add to package.json when used
+   - OR create inline SVGs in src/components/Icons.tsx as React components
 
 8. HASH LINKS: Use href="#section" NOT href="/#section" (breaks SPA navigation)
 

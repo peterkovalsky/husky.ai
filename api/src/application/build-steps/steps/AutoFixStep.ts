@@ -12,7 +12,7 @@ import { loadAppConfig } from '../../../shared/config/AppConfig';
  * Responsibilities:
  * - Read build error from context (set by ProcessJobUseCase)
  * - Construct fix prompt with error details and file tree
- * - Call AI to generate fixes (using Haiku for cost efficiency)
+ * - Call AI to generate fixes (using Claude Sonnet 4.5 for reliable fixes)
  * - Parse AI response and merge fixed files into file tree
  * - Update context.fileTree with corrected code
  * - Mark auto_fix_attempted in database
@@ -58,13 +58,14 @@ export class AutoFixStep implements IBuildStep {
       // Build fix prompt for AI
       const fixPrompt = this.buildFixPrompt(buildError, context.fileTree);
 
-      // Call AI to generate fixes (using primary model for better fix quality)
+      // Call AI to generate fixes using configured autofix model
+      // Defaults to Claude Sonnet 4.5 for reliable fixes
       const config = loadAppConfig();
       const aiStartTime = Date.now();
       const aiResponse = await this.aiService.generateResponse(
         fixPrompt,
         context.buildId,
-        config.ai.primary.model // Use primary model for more reliable fixes
+        config.ai.autofixModel
       );
       const aiFixTimeMs = Date.now() - aiStartTime;
 
