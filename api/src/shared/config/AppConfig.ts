@@ -28,6 +28,10 @@ export interface AppConfig {
     primary: AIProviderConfig;
     // Fast provider for iterations (haiku-equivalent)
     fast: AIProviderConfig;
+    // Auto-fix model (defaults to Claude Sonnet for reliable fixes)
+    autofixModel: string;
+    // Max auto-fix attempts before giving up (defaults to 3)
+    autofixMaxAttempts: number;
     // API keys for all providers
     anthropicApiKey?: string;
     openaiApiKey?: string;
@@ -69,6 +73,8 @@ export function loadAppConfig(): AppConfig {
         provider: (process.env.AI_PROVIDER_FAST || 'anthropic') as AIProviderType,
         model: process.env.AI_MODEL_FAST || 'claude-haiku-4-5-20251001',
       },
+      autofixModel: process.env.AI_MODEL_AUTOFIX || 'claude-sonnet-4-5-20250929',
+      autofixMaxAttempts: parseInt(process.env.AI_AUTOFIX_MAX_ATTEMPTS || '3', 10),
       anthropicApiKey: process.env.ANTHROPIC_API_KEY,
       openaiApiKey: process.env.OPENAI_API_KEY,
       geminiApiKey: process.env.GEMINI_API_KEY,

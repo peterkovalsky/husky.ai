@@ -36,10 +36,6 @@ export class CloudflareSaaSService {
     this.cf = new Cloudflare({
       apiToken,
     });
-
-    console.log(
-      `[CloudflareSaaSService] Initialized for zone ${this.zoneId}, domain ${this.publishDomain}`
-    );
   }
 
   /**
@@ -66,10 +62,6 @@ export class CloudflareSaaSService {
       : hostnameOrSubdomain.includes('.')
         ? hostnameOrSubdomain  // Already has publish domain
         : `${hostnameOrSubdomain}.${this.publishDomain}`;  // Append publish domain
-
-    console.log(`[CloudflareSaaSService] Creating custom hostname: ${hostname}`);
-    console.log(`[CloudflareSaaSService] Input: "${hostnameOrSubdomain}", Publish Domain: "${this.publishDomain}"`);
-    console.log(`[CloudflareSaaSService] Is Custom Domain: ${isCustomDomain} (will ${isCustomDomain ? 'NOT' : ''} auto-create TXT records)`);
 
     let response;
     let isDuplicate = false;
@@ -102,8 +94,6 @@ export class CloudflareSaaSService {
     } catch (createError: any) {
       // Handle duplicate hostname - fetch existing one instead
       if (createError.status === 409) {
-        console.log(`[CloudflareSaaSService] Custom hostname already exists for ${hostname}, fetching existing...`);
-
         try {
           // List custom hostnames to find the existing one
           const listResponse = await this.cf.customHostnames.list({
@@ -114,7 +104,6 @@ export class CloudflareSaaSService {
           if (listResponse.result && listResponse.result.length > 0) {
             response = listResponse.result[0];
             isDuplicate = true;
-            console.log(`[CloudflareSaaSService] Found existing custom hostname: ${response.id}`);
           } else {
             throw new Error(`Custom hostname exists but could not be found for ${hostname}`);
           }
@@ -128,40 +117,14 @@ export class CloudflareSaaSService {
     }
 
     try {
-      console.log(
-        `[CloudflareSaaSService] Custom hostname ${isDuplicate ? 'found' : 'created'}: ${response.id}, SSL status: ${response.ssl?.status}`
-      );
-
-      // Log the full response to see what we're getting
-      console.log(`[CloudflareSaaSService] Full response:`, JSON.stringify({
-        id: response.id,
-        hostname: response.hostname,
-        status: response.status,
-        ssl: {
-          status: response.ssl?.status,
-          validation_records: response.ssl?.validation_records,
-          validation_errors: response.ssl?.validation_errors,
-          method: response.ssl?.method,
-          type: response.ssl?.type,
-        }
-      }, null, 2));
-
-      // With HTTP validation, Cloudflare automatically validates SSL certificates
-      // for non-wildcard domains. No TXT records needed!
-      console.log(`[CloudflareSaaSService] SSL validation method: ${response.ssl?.method}`);
-      console.log(`[CloudflareSaaSService] SSL will be validated automatically via HTTP`);
-
       // For our own subdomains (not custom domains), create DNS record to point to fallback origin
       // This allows the subdomain to be proxied through Cloudflare
       if (!isCustomDomain) {
         try {
           await this.createSubdomainDNSRecord(hostname);
         } catch (dnsError) {
-          console.error(`[CloudflareSaaSService] Failed to create subdomain DNS record:`, dnsError);
           // Don't fail the whole operation if DNS record creation fails
         }
-      } else {
-        console.log(`[CloudflareSaaSService] Custom domain detected - user must create CNAME to ${hostname}`);
       }
 
       return {
@@ -183,8 +146,6 @@ export class CloudflareSaaSService {
    * @param hostname - Full hostname (e.g., "rich-cove-955.dev.huskystudio.app")
    */
   private async createSubdomainDNSRecord(hostname: string): Promise<void> {
-    console.log(`[CloudflareSaaSService] Creating DNS record for subdomain: ${hostname}`);
-
     try {
       // Check if record already exists
       const existingRecords = await this.cf.dns.records.list({
@@ -193,7 +154,6 @@ export class CloudflareSaaSService {
       });
 
       if (existingRecords.result && existingRecords.result.length > 0) {
-        console.log(`[CloudflareSaaSService] DNS record already exists for ${hostname}`);
         return;
       }
 
@@ -208,8 +168,6 @@ export class CloudflareSaaSService {
         ttl: 1, // Auto when proxied
         comment: `Custom hostname for Cloudflare for SaaS`,
       });
-
-      console.log(`[CloudflareSaaSService] DNS record created successfully for ${hostname}`);
     } catch (error) {
       console.error(`[CloudflareSaaSService] Failed to create DNS record:`, error);
       throw error;
@@ -223,8 +181,6 @@ export class CloudflareSaaSService {
    * @returns Hostname status
    */
   async getCustomHostnameStatus(hostnameId: string): Promise<CustomHostnameResult> {
-    console.log(`[CloudflareSaaSService] Getting status for hostname: ${hostnameId}`);
-
     try {
       const response = await this.cf.customHostnames.get(hostnameId, {
         zone_id: this.zoneId,
@@ -247,14 +203,10 @@ export class CloudflareSaaSService {
    * @param hostnameId - Custom hostname ID
    */
   async deleteCustomHostname(hostnameId: string): Promise<void> {
-    console.log(`[CloudflareSaaSService] Deleting custom hostname: ${hostnameId}`);
-
     try {
       await this.cf.customHostnames.delete(hostnameId, {
         zone_id: this.zoneId,
       });
-
-      console.log(`[CloudflareSaaSService] Custom hostname deleted: ${hostnameId}`);
     } catch (error) {
       console.error(`[CloudflareSaaSService] Failed to delete custom hostname:`, error);
       throw new Error(`Failed to delete hostname ${hostnameId}`);
@@ -277,8 +229,6 @@ export class CloudflareSaaSService {
    * @returns Validation records if available
    */
   async getValidationRecords(hostnameId: string): Promise<TXTValidationRecord[]> {
-    console.log(`[CloudflareSaaSService] Getting validation records for hostname: ${hostnameId}`);
-
     try {
       const response = await this.cf.customHostnames.get(hostnameId, {
         zone_id: this.zoneId,
@@ -292,11 +242,9 @@ export class CloudflareSaaSService {
             txt_value: r.txt_value
           }));
 
-        console.log(`[CloudflareSaaSService] Found ${records.length} validation records`);
         return records;
       }
 
-      console.log(`[CloudflareSaaSService] No validation records found`);
       return [];
     } catch (error) {
       console.error(`[CloudflareSaaSService] Failed to get validation records:`, error);
@@ -313,8 +261,6 @@ export class CloudflareSaaSService {
   async createWildcardHostname(): Promise<CustomHostnameResult> {
     const hostname = `*.${this.publishDomain}`;
 
-    console.log(`[CloudflareSaaSService] Creating wildcard custom hostname: ${hostname}`);
-
     try {
       const response = await this.cf.customHostnames.create({
         zone_id: this.zoneId,
@@ -330,10 +276,6 @@ export class CloudflareSaaSService {
           wildcard: true, // Enable wildcard SSL
         },
       });
-
-      console.log(
-        `[CloudflareSaaSService] Wildcard hostname created: ${response.id}, SSL status: ${response.ssl?.status}`
-      );
 
       return {
         hostnameId: response.id,
@@ -355,8 +297,6 @@ export class CloudflareSaaSService {
   async ensureWildcardHostname(): Promise<CustomHostnameResult> {
     const wildcardHostname = `*.${this.publishDomain}`;
 
-    console.log(`[CloudflareSaaSService] Checking for existing wildcard hostname: ${wildcardHostname}`);
-
     try {
       // List all custom hostnames and find the wildcard one
       const response = await this.cf.customHostnames.list({
@@ -366,7 +306,6 @@ export class CloudflareSaaSService {
 
       if (response.result && response.result.length > 0) {
         const existing = response.result[0];
-        console.log(`[CloudflareSaaSService] Found existing wildcard hostname: ${existing.id}`);
         return {
           hostnameId: existing.id,
           hostname: existing.hostname,
@@ -376,7 +315,6 @@ export class CloudflareSaaSService {
       }
 
       // Wildcard hostname doesn't exist, create it
-      console.log(`[CloudflareSaaSService] Wildcard hostname not found, creating...`);
       return await this.createWildcardHostname();
     } catch (error) {
       console.error(`[CloudflareSaaSService] Failed to ensure wildcard hostname:`, error);
@@ -397,27 +335,16 @@ export class CloudflareSaaSService {
   ): Promise<void> {
     const startTime = Date.now();
 
-    console.log(
-      `[CloudflareSaaSService] Waiting for SSL activation for hostname: ${hostnameId}`
-    );
-
     while (Date.now() - startTime < maxWaitTime) {
       const status = await this.getCustomHostnameStatus(hostnameId);
 
       if (status.sslStatus === 'active') {
-        console.log(
-          `[CloudflareSaaSService] SSL activated for hostname: ${hostnameId} (${Math.floor((Date.now() - startTime) / 1000)}s elapsed)`
-        );
         return;
       }
 
       if (status.sslStatus === 'failed') {
         throw new Error(`SSL certificate provisioning failed for ${hostnameId}`);
       }
-
-      console.log(
-        `[CloudflareSaaSService] SSL status: ${status.sslStatus}, waiting... (${Math.floor((Date.now() - startTime) / 1000)}s elapsed)`
-      );
 
       await new Promise((resolve) => setTimeout(resolve, pollInterval));
     }
@@ -441,10 +368,6 @@ export class CloudflareSaaSService {
     const startTime = Date.now();
     const url = `https://${hostname}`;
 
-    console.log(
-      `[CloudflareSaaSService] Waiting for DNS resolution and site accessibility: ${url}`
-    );
-
     while (Date.now() - startTime < maxWaitTime) {
       try {
         // Try to fetch the site
@@ -455,25 +378,15 @@ export class CloudflareSaaSService {
 
         // Any response (even 404) means DNS resolved and site is reachable
         if (response) {
-          console.log(
-            `[CloudflareSaaSService] Site is accessible at ${url} (status: ${response.status}) (${Math.floor((Date.now() - startTime) / 1000)}s elapsed)`
-          );
           return;
         }
-      } catch (error: any) {
-        // DNS not resolved yet or connection failed
-        const errorType = error.cause?.code || error.message;
-        console.log(
-          `[CloudflareSaaSService] Site not yet accessible (${errorType}), waiting... (${Math.floor((Date.now() - startTime) / 1000)}s elapsed)`
-        );
+      } catch {
+        // DNS not resolved yet or connection failed, continue waiting
       }
 
       await new Promise((resolve) => setTimeout(resolve, pollInterval));
     }
 
-    console.warn(
-      `[CloudflareSaaSService] DNS did not resolve within ${maxWaitTime}ms for ${hostname}, but continuing anyway`
-    );
-    // Don't throw - DNS might resolve later, just log warning
+    // Don't throw - DNS might resolve later
   }
 }

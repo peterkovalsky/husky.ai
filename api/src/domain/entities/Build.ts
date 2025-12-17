@@ -52,6 +52,7 @@ export interface Build {
   errorOutput?: string; // Full build error output (stderr/stdout) for debugging
   autoFixAttempted?: boolean; // Whether automatic fix was attempted for this failed build
   autoFixSuccessful?: boolean; // Whether auto-fix successfully resolved the build error
+  autoFixAttemptCount?: number; // Number of auto-fix attempts made (0 if none)
   createdAt: Date;
   modifiedAt: Date;
 }
