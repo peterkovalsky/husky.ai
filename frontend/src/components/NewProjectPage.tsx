@@ -43,7 +43,7 @@ export const NewProjectPage = () => {
   // Temporary project ID for media uploads (null until we create a project)
   const [tempProjectId, setTempProjectId] = useState<string | null>(null)
 
-  // Media upload hook - only enable if we have a project for uploads
+  // Media upload hook - projectId is optional (undefined for new project flow)
   const {
     attachedImages,
     isDragging,
@@ -57,7 +57,7 @@ export const NewProjectPage = () => {
     hasUploadingFiles,
     hasFailedFiles,
   } = useMediaUpload({
-    projectId: tempProjectId || 'temp-new-project',
+    projectId: tempProjectId || undefined,
     onError: (message) => setError(message),
     maxFiles: 1,
   })

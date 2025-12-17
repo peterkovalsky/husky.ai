@@ -19,8 +19,8 @@ export class MediaController {
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
-      if (!fileName || !mimeType || !projectId) {
-        return res.status(400).json({ error: 'fileName, mimeType, and projectId are required' });
+      if (!fileName || !mimeType) {
+        return res.status(400).json({ error: 'fileName and mimeType are required' });
       }
 
       const result = await this.generatePresignedUploadUseCase.execute(
