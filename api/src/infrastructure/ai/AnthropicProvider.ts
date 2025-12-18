@@ -99,9 +99,9 @@ export class AnthropicProvider extends BaseAIProvider {
   }
 
   /**
-   * Build user content array with images and text
+   * Build user content array with media (images/videos) and text
    */
-  private buildUserContent(request: AIGenerationRequest): string | Array<{ type: string; text?: string; source?: { type: string; url: string } }> {
+  private buildUserContent(request: AIGenerationRequest): string | Array<{ type: string; text?: string; source?: { type: string; url: string; media_type?: string } }> {
     // Build the full prompt text
     let promptText = `Current app:
 ${request.fileTreeContent}
@@ -109,34 +109,68 @@ ${request.fileTreeContent}
 Request:
 ${request.userPrompt}`;
 
-    // Add image URLs explicitly to the text prompt
+    // Add media URLs explicitly to the text prompt
     if (request.mediaUrls && request.mediaUrls.length > 0) {
       promptText += `
 
-UPLOADED IMAGES TO USE (You can see these images above):
+UPLOADED MEDIA TO USE (You can see these files above):
 ${request.mediaUrls.map((url, i) => `${i + 1}. ${url}`).join('\n')}
 
-IMPORTANT: When the request mentions "this image" or "these images", use the EXACT URLs listed above. DO NOT use stock photos or other URLs.`;
+IMPORTANT: When the request mentions uploaded images or videos, use the EXACT URLs listed above. DO NOT use stock photos or other URLs.`;
     }
 
-    // If no images, return just the text
+    // If no media, return just the text
     if (!request.mediaUrls || request.mediaUrls.length === 0) {
       return promptText;
     }
 
-    // Build content array with images first, then text
+    // Build content array with media first, then text
     return [
-      ...request.mediaUrls.map(url => ({
-        type: "image" as const,
-        source: {
-          type: "url" as const,
-          url
-        }
-      })),
+      ...request.mediaUrls.map(url => {
+        const mediaType = this.getMediaTypeFromUrl(url);
+        return {
+          type: mediaType.type,
+          source: {
+            type: "url" as const,
+            url,
+            ...(mediaType.mimeType && { media_type: mediaType.mimeType })
+          }
+        };
+      }),
       {
         type: "text" as const,
         text: promptText
       }
     ];
+  }
+
+  /**
+   * Determine content type and MIME type from URL
+   */
+  private getMediaTypeFromUrl(url: string): { type: 'image' | 'video' | 'document'; mimeType?: string } {
+    const extension = url.split('.').pop()?.toLowerCase().split('?')[0];
+    switch (extension) {
+      // Videos
+      case 'mp4':
+        return { type: 'video', mimeType: 'video/mp4' };
+      case 'webm':
+        return { type: 'video', mimeType: 'video/webm' };
+      case 'mov':
+        return { type: 'video', mimeType: 'video/quicktime' };
+      // Documents
+      case 'pdf':
+        return { type: 'document', mimeType: 'application/pdf' };
+      // Images (default)
+      case 'png':
+        return { type: 'image', mimeType: 'image/png' };
+      case 'gif':
+        return { type: 'image', mimeType: 'image/gif' };
+      case 'webp':
+        return { type: 'image', mimeType: 'image/webp' };
+      case 'jpg':
+      case 'jpeg':
+      default:
+        return { type: 'image', mimeType: 'image/jpeg' };
+    }
   }
 }

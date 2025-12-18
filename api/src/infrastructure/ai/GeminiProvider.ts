@@ -115,14 +115,14 @@ ${request.fileTreeContent}
 Request:
 ${request.userPrompt}`;
 
-    // Add image URLs explicitly to the text prompt
+    // Add media URLs explicitly to the text prompt
     if (request.mediaUrls && request.mediaUrls.length > 0) {
       promptText += `
 
-UPLOADED IMAGES TO USE (You can see these images above):
+UPLOADED MEDIA TO USE (You can see these files above):
 ${request.mediaUrls.map((url, i) => `${i + 1}. ${url}`).join('\n')}
 
-IMPORTANT: When the request mentions "this image" or "these images", use the EXACT URLs listed above. DO NOT use stock photos or other URLs.`;
+IMPORTANT: When the request mentions uploaded images or videos, use the EXACT URLs listed above. DO NOT use stock photos or other URLs.`;
     }
 
     // Add the text prompt
@@ -132,11 +132,12 @@ IMPORTANT: When the request mentions "this image" or "these images", use the EXA
   }
 
   /**
-   * Determine MIME type from URL for image handling
+   * Determine MIME type from URL for media handling
    */
   private getMimeTypeFromUrl(url: string): string {
     const extension = url.split('.').pop()?.toLowerCase().split('?')[0];
     switch (extension) {
+      // Images
       case 'png':
         return 'image/png';
       case 'jpg':
@@ -146,6 +147,16 @@ IMPORTANT: When the request mentions "this image" or "these images", use the EXA
         return 'image/gif';
       case 'webp':
         return 'image/webp';
+      // Videos
+      case 'mp4':
+        return 'video/mp4';
+      case 'webm':
+        return 'video/webm';
+      case 'mov':
+        return 'video/quicktime';
+      // Documents
+      case 'pdf':
+        return 'application/pdf';
       default:
         return 'image/jpeg';
     }

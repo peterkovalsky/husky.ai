@@ -476,11 +476,12 @@ export class ApiService {
   static async generatePresignedUpload(
     fileName: string,
     mimeType: string,
+    fileSize: number,
     projectId?: string
   ): Promise<GeneratePresignedUploadResponse> {
     return this.request<GeneratePresignedUploadResponse>('/api/media/presigned-upload', {
       method: 'POST',
-      body: JSON.stringify({ fileName, mimeType, ...(projectId && { projectId }) }),
+      body: JSON.stringify({ fileName, mimeType, fileSize, ...(projectId && { projectId }) }),
     });
   }
 

@@ -12,6 +12,9 @@ export class GeneratePresignedUploadUseCase {
     private projectRepository: IProjectRepository
   ) {}
 
+  // File size limit: 10MB for all media types
+  private static readonly MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
   async execute(dto: GeneratePresignedUploadDto, userId: string): Promise<GeneratePresignedUploadResponseDto> {
     // Validate mime type - allow images, videos, and PDFs
     const allowedMimeTypes = [
@@ -29,6 +32,11 @@ export class GeneratePresignedUploadUseCase {
     ];
     if (!allowedMimeTypes.includes(dto.mimeType)) {
       throw new Error(`Unsupported mime type: ${dto.mimeType}. Allowed types: ${allowedMimeTypes.join(', ')}`);
+    }
+
+    // Validate file size
+    if (dto.fileSize > GeneratePresignedUploadUseCase.MAX_FILE_SIZE) {
+      throw new Error('File size exceeds maximum allowed size of 10MB');
     }
 
     // Validate project exists if projectId is provided
@@ -63,7 +71,7 @@ export class GeneratePresignedUploadUseCase {
       mimeType: dto.mimeType,
       s3Key,
       s3Bucket,
-      fileSize: 0, // Will be updated on confirm if needed
+      fileSize: dto.fileSize,
     });
 
     // Generate presigned upload URL (expires in 15 minutes)
