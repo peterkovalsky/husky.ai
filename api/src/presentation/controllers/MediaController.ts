@@ -12,7 +12,7 @@ export class MediaController {
 
   generatePresignedUpload = async (req: Request, res: Response) => {
     try {
-      const { fileName, mimeType, projectId } = req.body;
+      const { fileName, mimeType, fileSize, projectId } = req.body;
       const user = (req as any).user;
 
       if (!user) {
@@ -23,8 +23,12 @@ export class MediaController {
         return res.status(400).json({ error: 'fileName and mimeType are required' });
       }
 
+      if (typeof fileSize !== 'number' || fileSize <= 0) {
+        return res.status(400).json({ error: 'fileSize is required and must be a positive number' });
+      }
+
       const result = await this.generatePresignedUploadUseCase.execute(
-        { fileName, mimeType, projectId },
+        { fileName, mimeType, fileSize, projectId },
         user.id
       );
 

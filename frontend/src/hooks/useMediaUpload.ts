@@ -29,9 +29,11 @@ export const useMediaUpload = ({ projectId, onError, maxFiles = 1 }: UseMediaUpl
     if (!allowedTypes.includes(file.type)) {
       return 'Only images (JPEG, PNG, GIF, WebP), videos (MP4, WebM, MOV), and PDFs are allowed'
     }
-    const maxSize = 50 * 1024 * 1024 // 50MB (increased for videos)
+
+    // File size limit: 10MB for all media types
+    const maxSize = 10 * 1024 * 1024 // 10MB
     if (file.size > maxSize) {
-      return 'File must be smaller than 50MB'
+      return 'File must be smaller than 10MB'
     }
     return null
   }
@@ -54,6 +56,7 @@ export const useMediaUpload = ({ projectId, onError, maxFiles = 1 }: UseMediaUpl
       const { mediaId, uploadUrl } = await ApiService.generatePresignedUpload(
         file.name,
         file.type,
+        file.size,
         projectId // Can be undefined for new project flow
       )
 

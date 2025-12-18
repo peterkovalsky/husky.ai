@@ -132,9 +132,9 @@ export class OpenAIProvider extends BaseAIProvider {
   }
 
   /**
-   * Build user content array with images and text
+   * Build user content array with media (images/videos) and text
    */
-  private buildUserContent(request: AIGenerationRequest): Array<{ type: string; text?: string; image_url?: { url: string } }> {
+  private buildUserContent(request: AIGenerationRequest): Array<{ type: string; text?: string; image_url?: { url: string }; input_video?: { url: string } }> {
     // Build the full prompt text
     let promptText = `Current app:
 ${request.fileTreeContent}
@@ -142,25 +142,33 @@ ${request.fileTreeContent}
 Request:
 ${request.userPrompt}`;
 
-    // Add image URLs explicitly to the text prompt
+    // Add media URLs explicitly to the text prompt
     if (request.mediaUrls && request.mediaUrls.length > 0) {
       promptText += `
 
-UPLOADED IMAGES TO USE (You can see these images above):
+UPLOADED MEDIA TO USE (You can see these files above):
 ${request.mediaUrls.map((url, i) => `${i + 1}. ${url}`).join('\n')}
 
-IMPORTANT: When the request mentions "this image" or "these images", use the EXACT URLs listed above. DO NOT use stock photos or other URLs.`;
+IMPORTANT: When the request mentions uploaded images or videos, use the EXACT URLs listed above. DO NOT use stock photos or other URLs.`;
     }
 
-    const content: Array<{ type: string; text?: string; image_url?: { url: string } }> = [];
+    const content: Array<{ type: string; text?: string; image_url?: { url: string }; input_video?: { url: string } }> = [];
 
-    // Add images first if provided
+    // Add media first if provided
     if (request.mediaUrls && request.mediaUrls.length > 0) {
       request.mediaUrls.forEach(url => {
-        content.push({
-          type: "image_url",
-          image_url: { url }
-        });
+        const isVideo = this.isVideoUrl(url);
+        if (isVideo) {
+          content.push({
+            type: "input_video",
+            input_video: { url }
+          });
+        } else {
+          content.push({
+            type: "image_url",
+            image_url: { url }
+          });
+        }
       });
     }
 
@@ -171,5 +179,13 @@ IMPORTANT: When the request mentions "this image" or "these images", use the EXA
     });
 
     return content;
+  }
+
+  /**
+   * Check if URL points to a video file
+   */
+  private isVideoUrl(url: string): boolean {
+    const extension = url.split('.').pop()?.toLowerCase().split('?')[0];
+    return ['mp4', 'webm', 'mov', 'avi', 'mkv'].includes(extension || '');
   }
 }

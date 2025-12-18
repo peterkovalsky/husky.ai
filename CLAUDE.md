@@ -439,6 +439,34 @@ dev-husky-projects/
 - **AI Logging:** All AI executions (code generation, auto-fix) are logged to `ai_logs` table
 - Recent migrations added version tracking, project descriptions, and comprehensive AI execution logging
 
+### RLS (Row Level Security) Standards
+**CRITICAL: Never create tables with public access policies**
+
+When creating new tables:
+- ✅ DO: Always enable RLS on new tables (`ALTER TABLE ... ENABLE ROW LEVEL SECURITY`)
+- ✅ DO: Restrict read access to authenticated users (`TO authenticated`)
+- ✅ DO: Use user-specific policies where appropriate (`USING (user_id = auth.uid())`)
+- ❌ DON'T: Create policies with `USING (true)` without `TO authenticated`
+- ❌ DON'T: Allow anonymous/public access to any table data
+
+**Example - Correct RLS policy:**
+```sql
+-- Enable RLS
+ALTER TABLE my_table ENABLE ROW LEVEL SECURITY;
+
+-- Allow only logged-in users to read
+CREATE POLICY "Allow authenticated read" ON my_table
+  FOR SELECT
+  TO authenticated
+  USING (true);
+
+-- Or restrict to user's own data
+CREATE POLICY "Users read own data" ON my_table
+  FOR SELECT
+  TO authenticated
+  USING (user_id = auth.uid());
+```
+
 ### Database Troubleshooting
 **ALWAYS use Supabase MCP tools for database operations, troubleshooting, and checking data**
 
