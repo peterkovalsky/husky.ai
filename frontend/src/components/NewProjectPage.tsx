@@ -6,6 +6,7 @@ import { Button } from '@heroui/react'
 import { PromptInput } from './PromptInput'
 import { useMediaUpload } from '../hooks/useMediaUpload'
 import ClarificationPanel from './ClarificationPanel'
+import InspirationGallery from './InspirationGallery'
 import FailedBuildOptions from './FailedBuildOptions'
 import type { ClarificationQuestion, ClarificationAnswer } from '../types/clarification'
 import { Loader2, AlertTriangle, Sparkles, Layout, BarChart3, Palette, FileText } from 'lucide-react'
@@ -39,6 +40,11 @@ export const NewProjectPage = () => {
   const [suggestedProjectName, setSuggestedProjectName] = useState<string>('')
   const [lastClarificationAnswers, setLastClarificationAnswers] = useState<ClarificationAnswer[]>([])
   const [showFailedBuildOptions, setShowFailedBuildOptions] = useState(false)
+
+  // Inspiration gallery state
+  const [showInspirationGallery, setShowInspirationGallery] = useState(false)
+  const [selectedInspoId, setSelectedInspoId] = useState<string | null>(null)
+  const [hasClarificationQuestions, setHasClarificationQuestions] = useState(false)
 
   // Temporary project ID for media uploads (null until we create a project)
   const [tempProjectId, setTempProjectId] = useState<string | null>(null)
@@ -109,18 +115,33 @@ export const NewProjectPage = () => {
         setSuggestedProjectName(analysisResponse.suggestedProjectName)
       }
 
-      // If clarification is needed, show questions
-      if (analysisResponse.needsClarification && analysisResponse.questions && analysisResponse.questions.length > 0) {
-        setClarificationQuestions(analysisResponse.questions)
-        setAnalysisId(analysisResponse.analysisId)
-        setPendingPrompt(prompt.trim())
-        setPendingMediaIds(mediaIds)
+      // Store common pending data
+      setAnalysisId(analysisResponse.analysisId)
+      setPendingPrompt(prompt.trim())
+      setPendingMediaIds(mediaIds)
+
+      // Store whether there are clarification questions for later
+      const hasQuestions = analysisResponse.needsClarification && analysisResponse.questions && analysisResponse.questions.length > 0
+      if (hasQuestions) {
+        setClarificationQuestions(analysisResponse.questions!)
+        setHasClarificationQuestions(true)
+      }
+
+      // If this is a landing page request, show inspiration gallery first
+      if (analysisResponse.showInspirationGallery) {
+        setShowInspirationGallery(true)
+        setIsSubmitting(false)
+        return
+      }
+
+      // If clarification is needed (but no gallery), show questions
+      if (hasQuestions) {
         setShowClarification(true)
         setIsSubmitting(false)
         return
       }
 
-      // If no clarification needed, proceed directly - create project and submit
+      // If no clarification needed and no gallery, proceed directly - create project and submit
       await createProjectAndSubmit(
         prompt.trim(),
         mediaIds,
@@ -139,7 +160,8 @@ export const NewProjectPage = () => {
     projectName: string,
     currentAnalysisId: string,
     clarificationAnswers?: ClarificationAnswer[],
-    skippedClarification?: boolean
+    skippedClarification?: boolean,
+    inspoId?: string
   ) => {
     try {
       // Step 1: Create the project with AI-suggested name
@@ -156,7 +178,8 @@ export const NewProjectPage = () => {
         mediaIds.length > 0 ? mediaIds : undefined,
         clarificationAnswers,
         currentAnalysisId,
-        skippedClarification
+        skippedClarification,
+        inspoId
       )
 
       // Start generating
@@ -221,7 +244,8 @@ export const NewProjectPage = () => {
       suggestedProjectName || 'New Project',
       analysisId,
       answers,
-      false
+      false,
+      selectedInspoId || undefined
     )
   }
 
@@ -233,7 +257,8 @@ export const NewProjectPage = () => {
       suggestedProjectName || 'New Project',
       analysisId,
       undefined,
-      true
+      true,
+      selectedInspoId || undefined
     )
   }
 
@@ -243,6 +268,51 @@ export const NewProjectPage = () => {
     setPendingMediaIds([])
     setClarificationQuestions([])
     setSuggestedProjectName('')
+    setShowInspirationGallery(false)
+    setSelectedInspoId(null)
+    setHasClarificationQuestions(false)
+  }
+
+  // Inspiration gallery handlers
+  const handleInspirationSelect = (inspoId: string) => {
+    setSelectedInspoId(inspoId)
+    setShowInspirationGallery(false)
+
+    // After selecting, proceed to clarification if there are questions, otherwise submit
+    if (hasClarificationQuestions) {
+      setShowClarification(true)
+    } else {
+      setIsSubmitting(true)
+      createProjectAndSubmit(
+        pendingPrompt,
+        pendingMediaIds,
+        suggestedProjectName || 'New Project',
+        analysisId,
+        undefined,
+        false,
+        inspoId
+      )
+    }
+  }
+
+  const handleInspirationSkip = () => {
+    setShowInspirationGallery(false)
+    setSelectedInspoId(null)
+
+    // After skipping, proceed to clarification if there are questions, otherwise submit
+    if (hasClarificationQuestions) {
+      setShowClarification(true)
+    } else {
+      setIsSubmitting(true)
+      createProjectAndSubmit(
+        pendingPrompt,
+        pendingMediaIds,
+        suggestedProjectName || 'New Project',
+        analysisId,
+        undefined,
+        false
+      )
+    }
   }
 
   const handleRevisePreferences = () => {
@@ -332,10 +402,10 @@ export const NewProjectPage = () => {
     <div className="h-full">
       {/* Main Content */}
       {appState === 'initial' && (
-        <div className="h-full flex items-center justify-center p-6">
-          <div className="w-full max-w-3xl flex flex-col items-center">
-            {/* Main Heading - hidden during clarification */}
-            {!showClarification && (
+        <div className={`h-full flex ${showInspirationGallery ? 'items-start overflow-y-auto pt-8' : 'items-center'} justify-center p-6`}>
+          <div className={`w-full flex flex-col items-center ${showInspirationGallery ? 'max-w-4xl' : 'max-w-3xl'}`}>
+            {/* Main Heading - hidden during clarification and inspiration gallery */}
+            {!showClarification && !showInspirationGallery && (
               <div className="text-center mb-12">
                 <Sparkles className="w-12 h-12 text-husky-500 mx-auto mb-6 animate-float" />
                 <h1 className="text-4xl font-bold mb-3 text-gray-900">
@@ -364,7 +434,7 @@ export const NewProjectPage = () => {
             )}
 
             {/* Prompt Input */}
-            {!showClarification && !showFailedBuildOptions && (
+            {!showClarification && !showFailedBuildOptions && !showInspirationGallery && (
               <div className="w-full mb-6">
                 <PromptInput
                   value={prompt}
@@ -382,6 +452,17 @@ export const NewProjectPage = () => {
                   onDrop={handleDrop}
                   isDragging={isDragging}
                   autoFocus={true}
+                />
+              </div>
+            )}
+
+            {/* Inspiration Gallery */}
+            {showInspirationGallery && (
+              <div className="w-full max-w-4xl">
+                <InspirationGallery
+                  onSelect={handleInspirationSelect}
+                  onSkip={handleInspirationSkip}
+                  isLoading={isSubmitting}
                 />
               </div>
             )}
@@ -409,8 +490,8 @@ export const NewProjectPage = () => {
               />
             )}
 
-            {/* Action Buttons - Only show when not generating, not in clarification, and not showing failed build options */}
-            {!isGenerating && !showClarification && !showFailedBuildOptions && (
+            {/* Action Buttons - Only show when not generating, not in clarification, not showing gallery, and not showing failed build options */}
+            {!isGenerating && !showClarification && !showInspirationGallery && !showFailedBuildOptions && (
               <div className="flex flex-wrap items-center justify-center gap-3">
                 <Button
                   variant="bordered"

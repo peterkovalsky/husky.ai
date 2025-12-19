@@ -30,4 +30,5 @@ export interface AnalyzePromptResponseDto {
   questions?: ClarificationQuestion[];
   analysisId: string;
   suggestedProjectName?: string;  // AI-generated project name for new projects
+  showInspirationGallery?: boolean; // True if the prompt is for a website/landing page
 }

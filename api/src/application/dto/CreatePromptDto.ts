@@ -8,6 +8,8 @@ export interface CreatePromptDto {
   clarificationAnswers?: ClarificationAnswer[];
   analysisId?: string;
   skippedClarification?: boolean;
+  // Inspiration selection (optional)
+  inspoId?: string;
 }
 
 export interface CreatePromptResponseDto {

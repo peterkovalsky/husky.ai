@@ -8,6 +8,7 @@ import { IWorkspaceRepository } from '../../domain/repositories/IWorkspaceReposi
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
 import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
 import { IMediaRepository } from '../../domain/repositories/IMediaRepository';
+import { IInspoRepository } from '../../domain/repositories/IInspoRepository';
 import { ICreditPurchaseRepository } from '../../domain/repositories/ICreditPurchaseRepository';
 import { IAILogRepository } from '../../domain/repositories/IAILogRepository';
 
@@ -29,6 +30,7 @@ import { SupabaseWorkspaceRepository } from '../../infrastructure/database/Supab
 import { SupabaseProjectRepository } from '../../infrastructure/database/SupabaseProjectRepository';
 import { SupabaseBuildRepository } from '../../infrastructure/database/SupabaseBuildRepository';
 import { SupabaseMediaRepository } from '../../infrastructure/database/SupabaseMediaRepository';
+import { SupabaseInspoRepository } from '../../infrastructure/database/SupabaseInspoRepository';
 import { SupabaseCreditPurchaseRepository } from '../../infrastructure/database/SupabaseCreditPurchaseRepository';
 import { SupabaseAILogRepository } from '../../infrastructure/database/SupabaseAILogRepository';
 import { AnthropicProvider } from '../../infrastructure/ai/AnthropicProvider';
@@ -67,6 +69,7 @@ import { GeneratePresignedUploadUseCase } from '../../application/use-cases/Gene
 import { ConfirmMediaUploadUseCase } from '../../application/use-cases/ConfirmMediaUploadUseCase';
 import { DeleteMediaUseCase } from '../../application/use-cases/DeleteMediaUseCase';
 import { ProcessMediaDeletionUseCase } from '../../application/use-cases/ProcessMediaDeletionUseCase';
+import { GetInspoGalleryUseCase } from '../../application/use-cases/GetInspoGalleryUseCase';
 import { InitiatePublishingUseCase } from '../../application/use-cases/InitiatePublishingUseCase';
 import { InitiateUnpublishingUseCase } from '../../application/use-cases/InitiateUnpublishingUseCase';
 import { GetPublishStatusUseCase } from '../../application/use-cases/GetPublishStatusUseCase';
@@ -94,6 +97,7 @@ import { ProjectController } from '../../presentation/controllers/ProjectControl
 import { WorkspaceController } from '../../presentation/controllers/WorkspaceController';
 import { UserController } from '../../presentation/controllers/UserController';
 import { MediaController } from '../../presentation/controllers/MediaController';
+import { InspoController } from '../../presentation/controllers/InspoController';
 import { PublishingController } from '../../presentation/controllers/PublishingController';
 import { CustomDomainController } from '../../presentation/controllers/CustomDomainController';
 import { BillingController } from '../../presentation/controllers/BillingController';
@@ -122,6 +126,7 @@ export function setupContainer(): DIContainer {
   container.registerFactory<IProjectRepository>('projectRepository', () => new SupabaseProjectRepository());
   container.registerFactory<IBuildRepository>('buildRepository', () => new SupabaseBuildRepository());
   container.registerFactory<IMediaRepository>('mediaRepository', () => new SupabaseMediaRepository());
+  container.registerFactory<IInspoRepository>('inspoRepository', () => new SupabaseInspoRepository());
   container.registerFactory<ICreditPurchaseRepository>('creditPurchaseRepository', () => new SupabaseCreditPurchaseRepository());
   container.registerFactory<IAILogRepository>('aiLogRepository', () => new SupabaseAILogRepository());
 
@@ -285,7 +290,8 @@ export function setupContainer(): DIContainer {
     container.get<PrepareProjectEnvironmentUseCase>('prepareProjectEnvironmentUseCase'),
     container.get<IMediaRepository>('mediaRepository'),
     container.get<IImageProcessingService>('imageProcessingService'),
-    container.get<IScreenshotService>('screenshotService')
+    container.get<IScreenshotService>('screenshotService'),
+    container.get<IInspoRepository>('inspoRepository')
   ));
 
   container.registerFactory<DeleteProjectUseCase>('deleteProjectUseCase', () => new DeleteProjectUseCase(
@@ -372,6 +378,16 @@ export function setupContainer(): DIContainer {
     container.get<GeneratePresignedUploadUseCase>('generatePresignedUploadUseCase'),
     container.get<ConfirmMediaUploadUseCase>('confirmMediaUploadUseCase'),
     container.get<DeleteMediaUseCase>('deleteMediaUseCase')
+  ));
+
+  // Register Inspo Use Cases
+  container.registerFactory<GetInspoGalleryUseCase>('getInspoGalleryUseCase', () => new GetInspoGalleryUseCase(
+    container.get<IInspoRepository>('inspoRepository')
+  ));
+
+  // Register Inspo Controller
+  container.registerFactory<InspoController>('inspoController', () => new InspoController(
+    container.get<GetInspoGalleryUseCase>('getInspoGalleryUseCase')
   ));
 
   // Register Publishing Use Cases

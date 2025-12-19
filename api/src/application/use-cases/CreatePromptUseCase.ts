@@ -69,7 +69,12 @@ export class CreatePromptUseCase {
     }
 
     // Enhance prompt with clarification data if provided
-    const enhancedPrompt = this.buildEnhancedPrompt(dto.prompt, dto.clarificationAnswers, dto.skippedClarification);
+    const enhancedPrompt = this.buildEnhancedPrompt(
+      dto.prompt,
+      dto.clarificationAnswers,
+      dto.skippedClarification,
+      !!dto.inspoId // hasInspoImage flag
+    );
 
     // Create build directly with user prompt (builds are now the source of truth)
     const build = await this.buildRepository.create({
@@ -78,7 +83,8 @@ export class CreatePromptUseCase {
       userId: user.id,
       userPrompt: enhancedPrompt,
       status: BuildStepStatus.INITIALIZING,
-      mediaIds: dto.mediaIds || []
+      mediaIds: dto.mediaIds || [],
+      inspoId: dto.inspoId
     });
 
     console.log(`[CreatePromptUseCase] Created build ${build.id} with status INITIALIZING`);
@@ -105,52 +111,64 @@ export class CreatePromptUseCase {
   }
 
   /**
-   * Build an enhanced prompt that includes user's clarification answers
+   * Build an enhanced prompt that includes user's clarification answers and inspiration context
    */
   private buildEnhancedPrompt(
     originalPrompt: string,
     clarificationAnswers?: ClarificationAnswer[],
-    skippedClarification?: boolean
+    skippedClarification?: boolean,
+    hasInspoImage?: boolean
   ): string {
+    let prompt = originalPrompt;
+
     // If user skipped clarification ("Surprise Me"), add note for creative freedom
     if (skippedClarification) {
-      return `${originalPrompt}
+      prompt = `${prompt}
 
 Note: User selected "Surprise Me" - use your best creative judgment for all design choices. Be bold and creative with the visual direction.`;
-    }
+    } else if (clarificationAnswers && clarificationAnswers.length > 0) {
+      // Build user preferences section from answers
+      const preferences = clarificationAnswers
+        .map(answer => {
+          const questionLabel = answer.questionText || `Question ${answer.questionId}`;
 
-    // If no clarification answers, return original prompt
-    if (!clarificationAnswers || clarificationAnswers.length === 0) {
-      return originalPrompt;
-    }
+          if (answer.freeTextAnswer) {
+            return `- ${questionLabel}: ${answer.freeTextAnswer}`;
+          } else if (answer.selectedOptionLabel) {
+            const description = answer.selectedOptionDescription
+              ? ` - "${answer.selectedOptionDescription}"`
+              : '';
+            return `- ${questionLabel}: ${answer.selectedOptionLabel}${description}`;
+          }
+          return null;
+        })
+        .filter(Boolean)
+        .join('\n');
 
-    // Build user preferences section from answers
-    const preferences = clarificationAnswers
-      .map(answer => {
-        const questionLabel = answer.questionText || `Question ${answer.questionId}`;
-
-        if (answer.freeTextAnswer) {
-          return `- ${questionLabel}: ${answer.freeTextAnswer}`;
-        } else if (answer.selectedOptionLabel) {
-          const description = answer.selectedOptionDescription
-            ? ` - "${answer.selectedOptionDescription}"`
-            : '';
-          return `- ${questionLabel}: ${answer.selectedOptionLabel}${description}`;
-        }
-        return null;
-      })
-      .filter(Boolean)
-      .join('\n');
-
-    if (!preferences) {
-      return originalPrompt;
-    }
-
-    return `${originalPrompt}
+      if (preferences) {
+        prompt = `${prompt}
 
 User's design preferences:
 ${preferences}
 
 Please incorporate these design preferences into your implementation.`;
+      }
+    }
+
+    // Add design inspiration context if an inspiration image was selected
+    if (hasInspoImage) {
+      prompt = `${prompt}
+
+Design Inspiration Reference:
+The user has selected a design inspiration image shown above. Use this as a reference for:
+- Visual style and aesthetic direction
+- Layout patterns and structure
+- Color scheme inspiration
+- Typography choices
+
+IMPORTANT: Do NOT copy text content from the inspiration - only use it for design guidance.`;
+    }
+
+    return prompt;
   }
 }

@@ -48,6 +48,7 @@ export interface Build {
   status: BuildStatus;
   metrics: BuildMetrics;
   mediaIds?: string[];
+  inspoId?: string; // Reference to selected inspiration screenshot for design guidance
   errorMessage?: string; // Human-readable error summary when build fails
   errorOutput?: string; // Full build error output (stderr/stdout) for debugging
   autoFixAttempted?: boolean; // Whether automatic fix was attempted for this failed build
@@ -65,4 +66,5 @@ export interface CreateBuildRequest {
   status?: BuildStatus;
   metrics?: BuildMetrics;
   mediaIds?: string[];
+  inspoId?: string; // Optional: reference to selected inspiration screenshot
 }

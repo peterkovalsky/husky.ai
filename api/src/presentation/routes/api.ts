@@ -6,6 +6,7 @@ import { ProjectController } from '../controllers/ProjectController';
 import { WorkspaceController } from '../controllers/WorkspaceController';
 import { UserController } from '../controllers/UserController';
 import { MediaController } from '../controllers/MediaController';
+import { InspoController } from '../controllers/InspoController';
 import { PublishingController } from '../controllers/PublishingController';
 import { CustomDomainController } from '../controllers/CustomDomainController';
 import { BillingController } from '../controllers/BillingController';
@@ -19,6 +20,7 @@ interface ApiRoutesDependencies {
   workspaceController: WorkspaceController;
   userController: UserController;
   mediaController: MediaController;
+  inspoController: InspoController;
   publishingController: PublishingController;
   customDomainController: CustomDomainController;
   billingController: BillingController;
@@ -119,6 +121,12 @@ export function createApiRoutes(deps: ApiRoutesDependencies): Router {
   router.delete('/media/:mediaId',
     deps.authMiddleware.authenticate,
     deps.mediaController.deleteMedia
+  );
+
+  // Inspiration gallery routes
+  router.get('/inspo/gallery',
+    deps.authMiddleware.authenticate,
+    deps.inspoController.getGallery
   );
 
   // Publishing routes

@@ -74,6 +74,7 @@ const apiRoutes = createApiRoutes({
   workspaceController: container.get('workspaceController'),
   userController: container.get('userController'),
   mediaController: container.get('mediaController'),
+  inspoController: container.get('inspoController'),
   publishingController: container.get('publishingController'),
   customDomainController: container.get('customDomainController'),
   billingController: container.get('billingController'),
