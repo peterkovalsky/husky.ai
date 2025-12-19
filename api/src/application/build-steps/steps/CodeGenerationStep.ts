@@ -2,6 +2,7 @@ import { IBuildStep, StepResult, BuildStepStatus } from '../IBuildStep';
 import { BuildStepContext } from '../BuildStepContext';
 import { IBuildRepository } from '../../../domain/repositories/IBuildRepository';
 import { IMediaRepository } from '../../../domain/repositories/IMediaRepository';
+import { IInspoRepository } from '../../../domain/repositories/IInspoRepository';
 import { IAIService } from '../../../domain/services/IAIService';
 import { IStorageService } from '../../../domain/services/IStorageService';
 import { PrepareProjectEnvironmentUseCase } from '../../use-cases/PrepareProjectEnvironmentUseCase';
@@ -36,6 +37,7 @@ export class CodeGenerationStep implements IBuildStep {
   constructor(
     private buildRepository: IBuildRepository,
     private mediaRepository: IMediaRepository,
+    private inspoRepository: IInspoRepository,
     private aiService: IAIService,
     private storageService: IStorageService,
     private prepareProjectEnvironmentUseCase: PrepareProjectEnvironmentUseCase
@@ -96,6 +98,18 @@ export class CodeGenerationStep implements IBuildStep {
         publicMediaUrls = await Promise.all(uploadPromises);
         publicS3UploadTimeMs = Date.now() - publicUploadStartTime;
         console.log(`[${this.stepName}] Uploaded ${publicMediaUrls.length} images to public S3 in ${publicS3UploadTimeMs}ms`);
+      }
+
+      // 3b. Add inspiration image if selected
+      const build = await this.buildRepository.findById(context.buildId);
+      if (build?.inspoId) {
+        console.log(`[${this.stepName}] Build has inspiration reference: ${build.inspoId}`);
+        const inspo = await this.inspoRepository.findById(build.inspoId);
+        if (inspo) {
+          // Prepend inspo image URL to media URLs so AI sees it first
+          publicMediaUrls = [inspo.imageUrl, ...publicMediaUrls];
+          console.log(`[${this.stepName}] Added inspiration image: ${inspo.name} (${inspo.imageUrl})`);
+        }
       }
 
       // 4. Determine which AI model to use

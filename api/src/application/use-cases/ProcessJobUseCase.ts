@@ -2,6 +2,7 @@ import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
 import { IWorkspaceRepository } from '../../domain/repositories/IWorkspaceRepository';
 import { IMediaRepository } from '../../domain/repositories/IMediaRepository';
+import { IInspoRepository } from '../../domain/repositories/IInspoRepository';
 import { IAIService } from '../../domain/services/IAIService';
 import { IBuildService } from '../../domain/services/IBuildService';
 import { IStorageService } from '../../domain/services/IStorageService';
@@ -52,7 +53,8 @@ export class ProcessJobUseCase {
     private prepareProjectEnvironmentUseCase: PrepareProjectEnvironmentUseCase,
     private mediaRepository: IMediaRepository,
     private imageProcessingService: IImageProcessingService,
-    private screenshotService: IScreenshotService
+    private screenshotService: IScreenshotService,
+    private inspoRepository: IInspoRepository
   ) {}
 
   async execute(jobMessage: JobMessage): Promise<void> {
@@ -103,6 +105,7 @@ export class ProcessJobUseCase {
     const codeGenStep = new CodeGenerationStep(
       this.buildRepository,
       this.mediaRepository,
+      this.inspoRepository,
       this.aiService,
       this.storageService,
       this.prepareProjectEnvironmentUseCase

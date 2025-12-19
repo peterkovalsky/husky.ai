@@ -13,7 +13,7 @@ export class PromptController {
 
   createPrompt = async (req: AuthRequest, res: Response) => {
     try {
-      const { prompt, projectId, mediaIds, clarificationAnswers, analysisId, skippedClarification } = req.body;
+      const { prompt, projectId, mediaIds, clarificationAnswers, analysisId, skippedClarification, inspoId } = req.body;
 
       console.log('[PromptController] Creating prompt - projectId:', projectId, 'prompt:', prompt?.substring(0, 50), 'mediaIds:', mediaIds);
       if (clarificationAnswers) {
@@ -22,13 +22,16 @@ export class PromptController {
       if (skippedClarification) {
         console.log('[PromptController] User skipped clarification (Surprise Me)');
       }
+      if (inspoId) {
+        console.log('[PromptController] With inspiration reference:', inspoId);
+      }
 
       if (!req.user) {
         return res.status(401).json({ error: 'User not authenticated' });
       }
 
       const result = await this.createPromptUseCase.execute(
-        { prompt, projectId, mediaIds, clarificationAnswers, analysisId, skippedClarification },
+        { prompt, projectId, mediaIds, clarificationAnswers, analysisId, skippedClarification, inspoId },
         req.user
       );
 
@@ -68,7 +71,7 @@ export class PromptController {
         req.user
       );
 
-      console.log('[PromptController] Analysis complete - needsClarification:', result.needsClarification, 'questions:', result.questions?.length || 0);
+      console.log('[PromptController] Analysis complete - needsClarification:', result.needsClarification, 'questions:', result.questions?.length || 0, 'showInspirationGallery:', result.showInspirationGallery);
 
       res.json(result);
     } catch (error) {

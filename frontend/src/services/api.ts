@@ -1,3 +1,6 @@
+import { supabase } from '../lib/supabase';
+import { errorTracking } from './errorTracking';
+
 export interface JobStatus {
   jobId: string;
   promptId?: string;
@@ -238,9 +241,18 @@ export interface PurchaseHistoryResponse {
   }[];
 }
 
+// Inspiration Gallery types
+export interface InspoItem {
+  id: string;
+  name: string;
+  imageUrl: string;
+}
 
-import { supabase } from '../lib/supabase';
-import { errorTracking } from './errorTracking';
+export interface InspoGalleryResponse {
+  items: InspoItem[];
+  total: number;
+  hasMore: boolean;
+}
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3333';
 
@@ -336,7 +348,8 @@ export class ApiService {
     mediaIds?: string[],
     clarificationAnswers?: import('../types/clarification').ClarificationAnswer[],
     analysisId?: string,
-    skippedClarification?: boolean
+    skippedClarification?: boolean,
+    inspoId?: string
   ): Promise<PromptResponse> {
     return this.request<PromptResponse>('/api/prompt', {
       method: 'POST',
@@ -346,7 +359,8 @@ export class ApiService {
         mediaIds,
         clarificationAnswers,
         analysisId,
-        skippedClarification
+        skippedClarification,
+        inspoId
       }),
     });
   }
@@ -513,6 +527,15 @@ export class ApiService {
     return this.request<{ success: boolean }>(endpoint, {
       method: 'DELETE',
     });
+  }
+
+  // Inspiration gallery methods
+  static async getInspoGallery(limit?: number, offset?: number): Promise<InspoGalleryResponse> {
+    const params = new URLSearchParams();
+    if (limit !== undefined) params.set('limit', String(limit));
+    if (offset !== undefined) params.set('offset', String(offset));
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return this.request<InspoGalleryResponse>(`/api/inspo/gallery${query}`);
   }
 
   // Publishing methods

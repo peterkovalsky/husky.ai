@@ -63,9 +63,25 @@ FORMAT RULES:
 - Option descriptions: under 8 words
 - 2-3 options per question
 
+ADDITIONAL TASK:
+Determine if this request is for a landing page, website, homepage, marketing site, or portfolio.
+Set isLandingPageRequest to true if the user wants to build:
+- A landing page or home page
+- A marketing website or product page
+- A portfolio or personal website
+- A company or business website
+- A SaaS marketing page
+- Any page-based website (vs an interactive app/tool)
+
+Set isLandingPageRequest to false for:
+- Interactive applications (dashboards, todo apps, calculators)
+- Tools and utilities
+- Games or interactive experiences
+
 RESPONSE FORMAT (JSON only):
 {
   "projectName": "Short Descriptive Name",
+  "isLandingPageRequest": true,
   "questions": [
     {
       "id": "q1",
@@ -132,7 +148,8 @@ export class AnalyzePromptUseCase {
         return {
           needsClarification: false,
           analysisId,
-          suggestedProjectName: result.projectName
+          suggestedProjectName: result.projectName,
+          showInspirationGallery: result.isLandingPageRequest
         };
       }
 
@@ -140,7 +157,8 @@ export class AnalyzePromptUseCase {
         needsClarification: true,
         questions: result.questions,
         analysisId,
-        suggestedProjectName: result.projectName
+        suggestedProjectName: result.projectName,
+        showInspirationGallery: result.isLandingPageRequest
       };
     } catch (error) {
       console.error('[AnalyzePromptUseCase] Error generating analysis:', error);
@@ -148,7 +166,8 @@ export class AnalyzePromptUseCase {
       return {
         needsClarification: false,
         analysisId,
-        suggestedProjectName: this.generateFallbackName(dto.prompt)
+        suggestedProjectName: this.generateFallbackName(dto.prompt),
+        showInspirationGallery: false
       };
     }
   }
@@ -169,7 +188,7 @@ export class AnalyzePromptUseCase {
     projectId: string | undefined,
     analysisId: string,
     startTime: number
-  ): Promise<{ questions: ClarificationQuestion[]; projectName: string }> {
+  ): Promise<{ questions: ClarificationQuestion[]; projectName: string; isLandingPageRequest: boolean }> {
     console.log('[AnalyzePromptUseCase] Generating analysis (name + questions) using Haiku...');
 
     const response = await this.client.messages.create({
@@ -183,12 +202,14 @@ export class AnalyzePromptUseCase {
 
 Analyze this prompt and:
 1. Generate a short, descriptive project name (2-4 words, max 30 chars)
-2. Generate context-specific clarification questions
+2. Determine if this is a landing page/website request (isLandingPageRequest: true/false)
+3. Generate context-specific clarification questions
 
 Remember:
 - Only ask about things NOT already specified
 - Make questions relevant to THIS specific type of site/app
-- Fewer questions for detailed prompts, more for vague ones`
+- Fewer questions for detailed prompts, more for vague ones
+- Set isLandingPageRequest to true for websites, landing pages, portfolios, marketing pages`
         }
       ]
     });
@@ -251,10 +272,13 @@ Remember:
       // Extract questions
       const questions = parsed.questions as ClarificationQuestion[];
 
+      // Extract isLandingPageRequest
+      const isLandingPageRequest = parsed.isLandingPageRequest === true;
+
       // Validate questions structure
       if (!Array.isArray(questions)) {
         console.warn('[AnalyzePromptUseCase] Invalid response: questions is not an array');
-        return { questions: [], projectName };
+        return { questions: [], projectName, isLandingPageRequest };
       }
 
       // Limit to max 3 questions, each with max 3 options
@@ -268,12 +292,12 @@ Remember:
         }))
       }));
 
-      console.log(`[AnalyzePromptUseCase] Generated name: "${projectName}", ${validatedQuestions.length} questions`);
-      return { questions: validatedQuestions, projectName };
+      console.log(`[AnalyzePromptUseCase] Generated name: "${projectName}", ${validatedQuestions.length} questions, isLandingPage: ${isLandingPageRequest}`);
+      return { questions: validatedQuestions, projectName, isLandingPageRequest };
     } catch (parseError) {
       console.error('[AnalyzePromptUseCase] Failed to parse AI response:', parseError);
       console.error('[AnalyzePromptUseCase] Raw response:', rawContent);
-      return { questions: [], projectName: this.generateFallbackName(userPrompt) };
+      return { questions: [], projectName: this.generateFallbackName(userPrompt), isLandingPageRequest: false };
     }
   }
 }

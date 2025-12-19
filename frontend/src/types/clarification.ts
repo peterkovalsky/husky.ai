@@ -24,4 +24,5 @@ export interface AnalyzePromptResponse {
   questions?: ClarificationQuestion[];
   analysisId: string;
   suggestedProjectName?: string;
+  showInspirationGallery?: boolean;
 }
