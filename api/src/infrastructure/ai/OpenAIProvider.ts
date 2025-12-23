@@ -14,7 +14,7 @@ export class OpenAIProvider extends BaseAIProvider {
     super(aiLogRepository);
     this.client = new OpenAI({
       apiKey: apiKey || process.env.OPENAI_API_KEY,
-      timeout: 20 * 60 * 1000, // 20 minutes timeout
+      timeout: 10 * 60 * 1000, // 10 minutes timeout
     });
   }
 

@@ -27,6 +27,16 @@ export class AIService implements IAIService {
   private currentProjectId: string = '';
   private currentBuildId: string = '';
 
+  // Fallback model mappings
+  private static readonly FALLBACK_MODELS: Record<string, string> = {
+    // Gemini models fallback to Anthropic Sonnet
+    'gemini-3-pro-preview': 'claude-sonnet-4-5-20250929',
+    'gemini-2.5-pro': 'claude-sonnet-4-5-20250929',
+    'gemini-2.5-flash': 'claude-sonnet-4-5-20250929',
+    // Anthropic Haiku fallback to Gemini 3
+    'claude-haiku-4-5-20251001': 'gemini-3-pro-preview',
+  };
+
   constructor(
     providers: IAIProvider[],
     buildRepository: IBuildRepository,
@@ -72,15 +82,102 @@ export class AIService implements IAIService {
     model: string,
     mediaUrls?: string[]
   ): Promise<AIResponse> {
-    // Select provider based on model
-    const provider = this.getProviderForModel(model);
-    console.log(`[AIService] Delegating to ${provider.getName()} provider for model: ${model}...`);
-
     // Get build from database to access project info
     const build = await this.buildRepository.findById(buildId);
     if (!build) {
       throw new Error(`Build not found: ${buildId}`);
     }
+
+    // Try primary model first, then fallback if it fails
+    const modelsToTry = [model];
+    const fallbackModel = AIService.FALLBACK_MODELS[model];
+    if (fallbackModel) {
+      modelsToTry.push(fallbackModel);
+    }
+
+    let lastError: Error | null = null;
+
+    for (const currentModel of modelsToTry) {
+      try {
+        const response = await this.tryGenerateWithModel(
+          currentModel,
+          prompt,
+          buildId,
+          build,
+          mediaUrls,
+          currentModel !== model // isFallback
+        );
+        return response;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        const errorMessage = lastError.message;
+
+        // Check if this is a retryable error (API error or timeout)
+        const isRetryable = this.isRetryableError(errorMessage);
+
+        if (isRetryable && currentModel !== modelsToTry[modelsToTry.length - 1]) {
+          const nextModel = modelsToTry[modelsToTry.indexOf(currentModel) + 1];
+          console.warn(`[AIService] ${currentModel} failed with retryable error: ${errorMessage}`);
+          console.log(`[AIService] Retrying with fallback model: ${nextModel}`);
+          continue;
+        }
+
+        // Not retryable or no more fallbacks - throw the error
+        throw lastError;
+      }
+    }
+
+    // Should not reach here, but just in case
+    throw lastError || new Error('AI generation failed with no error details');
+  }
+
+  /**
+   * Check if an error is retryable (API errors, timeouts, stream interruptions)
+   */
+  private isRetryableError(errorMessage: string): boolean {
+    const retryablePatterns = [
+      'API error',
+      'timeout',
+      'Timeout',
+      'TIMEOUT',
+      'stream interrupted',
+      'terminated',
+      'ECONNRESET',
+      'ENOTFOUND',
+      'ETIMEDOUT',
+      'socket hang up',
+      'network error',
+      'Network error',
+      '500',
+      '502',
+      '503',
+      '504',
+      'Service Unavailable',
+      'Bad Gateway',
+      'Gateway Timeout',
+      'overloaded',
+      'rate limit',
+      'Rate limit',
+    ];
+
+    return retryablePatterns.some(pattern => errorMessage.includes(pattern));
+  }
+
+  /**
+   * Attempt to generate response with a specific model
+   */
+  private async tryGenerateWithModel(
+    model: string,
+    prompt: string,
+    buildId: string,
+    build: { userId: string },
+    mediaUrls?: string[],
+    isFallback: boolean = false
+  ): Promise<AIResponse> {
+    // Select provider based on model
+    const provider = this.getProviderForModel(model);
+    const fallbackLabel = isFallback ? ' (fallback)' : '';
+    console.log(`[AIService] Delegating to ${provider.getName()} provider for model: ${model}${fallbackLabel}...`);
 
     // Build the request with all business logic handled here
     const request: AIGenerationRequest = {
@@ -108,8 +205,7 @@ export class AIService implements IAIService {
     }
 
     // AI metrics are now only logged to ai_logs table (via provider)
-    // No need to update prompts table anymore - it's been dropped
-    console.log(`[AIService] AI generation completed for build ${buildId} (${providerResponse.model})`);
+    console.log(`[AIService] AI generation completed for build ${buildId} (${providerResponse.model})${fallbackLabel}`);
 
     // Return AIResponse format
     return {

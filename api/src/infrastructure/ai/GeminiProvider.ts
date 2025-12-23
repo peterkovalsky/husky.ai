@@ -14,6 +14,9 @@ export class GeminiProvider extends BaseAIProvider {
     super(aiLogRepository);
     this.client = new GoogleGenAI({
       apiKey: apiKey || process.env.GEMINI_API_KEY,
+      httpOptions: {
+        timeout: 10 * 60 * 1000, // 10 minutes timeout
+      },
     });
   }
 
@@ -66,17 +69,26 @@ export class GeminiProvider extends BaseAIProvider {
       let rawContent = "";
       let inputTokens = 0;
       let outputTokens = 0;
+      let chunkCount = 0;
 
       console.log("[GeminiProvider] Streaming API response...");
-      for await (const chunk of response) {
-        if (chunk.text) {
-          rawContent += chunk.text;
-        }
+      try {
+        for await (const chunk of response) {
+          chunkCount++;
+          if (chunk.text) {
+            rawContent += chunk.text;
+          }
 
-        if (chunk.usageMetadata) {
-          inputTokens = chunk.usageMetadata.promptTokenCount || 0;
-          outputTokens = chunk.usageMetadata.candidatesTokenCount || 0;
+          if (chunk.usageMetadata) {
+            inputTokens = chunk.usageMetadata.promptTokenCount || 0;
+            outputTokens = chunk.usageMetadata.candidatesTokenCount || 0;
+          }
         }
+      } catch (streamError) {
+        // Log partial content info for debugging
+        console.error(`[GeminiProvider] Stream error after ${chunkCount} chunks, ${rawContent.length} chars received`);
+        const errorMessage = streamError instanceof Error ? streamError.message : "Unknown stream error";
+        throw new Error(`Gemini API stream interrupted after ${chunkCount} chunks (${rawContent.length} chars): ${errorMessage}`);
       }
 
       console.log("[GeminiProvider] Gemini API streaming completed");
@@ -86,7 +98,15 @@ export class GeminiProvider extends BaseAIProvider {
         usage: { inputTokens, outputTokens }
       };
     } catch (error) {
-      throw new Error(`Gemini API error: ${error instanceof Error ? error.message : "Unknown error"}`);
+      // Check for specific error types
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+
+      // If it's already our wrapped stream error, re-throw as-is
+      if (errorMessage.includes('stream interrupted')) {
+        throw error;
+      }
+
+      throw new Error(`Gemini API error: ${errorMessage}`);
     }
   }
 
