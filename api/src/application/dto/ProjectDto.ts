@@ -1,3 +1,5 @@
+import { ChatMessage } from '../../domain/entities/ChatMessage';
+
 export interface CreateProjectDto {
   name: string;
   description?: string;
@@ -42,4 +44,5 @@ export interface ProjectDetailsDto {
     createdAt: Date;
     promptId?: string;
   }>;
+  chatMessages?: ChatMessage[];
 }

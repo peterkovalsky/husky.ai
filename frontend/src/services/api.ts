@@ -125,6 +125,7 @@ export interface ProjectDetails {
   }[];
   builds: Build[];
   previews: Preview[];
+  chatMessages?: ChatMessage[];
 }
 
 export interface CreateProjectRequest {
@@ -241,6 +242,55 @@ export interface PurchaseHistoryResponse {
   }[];
 }
 
+// Chat message types
+export interface ChatMessageMetadata {
+  inspoThumbnail?: string;
+  inspoName?: string;
+  [key: string]: unknown;
+}
+
+export interface ChatMessage {
+  id: string;
+  projectId: string;
+  buildId?: string;
+  userId: string;
+  type: string;
+  source: string;
+  content: string;
+  role: 'user' | 'assistant' | 'system';
+  conversationRound: number;
+  messageOrder: number;
+  mediaIds?: string[];
+  inspoId?: string;
+  questionId?: string;
+  parentMessageId?: string;
+  isSkipped?: boolean;
+  answerOptionId?: string;
+  answerOptionLabel?: string;
+  answerFreeText?: string;
+  status: string;
+  metadata?: ChatMessageMetadata;
+  createdAt: string;
+  modifiedAt: string;
+}
+
+export interface ChatMessageInput {
+  type: string;
+  source?: string;
+  content: string;
+  role: 'user' | 'assistant' | 'system';
+  messageOrder: number;
+  mediaIds?: string[];
+  inspoId?: string;
+  questionId?: string;
+  parentMessageId?: string;
+  isSkipped?: boolean;
+  answerOptionId?: string;
+  answerOptionLabel?: string;
+  answerFreeText?: string;
+  metadata?: ChatMessageMetadata;
+}
+
 // Inspiration Gallery types
 export interface InspoItem {
   id: string;
@@ -349,7 +399,8 @@ export class ApiService {
     clarificationAnswers?: import('../types/clarification').ClarificationAnswer[],
     analysisId?: string,
     skippedClarification?: boolean,
-    inspoId?: string
+    inspoId?: string,
+    chatMessages?: ChatMessageInput[]
   ): Promise<PromptResponse> {
     return this.request<PromptResponse>('/api/prompt', {
       method: 'POST',
@@ -360,7 +411,8 @@ export class ApiService {
         clarificationAnswers,
         analysisId,
         skippedClarification,
-        inspoId
+        inspoId,
+        chatMessages
       }),
     });
   }

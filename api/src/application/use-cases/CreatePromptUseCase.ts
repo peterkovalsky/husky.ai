@@ -2,11 +2,13 @@ import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
 import { IWorkspaceRepository } from '../../domain/repositories/IWorkspaceRepository';
 import { IMediaRepository } from '../../domain/repositories/IMediaRepository';
+import { IChatMessageRepository } from '../../domain/repositories/IChatMessageRepository';
 import { IQueueService } from '../../domain/services/IQueueService';
 import { CreatePromptDto, CreatePromptResponseDto } from '../dto/CreatePromptDto';
 import { ClarificationAnswer } from '../dto/AnalyzePromptDto';
 import { User } from '../../domain/entities/User';
 import { BuildStepStatus } from '../build-steps/IBuildStep';
+import { ChatMessageSource } from '../../domain/entities/ChatMessage';
 
 export class CreatePromptUseCase {
   constructor(
@@ -14,7 +16,8 @@ export class CreatePromptUseCase {
     private projectRepository: IProjectRepository,
     private workspaceRepository: IWorkspaceRepository,
     private queueService: IQueueService,
-    private mediaRepository: IMediaRepository
+    private mediaRepository: IMediaRepository,
+    private chatMessageRepository: IChatMessageRepository
   ) {}
 
   async execute(dto: CreatePromptDto, user: User): Promise<CreatePromptResponseDto> {
@@ -88,6 +91,33 @@ export class CreatePromptUseCase {
     });
 
     console.log(`[CreatePromptUseCase] Created build ${build.id} with status INITIALIZING`);
+
+    // Save chat messages if provided (onboarding conversation history)
+    if (dto.chatMessages && dto.chatMessages.length > 0) {
+      const chatMessageRequests = dto.chatMessages.map(msg => ({
+        projectId,
+        buildId: build.id,
+        userId: user.id,
+        type: msg.type,
+        source: msg.source || ChatMessageSource.ONBOARDING,
+        content: msg.content,
+        role: msg.role,
+        conversationRound: build.version,
+        messageOrder: msg.messageOrder,
+        mediaIds: msg.mediaIds,
+        inspoId: msg.inspoId,
+        questionId: msg.questionId,
+        parentMessageId: msg.parentMessageId,
+        isSkipped: msg.isSkipped,
+        answerOptionId: msg.answerOptionId,
+        answerOptionLabel: msg.answerOptionLabel,
+        answerFreeText: msg.answerFreeText,
+        metadata: msg.metadata,
+      }));
+
+      await this.chatMessageRepository.createMany(chatMessageRequests);
+      console.log(`[CreatePromptUseCase] Saved ${chatMessageRequests.length} chat messages for build ${build.id}`);
+    }
 
     // Send message to queue with just buildId - all data is in the build record
     const message = {

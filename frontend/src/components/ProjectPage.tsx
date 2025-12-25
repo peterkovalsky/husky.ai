@@ -1,12 +1,16 @@
 import { useState, useEffect, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { ApiService, type JobStatus, type ProjectDetails } from '../services/api'
 import { useProject } from '../contexts/ProjectContext'
 import { ChatWidget } from './ChatWidget'
 import { NewProjectStarter } from './NewProjectStarter'
-import { Button } from '@heroui/react'
+import InspirationGallery from './InspirationGallery'
+import OnboardingQuestionPanel from './OnboardingQuestionPanel'
+import { Button, Spinner } from '@heroui/react'
 import { Code2, ArrowLeft, Loader2 } from 'lucide-react'
 import { useLocalStorage } from '../hooks/useLocalStorage'
+import { useOnboarding } from '../hooks/useOnboarding'
+import type { ProjectPageLocationState } from '../types/onboarding'
 
 // Helper function to add cache-busting parameter to preview URL
 const getCacheBustedUrl = (url: string) => {
@@ -17,7 +21,29 @@ const getCacheBustedUrl = (url: string) => {
 export const ProjectPage = () => {
   const { project_id } = useParams<{ project_id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const { setCurrentProject } = useProject()
+
+  // Get location state for onboarding
+  const locationState = location.state as ProjectPageLocationState | null
+
+  // Onboarding hook
+  const {
+    phase: onboardingPhase,
+    data: onboardingData,
+    onboardingMessages,
+    currentQuestion,
+    error: onboardingError,
+    isLoading: isOnboardingLoading,
+    buildStatus: onboardingBuildStatus,
+    buildJustCompleted,
+    startOnboarding,
+    handleInspoSelect,
+    handleInspoSkip,
+    handleQuestionAnswer,
+    handleQuestionSkip,
+    cancelOnboarding,
+  } = useOnboarding(project_id)
 
   // Debug: log project_id on every render
   console.log('[ProjectPage] Render - project_id from useParams:', project_id, 'type:', typeof project_id)
@@ -147,6 +173,30 @@ export const ProjectPage = () => {
     }
   }, [projectDetails, setCurrentProject])
 
+  // Handle onboarding from router state (when redirected from NewProjectPage)
+  useEffect(() => {
+    if (locationState?.startOnboarding && locationState.initialPrompt && project_id) {
+      console.log('[ProjectPage] Starting onboarding from router state')
+      // Start the onboarding flow
+      startOnboarding(locationState.initialPrompt, locationState.mediaIds || [])
+
+      // Clear the location state to prevent re-triggering on refresh
+      navigate(location.pathname, { replace: true, state: null })
+    }
+  }, [locationState, project_id, startOnboarding, navigate, location.pathname])
+
+  // Refresh project details when build just completed (to update build count)
+  useEffect(() => {
+    if (buildJustCompleted && project_id) {
+      console.log('[ProjectPage] Build just completed, refreshing project details')
+      ApiService.getProjectDetails(project_id).then(details => {
+        setProjectDetails(details)
+      }).catch(err => {
+        console.error('[ProjectPage] Failed to refresh project details:', err)
+      })
+    }
+  }, [buildJustCompleted, project_id])
+
   // Listen for preview reload events from ChatWidget
   useEffect(() => {
     const handleReloadPreview = (event: CustomEvent) => {
@@ -264,8 +314,13 @@ export const ProjectPage = () => {
   const latestReadyPrompt = projectDetails?.recentPrompts?.find(p => p.status === 'READY' || p.status === 'COMPLETED')
   const hasReadyPreview = latestReadyPrompt && latestJobStatus?.previewUrl
 
+  // Check if onboarding is in progress
+  const isOnboardingActive = onboardingPhase !== 'NONE'
+
   // Special case: NewProjectStarter is completely different UI
-  if (projectDetails && (hasNoBuilds || allBuildsFailed)) {
+  // BUT only show if not in onboarding mode AND build didn't just complete
+  // The buildJustCompleted flag prevents flash of NewProjectStarter after first build
+  if (projectDetails && !isOnboardingActive && !buildJustCompleted && (hasNoBuilds || allBuildsFailed)) {
     return (
       <NewProjectStarter
         projectId={projectDetails.project.id}
@@ -275,12 +330,12 @@ export const ProjectPage = () => {
     )
   }
 
-  // Fully loaded when we have project details and preview URL
+  // Fully loaded when we have project details and (preview URL OR onboarding is active)
   // Note: iframeLoaded is intentionally NOT included here to prevent ChatWidget from unmounting
   // when the iframe is refreshed. ChatWidget needs to stay mounted to preserve message state.
-  const isFullyLoaded = projectDetails && hasReadyPreview
-  // Show loading overlay only during initial load, not during iframe refresh
-  const shouldShowLoading = !projectDetails || !hasReadyPreview
+  const isFullyLoaded = projectDetails && (hasReadyPreview || isOnboardingActive)
+  // Show loading overlay only during initial load, not during iframe refresh or onboarding
+  const shouldShowLoading = !projectDetails || (!hasReadyPreview && !isOnboardingActive)
 
   // Debug logging
   console.log('[ProjectPage] State check:', {
@@ -354,11 +409,13 @@ export const ProjectPage = () => {
                 setIsHoveringSidebar(false)
               }
             }}
+            onboardingPhase={onboardingPhase}
+            onboardingMessages={onboardingMessages}
           />
         </div>
       )}
 
-      {/* Iframe container */}
+      {/* Preview/Content container */}
       <div
         className={`
           flex-1 h-full relative
@@ -368,39 +425,112 @@ export const ProjectPage = () => {
           marginLeft: isSidebarLocked && isSidebarOpen && isFullyLoaded ? `0px` : '0px'
         }}
       >
-        {/* Iframe loading overlay - shown when iframe is refreshing (but not during initial load) */}
-        {isFullyLoaded && !iframeLoaded && (
-          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-10">
+        {/* Onboarding: Analyzing phase */}
+        {onboardingPhase === 'ANALYZING' && (
+          <div className="h-full flex items-center justify-center bg-background">
             <div className="text-center">
-              <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">Refreshing preview...</p>
+              <Spinner size="lg" color="primary" />
+              <p className="mt-4 text-default-500">Analyzing your request...</p>
             </div>
           </div>
         )}
-        {/* Iframe - ALWAYS rendered from the start, NEVER unmounts or remounts */}
-        {/* No key prop = stable element, only src updates */}
-        {/* Use undefined instead of empty string to avoid browser warning */}
-        <iframe
-          ref={iframeRef}
-          src={currentPreviewUrl || undefined}
-          className="w-full h-full border-0"
-          title="Project Preview"
-          sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-          onLoad={() => {
-            console.log('[ProjectPage] iframe onLoad fired, currentPreviewUrlRef:', currentPreviewUrlRef.current)
-            // Only mark as loaded if we actually have content (use ref to avoid stale closure)
-            if (currentPreviewUrlRef.current) {
-              console.log('[ProjectPage] Setting iframeLoaded to true')
-              setIframeLoaded(true)
-            }
-          }}
-          onError={() => {
-            console.log('[ProjectPage] iframe onError fired, currentPreviewUrlRef:', currentPreviewUrlRef.current)
-            if (currentPreviewUrlRef.current) {
-              setIframeLoaded(true)
-            }
-          }}
-        />
+
+        {/* Onboarding: Inspiration selection phase */}
+        {onboardingPhase === 'INSPO_SELECTION' && (
+          <InspirationGallery
+            onSelect={() => {/* legacy, not used */}}
+            onSelectWithItem={(id, item) => handleInspoSelect(id, item)}
+            onSkip={handleInspoSkip}
+            onCancel={cancelOnboarding}
+            isLoading={isOnboardingLoading}
+          />
+        )}
+
+        {/* Onboarding: Clarification phase */}
+        {onboardingPhase === 'CLARIFICATION' && currentQuestion && (
+          <OnboardingQuestionPanel
+            question={currentQuestion}
+            questionNumber={(onboardingData?.currentQuestionIndex ?? 0) + 1}
+            totalQuestions={onboardingData?.clarificationQuestions.length ?? 0}
+            onAnswer={handleQuestionAnswer}
+            onSkip={handleQuestionSkip}
+            onCancel={cancelOnboarding}
+            isLoading={isOnboardingLoading}
+          />
+        )}
+
+        {/* Onboarding: Submitting phase */}
+        {onboardingPhase === 'SUBMITTING' && (
+          <div className="h-full flex items-center justify-center bg-background">
+            <div className="text-center">
+              <Spinner size="lg" color="primary" />
+              <p className="mt-4 text-default-500">Submitting your prompt...</p>
+            </div>
+          </div>
+        )}
+
+        {/* Onboarding: Building phase */}
+        {onboardingPhase === 'BUILDING' && (
+          <div className="h-full flex items-center justify-center bg-background">
+            <div className="text-center">
+              <Spinner size="lg" color="primary" />
+              <p className="mt-4 text-default-500">
+                {onboardingBuildStatus === 'QUEUED' && 'Queued... Getting ready to build'}
+                {onboardingBuildStatus === 'PROCESSING' && 'Processing your request...'}
+                {onboardingBuildStatus === 'BUILDING' && 'Building your app...'}
+                {!onboardingBuildStatus && 'Building your app...'}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Normal preview mode (no onboarding) */}
+        {onboardingPhase === 'NONE' && (
+          <>
+            {/* Iframe loading overlay - shown when iframe is refreshing (but not during initial load) */}
+            {isFullyLoaded && !iframeLoaded && (
+              <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-10">
+                <div className="text-center">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">Refreshing preview...</p>
+                </div>
+              </div>
+            )}
+            {/* Iframe - ALWAYS rendered from the start, NEVER unmounts or remounts */}
+            {/* No key prop = stable element, only src updates */}
+            {/* Use undefined instead of empty string to avoid browser warning */}
+            <iframe
+              ref={iframeRef}
+              src={currentPreviewUrl || undefined}
+              className="w-full h-full border-0"
+              title="Project Preview"
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+              onLoad={() => {
+                console.log('[ProjectPage] iframe onLoad fired, currentPreviewUrlRef:', currentPreviewUrlRef.current)
+                // Only mark as loaded if we actually have content (use ref to avoid stale closure)
+                if (currentPreviewUrlRef.current) {
+                  console.log('[ProjectPage] Setting iframeLoaded to true')
+                  setIframeLoaded(true)
+                }
+              }}
+              onError={() => {
+                console.log('[ProjectPage] iframe onError fired, currentPreviewUrlRef:', currentPreviewUrlRef.current)
+                if (currentPreviewUrlRef.current) {
+                  setIframeLoaded(true)
+                }
+              }}
+            />
+          </>
+        )}
+
+        {/* Onboarding error display */}
+        {onboardingError && (
+          <div className="absolute bottom-4 left-4 right-4 z-20">
+            <div className="bg-danger-50 border border-danger-200 rounded-lg p-4">
+              <p className="text-danger-700 text-sm">{onboardingError}</p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -1,19 +1,32 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ApiService, type JobStatus } from '../services/api'
+import { ApiService, type JobStatus, type ChatMessage as APIChatMessage } from '../services/api'
 import { useProject } from '../contexts/ProjectContext'
-import { Button, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Alert, Divider } from '@heroui/react'
-import { MessageCircle, Loader2, CheckCircle, AlertCircle, Undo2, ArrowLeft, CircleChevronLeft, PanelLeft } from 'lucide-react'
+import { Button, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Alert, Divider, Image } from '@heroui/react'
+import { MessageCircle, Loader2, CheckCircle, AlertCircle, Undo2, ArrowLeft, CircleChevronLeft, PanelLeft, Bot, SkipForward } from 'lucide-react'
 import { PromptInput } from './PromptInput'
 import { useMediaUpload } from '../hooks/useMediaUpload'
+import type { OnboardingPhase, OnboardingChatMessage, OnboardingMessageMetadata } from '../types/onboarding'
+
+// Map backend message types to frontend message types
+const BACKEND_TYPE_TO_FRONTEND: Record<string, ChatMessage['type']> = {
+  'USER_PROMPT': 'user',
+  'AI_QUESTION': 'ai-question',
+  'USER_ANSWER': 'user-answer',
+  'INSPO_SELECTION': 'inspo-selection',
+  'SYSTEM_STATUS': 'system',
+  'SYSTEM_ERROR': 'system',
+  'BUILD_RESULT': 'system',
+}
 
 interface ChatMessage {
   id: string
-  type: 'user' | 'system'
+  type: 'user' | 'system' | 'ai-question' | 'user-answer' | 'inspo-selection'
   content: string
   timestamp: Date
   status?: 'sending' | 'processing' | 'completed' | 'failed'
   jobId?: string
+  metadata?: OnboardingMessageMetadata
 }
 
 
@@ -24,6 +37,9 @@ interface ChatWidgetProps {
   onToggleLock?: () => void;
   isSidebarOpen?: boolean;
   onToggleOpen?: () => void;
+  // Onboarding props
+  onboardingPhase?: OnboardingPhase;
+  onboardingMessages?: OnboardingChatMessage[];
 }
 
 export const ChatWidget = ({
@@ -31,7 +47,9 @@ export const ChatWidget = ({
   isSidebarLocked = true,
   onToggleLock,
   isSidebarOpen = true,
-  onToggleOpen
+  onToggleOpen,
+  onboardingPhase = 'NONE',
+  onboardingMessages = [],
 }: ChatWidgetProps = {}) => {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [conversationHistory, setConversationHistory] = useState<ChatMessage[]>([])
@@ -53,6 +71,11 @@ export const ChatWidget = ({
 
   // Use explicit projectId prop if provided, otherwise fall back to context
   const activeProjectId = projectId || currentProject?.id
+
+  // Check if onboarding is in progress (disable input during onboarding steps)
+  const isOnboarding = onboardingPhase !== 'NONE' &&
+    onboardingPhase !== 'BUILDING' &&
+    onboardingPhase !== 'SUBMITTING'
 
   // Media upload hook
   const {
@@ -111,7 +134,7 @@ export const ChatWidget = ({
     fetchProjectDetails()
   }, [activeProjectId])
 
-  // Fetch conversation history from all prompts
+  // Fetch conversation history from chat_messages table
   useEffect(() => {
     const fetchConversationHistory = async () => {
       if (!activeProjectId) {
@@ -123,27 +146,56 @@ export const ChatWidget = ({
       try {
         const details = await ApiService.getProjectDetails(activeProjectId)
 
-        // Convert all prompts to chat messages
-        const historyMessages: ChatMessage[] = details.recentPrompts.map((prompt) => ({
-          id: prompt.id,
-          type: 'user',
-          content: prompt.prompt,
-          timestamp: new Date(prompt.createdAt),
-          status: prompt.status === 'READY' || prompt.status === 'COMPLETED' ? 'completed' : prompt.status === 'FAILED' ? 'failed' : 'processing',
-          jobId: prompt.id
-        }))
+        // Use chatMessages if available, otherwise fall back to prompts
+        if (details.chatMessages && details.chatMessages.length > 0) {
+          // Convert API chat messages to frontend format
+          const historyMessages: ChatMessage[] = details.chatMessages.map((msg: APIChatMessage) => ({
+            id: msg.id,
+            type: BACKEND_TYPE_TO_FRONTEND[msg.type] || 'system',
+            content: msg.content,
+            timestamp: new Date(msg.createdAt),
+            status: msg.status === 'completed' ? 'completed' : msg.status === 'failed' ? 'failed' : 'processing',
+            metadata: {
+              inspoThumbnail: msg.metadata?.inspoThumbnail,
+              inspoName: msg.metadata?.inspoName,
+              questionId: msg.questionId,
+              isSkipped: msg.isSkipped,
+            } as OnboardingMessageMetadata
+          }))
 
-        // Sort by timestamp ascending (oldest first)
-        historyMessages.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
+          // Already sorted by conversation_round and message_order from backend
+          setConversationHistory(historyMessages)
 
-        setConversationHistory(historyMessages)
-
-        // Find the last completed prompt for undo modal
-        const completedPrompts = historyMessages.filter(m => m.status === 'completed')
-        if (completedPrompts.length > 0) {
-          setLastPromptText(completedPrompts[completedPrompts.length - 1].content)
+          // Find the last user prompt for undo modal
+          const userPrompts = historyMessages.filter(m => m.type === 'user' && m.status === 'completed')
+          if (userPrompts.length > 0) {
+            setLastPromptText(userPrompts[userPrompts.length - 1].content)
+          } else {
+            setLastPromptText(null)
+          }
         } else {
-          setLastPromptText(null)
+          // Fall back to old behavior using prompts if no chat messages exist
+          const historyMessages: ChatMessage[] = details.recentPrompts.map((prompt) => ({
+            id: prompt.id,
+            type: 'user' as const,
+            content: prompt.prompt,
+            timestamp: new Date(prompt.createdAt),
+            status: prompt.status === 'READY' || prompt.status === 'COMPLETED' ? 'completed' : prompt.status === 'FAILED' ? 'failed' : 'processing',
+            jobId: prompt.id
+          }))
+
+          // Sort by timestamp ascending (oldest first)
+          historyMessages.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
+
+          setConversationHistory(historyMessages)
+
+          // Find the last completed prompt for undo modal
+          const completedPrompts = historyMessages.filter(m => m.status === 'completed')
+          if (completedPrompts.length > 0) {
+            setLastPromptText(completedPrompts[completedPrompts.length - 1].content)
+          } else {
+            setLastPromptText(null)
+          }
         }
       } catch (error) {
         console.error('Failed to fetch conversation history:', error)
@@ -402,11 +454,112 @@ export const ChatWidget = ({
   }
 
   const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
       minute: '2-digit',
-      hour12: false 
+      hour12: false
     })
+  }
+
+  // Render a single message based on its type
+  const renderMessage = (message: ChatMessage | OnboardingChatMessage, showUndo?: boolean, onUndoClick?: () => void) => {
+    const isAiMessage = message.type === 'ai-question' || message.type === 'system'
+    const isUserMessage = message.type === 'user' || message.type === 'user-answer'
+    const isInspoSelection = message.type === 'inspo-selection'
+
+    // AI/System messages - left aligned
+    if (isAiMessage) {
+      return (
+        <div key={message.id} className="flex justify-start">
+          <div className="max-w-[85%] flex items-start gap-2">
+            <div className="bg-primary/10 rounded-full p-2 flex-shrink-0">
+              <Bot className="h-4 w-4 text-primary" />
+            </div>
+            <div className="rounded-2xl px-4 py-3 bg-default-100 shadow-sm">
+              <span className="leading-relaxed break-words text-sm">{message.content}</span>
+              <div className="opacity-60 mt-2 text-xs">
+                {formatTime(message.timestamp)}
+              </div>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    // Inspo selection - right aligned with thumbnail
+    if (isInspoSelection && message.metadata?.inspoThumbnail) {
+      return (
+        <div key={message.id} className="flex justify-end">
+          <div className="max-w-[85%]">
+            <div className="rounded-2xl px-4 py-3 bg-[#2d2d2d] text-white shadow-sm">
+              <div className="mb-2">
+                <Image
+                  src={message.metadata.inspoThumbnail}
+                  alt={message.metadata.inspoName || 'Selected inspiration'}
+                  className="w-32 h-40 object-cover object-top rounded-lg"
+                />
+              </div>
+              <span className="leading-relaxed break-words text-sm">
+                Selected: {message.metadata.inspoName || 'Design inspiration'}
+              </span>
+              <div className="opacity-60 mt-2 text-xs">
+                {formatTime(message.timestamp)}
+              </div>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    // User answer with skipped indicator
+    if (message.type === 'user-answer' && message.metadata?.isSkipped) {
+      return (
+        <div key={message.id} className="flex justify-end">
+          <div className="max-w-[85%]">
+            <div className="rounded-2xl px-4 py-3 bg-default-200 text-default-600 shadow-sm">
+              <div className="flex items-center gap-2">
+                <SkipForward className="h-4 w-4" />
+                <span className="leading-relaxed text-sm italic">Skipped</span>
+              </div>
+              <div className="opacity-60 mt-2 text-xs">
+                {formatTime(message.timestamp)}
+              </div>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    // User messages - right aligned (default styling)
+    if (isUserMessage) {
+      return (
+        <div key={message.id} className="flex justify-end">
+          <div className="relative group max-w-[85%]">
+            <div className="rounded-2xl px-4 py-3 bg-[#2d2d2d] text-white shadow-sm">
+              <div className="flex items-start gap-2">
+                <span className="flex-1 leading-relaxed break-words text-sm">{message.content}</span>
+                {getStatusIcon(message.status)}
+              </div>
+              <div className="opacity-60 mt-2 text-xs">
+                {formatTime(message.timestamp)}
+              </div>
+            </div>
+            {showUndo && (
+              <button
+                className="absolute -bottom-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-default-100 hover:bg-default-200 rounded-full p-1.5 text-default-500 shadow-sm cursor-pointer"
+                onClick={onUndoClick}
+                title="Undo this version"
+              >
+                <Undo2 className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+        </div>
+      )
+    }
+
+    // Default fallback
+    return null
   }
 
   return (
@@ -455,7 +608,7 @@ export const ChatWidget = ({
 
         {/* Conversation history */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-          {conversationHistory.length === 0 && messages.filter(msg => msg.type === 'user').length === 0 && (
+          {conversationHistory.length === 0 && messages.filter(msg => msg.type === 'user').length === 0 && onboardingMessages.length === 0 && (
             <div className="text-center py-12">
               <div className="bg-content2 rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
                 <MessageCircle className="h-8 w-8 opacity-60" />
@@ -468,6 +621,9 @@ export const ChatWidget = ({
               </p>
             </div>
           )}
+
+          {/* Render onboarding messages */}
+          {onboardingMessages.map((message) => renderMessage(message))}
 
           {/* Display conversation history */}
           {(() => {
@@ -569,8 +725,14 @@ export const ChatWidget = ({
             onRemoveFile={removeFile}
             attachedFiles={attachedImages}
             isSubmitting={isSubmitting || isProcessing}
-            isDisabled={!activeProjectId || isSubmitting || isProcessing}
-            placeholder={activeProjectId ? "Describe your changes..." : "Select a project first..."}
+            isDisabled={!activeProjectId || isSubmitting || isProcessing || isOnboarding}
+            placeholder={
+              isOnboarding
+                ? "Complete the setup steps above..."
+                : activeProjectId
+                  ? "Describe your changes..."
+                  : "Select a project first..."
+            }
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}

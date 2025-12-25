@@ -1,27 +1,17 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import React from 'react'
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
-import { ApiService, type JobStatus, type Project } from '../services/api'
-import { Button } from '@heroui/react'
+import { ApiService } from '../services/api'
+import { Button, Spinner } from '@heroui/react'
 import { PromptInput } from './PromptInput'
 import { useMediaUpload } from '../hooks/useMediaUpload'
-import ClarificationPanel from './ClarificationPanel'
-import InspirationGallery from './InspirationGallery'
-import FailedBuildOptions from './FailedBuildOptions'
-import type { ClarificationQuestion, ClarificationAnswer } from '../types/clarification'
-import { Loader2, AlertTriangle, Sparkles, Layout, BarChart3, Palette, FileText } from 'lucide-react'
-
-type AppState = 'initial' | 'ready' | 'error'
+import { Sparkles, Layout, BarChart3, Palette, FileText, AlertTriangle } from 'lucide-react'
+import type { ProjectPageLocationState } from '../types/onboarding'
 
 export const NewProjectPage = () => {
   const [prompt, setPrompt] = useState('')
-  const [appState, setAppState] = useState<AppState>('initial')
-  const [jobStatus, setJobStatus] = useState<JobStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [createdProject, setCreatedProject] = useState<Project | null>(null)
-  const pollCleanupRef = useRef<(() => void) | null>(null)
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams] = useSearchParams()
@@ -31,25 +21,7 @@ export const NewProjectPage = () => {
   const initialPromptFromQuery = searchParams.get('prompt')
   const initialPrompt = initialPromptFromState || initialPromptFromQuery
 
-  // Clarification state
-  const [showClarification, setShowClarification] = useState(false)
-  const [clarificationQuestions, setClarificationQuestions] = useState<ClarificationQuestion[]>([])
-  const [analysisId, setAnalysisId] = useState<string>('')
-  const [pendingPrompt, setPendingPrompt] = useState<string>('')
-  const [pendingMediaIds, setPendingMediaIds] = useState<string[]>([])
-  const [suggestedProjectName, setSuggestedProjectName] = useState<string>('')
-  const [lastClarificationAnswers, setLastClarificationAnswers] = useState<ClarificationAnswer[]>([])
-  const [showFailedBuildOptions, setShowFailedBuildOptions] = useState(false)
-
-  // Inspiration gallery state
-  const [showInspirationGallery, setShowInspirationGallery] = useState(false)
-  const [selectedInspoId, setSelectedInspoId] = useState<string | null>(null)
-  const [hasClarificationQuestions, setHasClarificationQuestions] = useState(false)
-
-  // Temporary project ID for media uploads (null until we create a project)
-  const [tempProjectId, setTempProjectId] = useState<string | null>(null)
-
-  // Media upload hook - projectId is optional (undefined for new project flow)
+  // Media upload hook - no project yet, so no projectId
   const {
     attachedImages,
     isDragging,
@@ -59,11 +31,10 @@ export const NewProjectPage = () => {
     handleDrop,
     removeFile,
     getMediaIds,
-    clearFiles,
     hasUploadingFiles,
     hasFailedFiles,
   } = useMediaUpload({
-    projectId: tempProjectId || undefined,
+    projectId: undefined,
     onError: (message) => setError(message),
     maxFiles: 1,
   })
@@ -103,273 +74,33 @@ export const NewProjectPage = () => {
       // Get mediaIds from ready files
       const mediaIds = getMediaIds()
 
-      // Call analyze endpoint WITHOUT projectId - this will generate a suggested name
+      // Step 1: Call analyze endpoint to get suggested project name
+      console.log('[NewProjectPage] Analyzing prompt...')
       const analysisResponse = await ApiService.analyzePrompt(
         prompt.trim(),
         undefined, // No projectId yet
         mediaIds.length > 0 ? mediaIds : undefined
       )
 
-      // Store suggested name for project creation
-      if (analysisResponse.suggestedProjectName) {
-        setSuggestedProjectName(analysisResponse.suggestedProjectName)
-      }
-
-      // Store common pending data
-      setAnalysisId(analysisResponse.analysisId)
-      setPendingPrompt(prompt.trim())
-      setPendingMediaIds(mediaIds)
-
-      // Store whether there are clarification questions for later
-      const hasQuestions = analysisResponse.needsClarification && analysisResponse.questions && analysisResponse.questions.length > 0
-      if (hasQuestions) {
-        setClarificationQuestions(analysisResponse.questions!)
-        setHasClarificationQuestions(true)
-      }
-
-      // If this is a landing page request, show inspiration gallery first
-      if (analysisResponse.showInspirationGallery) {
-        setShowInspirationGallery(true)
-        setIsSubmitting(false)
-        return
-      }
-
-      // If clarification is needed (but no gallery), show questions
-      if (hasQuestions) {
-        setShowClarification(true)
-        setIsSubmitting(false)
-        return
-      }
-
-      // If no clarification needed and no gallery, proceed directly - create project and submit
-      await createProjectAndSubmit(
-        prompt.trim(),
-        mediaIds,
-        analysisResponse.suggestedProjectName || 'New Project',
-        analysisResponse.analysisId
+      // Step 2: Create the project with AI-suggested name
+      console.log('[NewProjectPage] Creating project with name:', analysisResponse.suggestedProjectName)
+      const project = await ApiService.createProjectFromPrompt(
+        analysisResponse.suggestedProjectName || 'New Project'
       )
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to analyze prompt')
-      setIsSubmitting(false)
-    }
-  }
-
-  const createProjectAndSubmit = async (
-    promptText: string,
-    mediaIds: string[],
-    projectName: string,
-    currentAnalysisId: string,
-    clarificationAnswers?: ClarificationAnswer[],
-    skippedClarification?: boolean,
-    inspoId?: string
-  ) => {
-    try {
-      // Step 1: Create the project with AI-suggested name
-      console.log('[NewProjectPage] Creating project with name:', projectName)
-      const project = await ApiService.createProjectFromPrompt(projectName)
-      setCreatedProject(project)
-      setTempProjectId(project.id)
       console.log('[NewProjectPage] Project created:', project.id)
 
-      // Step 2: Submit the prompt to the new project
-      const response = await ApiService.submitPrompt(
-        promptText,
-        project.id,
-        mediaIds.length > 0 ? mediaIds : undefined,
-        clarificationAnswers,
-        currentAnalysisId,
-        skippedClarification,
-        inspoId
-      )
-
-      // Start generating
-      setIsGenerating(true)
-      setShowClarification(false)
-
-      // Clear attached files after successful submission
-      clearFiles()
-
-      // Save answers for potential retry
-      if (clarificationAnswers) {
-        setLastClarificationAnswers(clarificationAnswers)
+      // Step 3: Navigate to project page with onboarding state
+      const locationState: ProjectPageLocationState = {
+        initialPrompt: prompt.trim(),
+        mediaIds: mediaIds,
+        startOnboarding: true,
       }
 
-      const cleanup = await ApiService.pollJobStatus(
-        response.promptId || response.jobId,
-        (status) => {
-          console.log('[NewProjectPage] Poll status received:', status.status, 'previewUrl:', status.previewUrl)
-          setJobStatus(status)
-          if (status.status === 'READY' && status.previewUrl) {
-            console.log('[NewProjectPage] Setting appState to ready, will redirect...')
-            setAppState('ready')
-            setIsGenerating(false)
-            setShowFailedBuildOptions(false)
-          } else if (status.status === 'FAILED' || status.errorMessage) {
-            setError(status.errorMessage || 'Generation failed')
-            setIsGenerating(false)
-            // Show failed build options if we had clarification
-            if (lastClarificationAnswers.length > 0 || clarificationAnswers) {
-              setShowFailedBuildOptions(true)
-            } else {
-              setAppState('error')
-            }
-          }
-          // For other statuses (QUEUED, PROCESSING, BUILDING), keep showing initial screen
-        },
-        (error) => {
-          setError(error.message)
-          setIsGenerating(false)
-          if (lastClarificationAnswers.length > 0 || clarificationAnswers) {
-            setShowFailedBuildOptions(true)
-          } else {
-            setAppState('error')
-          }
-        }
-      )
-
-      pollCleanupRef.current = cleanup
+      console.log('[NewProjectPage] Navigating to project page with onboarding state')
+      navigate(`/project/${project.id}`, { state: locationState })
     } catch (error) {
+      console.error('[NewProjectPage] Error:', error)
       setError(error instanceof Error ? error.message : 'Failed to create project')
-      setIsGenerating(false)
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  const handleClarificationSubmit = (answers: ClarificationAnswer[]) => {
-    setIsSubmitting(true)
-    createProjectAndSubmit(
-      pendingPrompt,
-      pendingMediaIds,
-      suggestedProjectName || 'New Project',
-      analysisId,
-      answers,
-      false,
-      selectedInspoId || undefined
-    )
-  }
-
-  const handleSurpriseMe = () => {
-    setIsSubmitting(true)
-    createProjectAndSubmit(
-      pendingPrompt,
-      pendingMediaIds,
-      suggestedProjectName || 'New Project',
-      analysisId,
-      undefined,
-      true,
-      selectedInspoId || undefined
-    )
-  }
-
-  const handleClarificationCancel = () => {
-    setShowClarification(false)
-    setPendingPrompt('')
-    setPendingMediaIds([])
-    setClarificationQuestions([])
-    setSuggestedProjectName('')
-    setShowInspirationGallery(false)
-    setSelectedInspoId(null)
-    setHasClarificationQuestions(false)
-  }
-
-  // Inspiration gallery handlers
-  const handleInspirationSelect = (inspoId: string) => {
-    setSelectedInspoId(inspoId)
-    setShowInspirationGallery(false)
-
-    // After selecting, proceed to clarification if there are questions, otherwise submit
-    if (hasClarificationQuestions) {
-      setShowClarification(true)
-    } else {
-      setIsSubmitting(true)
-      createProjectAndSubmit(
-        pendingPrompt,
-        pendingMediaIds,
-        suggestedProjectName || 'New Project',
-        analysisId,
-        undefined,
-        false,
-        inspoId
-      )
-    }
-  }
-
-  const handleInspirationSkip = () => {
-    setShowInspirationGallery(false)
-    setSelectedInspoId(null)
-
-    // After skipping, proceed to clarification if there are questions, otherwise submit
-    if (hasClarificationQuestions) {
-      setShowClarification(true)
-    } else {
-      setIsSubmitting(true)
-      createProjectAndSubmit(
-        pendingPrompt,
-        pendingMediaIds,
-        suggestedProjectName || 'New Project',
-        analysisId,
-        undefined,
-        false
-      )
-    }
-  }
-
-  const handleRevisePreferences = () => {
-    setShowFailedBuildOptions(false)
-    setShowClarification(true)
-    setError(null)
-  }
-
-  const handleTryAgain = async () => {
-    if (!createdProject) {
-      setError('No project to retry')
-      return
-    }
-
-    setShowFailedBuildOptions(false)
-    setError(null)
-    setIsSubmitting(true)
-
-    try {
-      // Re-submit to the already created project
-      const response = await ApiService.submitPrompt(
-        pendingPrompt,
-        createdProject.id,
-        pendingMediaIds.length > 0 ? pendingMediaIds : undefined,
-        lastClarificationAnswers,
-        analysisId,
-        false
-      )
-
-      setIsGenerating(true)
-
-      const cleanup = await ApiService.pollJobStatus(
-        response.promptId || response.jobId,
-        (status) => {
-          setJobStatus(status)
-          if (status.status === 'READY' && status.previewUrl) {
-            setAppState('ready')
-            setIsGenerating(false)
-            setShowFailedBuildOptions(false)
-          } else if (status.status === 'FAILED' || status.errorMessage) {
-            setError(status.errorMessage || 'Generation failed')
-            setIsGenerating(false)
-            setShowFailedBuildOptions(true)
-          }
-        },
-        (error) => {
-          setError(error.message)
-          setIsGenerating(false)
-          setShowFailedBuildOptions(true)
-        }
-      )
-
-      pollCleanupRef.current = cleanup
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to retry')
-      setIsGenerating(false)
-    } finally {
       setIsSubmitting(false)
     }
   }
@@ -381,187 +112,119 @@ export const NewProjectPage = () => {
     }
   }
 
-  // Cleanup polling on unmount
-  React.useEffect(() => {
-    return () => {
-      if (pollCleanupRef.current) {
-        pollCleanupRef.current()
-      }
-    }
-  }, [])
-
-  // When app is ready, navigate to the project page
-  React.useEffect(() => {
-    if (appState === 'ready' && createdProject) {
-      console.log('[NewProjectPage] Build complete, navigating to project:', createdProject.id)
-      navigate(`/project/${createdProject.id}`)
-    }
-  }, [appState, createdProject, navigate])
-
   return (
     <div className="h-full">
-      {/* Main Content */}
-      {appState === 'initial' && (
-        <div className={`h-full flex ${showInspirationGallery ? 'items-start overflow-y-auto pt-8' : 'items-center'} justify-center p-6`}>
-          <div className={`w-full flex flex-col items-center ${showInspirationGallery ? 'max-w-4xl' : 'max-w-3xl'}`}>
-            {/* Main Heading - hidden during clarification and inspiration gallery */}
-            {!showClarification && !showInspirationGallery && (
-              <div className="text-center mb-12">
-                <Sparkles className="w-12 h-12 text-husky-500 mx-auto mb-6 animate-float" />
-                <h1 className="text-4xl font-bold mb-3 text-gray-900">
-                  What would you like to build?
-                </h1>
-                <p className="text-default-500">Describe your app idea and let AI bring it to life</p>
-              </div>
-            )}
-
-            {/* Loading Indicator - shown while generating */}
-            {isGenerating && (
-              <div className="mb-8 p-4 rounded-2xl glass border border-white/30 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-xl status-processing flex items-center justify-center">
-                  <Loader2 className="w-5 h-5 text-white animate-spin" />
-                </div>
-                <div>
-                  <span className="text-sm font-medium text-default-700">
-                    {jobStatus?.status === 'QUEUED' && 'Analyzing your idea...'}
-                    {jobStatus?.status === 'PROCESSING' && 'Generating your app...'}
-                    {jobStatus?.status === 'BUILDING' && 'Building your app...'}
-                    {!jobStatus?.status && 'Starting generation...'}
-                  </span>
-                  <p className="text-xs text-default-500">This may take a minute</p>
-                </div>
-              </div>
-            )}
-
-            {/* Prompt Input */}
-            {!showClarification && !showFailedBuildOptions && !showInspirationGallery && (
-              <div className="w-full mb-6">
-                <PromptInput
-                  value={prompt}
-                  onChange={setPrompt}
-                  onSubmit={handleSubmit}
-                  onKeyDown={handleKeyDown}
-                  onFileSelect={handleFileSelect}
-                  onRemoveFile={removeFile}
-                  attachedFiles={attachedImages}
-                  isSubmitting={isSubmitting}
-                  isDisabled={isSubmitting || isGenerating}
-                  placeholder="Describe your app idea..."
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                  isDragging={isDragging}
-                  autoFocus={true}
-                />
-              </div>
-            )}
-
-            {/* Inspiration Gallery */}
-            {showInspirationGallery && (
-              <div className="w-full max-w-4xl">
-                <InspirationGallery
-                  onSelect={handleInspirationSelect}
-                  onSkip={handleInspirationSkip}
-                  isLoading={isSubmitting}
-                />
-              </div>
-            )}
-
-            {/* Clarification Panel */}
-            {showClarification && (
-              <div className="pt-12 w-full">
-                <ClarificationPanel
-                  questions={clarificationQuestions}
-                  onSubmit={handleClarificationSubmit}
-                  onSurpriseMe={handleSurpriseMe}
-                  onCancel={handleClarificationCancel}
-                  isSubmitting={isSubmitting}
-                  prompt={pendingPrompt}
-                />
-              </div>
-            )}
-
-            {/* Failed Build Options */}
-            {showFailedBuildOptions && (
-              <FailedBuildOptions
-                onRevisePreferences={handleRevisePreferences}
-                onTryAgain={handleTryAgain}
-                errorMessage={error || undefined}
-              />
-            )}
-
-            {/* Action Buttons - Only show when not generating, not in clarification, not showing gallery, and not showing failed build options */}
-            {!isGenerating && !showClarification && !showInspirationGallery && !showFailedBuildOptions && (
-              <div className="flex flex-wrap items-center justify-center gap-3">
-                <Button
-                  variant="bordered"
-                  className="rounded-full border-husky-200 hover:border-husky-400 hover:bg-husky-50 transition-colors"
-                  onPress={() => {
-                    setPrompt("Create a landing page for a SaaS product");
-                  }}
-                  startContent={<Layout className="w-4 h-4 text-husky-500" />}
-                >
-                  Landing page
-                </Button>
-                <Button
-                  variant="bordered"
-                  className="rounded-full border-husky-200 hover:border-husky-400 hover:bg-husky-50 transition-colors"
-                  onPress={() => {
-                    setPrompt("Build a dashboard with charts");
-                  }}
-                  startContent={<BarChart3 className="w-4 h-4 text-husky-500" />}
-                >
-                  Dashboard
-                </Button>
-                <Button
-                  variant="bordered"
-                  className="rounded-full border-husky-200 hover:border-husky-400 hover:bg-husky-50 transition-colors"
-                  onPress={() => {
-                    setPrompt("Design a portfolio website");
-                  }}
-                  startContent={<Palette className="w-4 h-4 text-husky-500" />}
-                >
-                  Portfolio
-                </Button>
-                <Button
-                  variant="bordered"
-                  className="rounded-full border-husky-200 hover:border-husky-400 hover:bg-husky-50 transition-colors"
-                  onPress={() => {
-                    setPrompt("Create a blog layout");
-                  }}
-                  startContent={<FileText className="w-4 h-4 text-husky-500" />}
-                >
-                  Blog
-                </Button>
-              </div>
-            )}
+      <div className="h-full flex items-center justify-center p-6">
+        <div className="w-full flex flex-col items-center max-w-3xl">
+          {/* Main Heading */}
+          <div className="text-center mb-12">
+            <Sparkles className="w-12 h-12 text-husky-500 mx-auto mb-6 animate-float" />
+            <h1 className="text-4xl font-bold mb-3 text-gray-900">
+              What would you like to build?
+            </h1>
+            <p className="text-default-500">Describe your app idea and let AI bring it to life</p>
           </div>
-        </div>
-      )}
 
-      {/* Error State */}
-      {appState === 'error' && (
-        <div className="flex items-center justify-center h-full">
-          <div className="text-center max-w-md">
-            <div className="w-16 h-16 rounded-2xl status-failed flex items-center justify-center mx-auto mb-6">
-              <AlertTriangle className="w-8 h-8 text-white" />
+          {/* Loading Indicator */}
+          {isSubmitting && (
+            <div className="mb-8 p-4 rounded-2xl glass border border-white/30 flex items-center gap-4">
+              <Spinner size="sm" color="primary" />
+              <div>
+                <span className="text-sm font-medium text-default-700">
+                  Creating your project...
+                </span>
+                <p className="text-xs text-default-500">This will just take a moment</p>
+              </div>
             </div>
-            <h3 className="text-xl font-semibold mb-2">Generation Failed</h3>
-            <p className="text-default-500 mb-6">{error}</p>
-            <Button
-              color="primary"
-              onPress={() => {
-                setAppState('initial')
-                setError(null)
-                setIsGenerating(false)
-                setCreatedProject(null)
-              }}
-            >
-              Try Again
-            </Button>
+          )}
+
+          {/* Error Display */}
+          {error && (
+            <div className="mb-6 w-full p-4 rounded-xl bg-danger-50 border border-danger-200 flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-danger-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm text-danger-700">{error}</p>
+                <Button
+                  size="sm"
+                  variant="flat"
+                  color="danger"
+                  className="mt-2"
+                  onPress={() => setError(null)}
+                >
+                  Dismiss
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Prompt Input */}
+          <div className="w-full mb-6">
+            <PromptInput
+              value={prompt}
+              onChange={setPrompt}
+              onSubmit={handleSubmit}
+              onKeyDown={handleKeyDown}
+              onFileSelect={handleFileSelect}
+              onRemoveFile={removeFile}
+              attachedFiles={attachedImages}
+              isSubmitting={isSubmitting}
+              isDisabled={isSubmitting}
+              placeholder="Describe your app idea..."
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              isDragging={isDragging}
+              autoFocus={true}
+            />
           </div>
+
+          {/* Quick Start Buttons */}
+          {!isSubmitting && (
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <Button
+                variant="bordered"
+                className="rounded-full border-husky-200 hover:border-husky-400 hover:bg-husky-50 transition-colors"
+                onPress={() => {
+                  setPrompt("Create a landing page for a SaaS product")
+                }}
+                startContent={<Layout className="w-4 h-4 text-husky-500" />}
+              >
+                Landing page
+              </Button>
+              <Button
+                variant="bordered"
+                className="rounded-full border-husky-200 hover:border-husky-400 hover:bg-husky-50 transition-colors"
+                onPress={() => {
+                  setPrompt("Build a dashboard with charts")
+                }}
+                startContent={<BarChart3 className="w-4 h-4 text-husky-500" />}
+              >
+                Dashboard
+              </Button>
+              <Button
+                variant="bordered"
+                className="rounded-full border-husky-200 hover:border-husky-400 hover:bg-husky-50 transition-colors"
+                onPress={() => {
+                  setPrompt("Design a portfolio website")
+                }}
+                startContent={<Palette className="w-4 h-4 text-husky-500" />}
+              >
+                Portfolio
+              </Button>
+              <Button
+                variant="bordered"
+                className="rounded-full border-husky-200 hover:border-husky-400 hover:bg-husky-50 transition-colors"
+                onPress={() => {
+                  setPrompt("Create a blog layout")
+                }}
+                startContent={<FileText className="w-4 h-4 text-husky-500" />}
+              >
+                Blog
+              </Button>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   )
 }
