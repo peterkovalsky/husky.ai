@@ -1,23 +1,21 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Card, CardBody, Button, Spinner } from '@heroui/react';
-import { Check, SkipForward, ArrowRight, X } from 'lucide-react';
+import { Card, CardBody, Button, Spinner, Modal, ModalContent, ModalBody } from '@heroui/react';
+import { Check, SkipForward, ArrowRight, ZoomIn } from 'lucide-react';
 import { ApiService, type InspoItem } from '../services/api';
 
 interface InspirationGalleryProps {
   onSelect: (inspoId: string) => void;
   onSelectWithItem?: (inspoId: string, item: InspoItem) => void;
   onSkip: () => void;
-  onCancel?: () => void;
   isLoading: boolean;
 }
 
-const ITEMS_PER_PAGE = 12;
+const ITEMS_PER_PAGE = 9;
 
 export default function InspirationGallery({
   onSelect,
   onSelectWithItem,
   onSkip,
-  onCancel,
   isLoading,
 }: InspirationGalleryProps) {
   const [items, setItems] = useState<InspoItem[]>([]);
@@ -26,6 +24,7 @@ export default function InspirationGallery({
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [previewImage, setPreviewImage] = useState<InspoItem | null>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
   // Load initial items
@@ -83,6 +82,11 @@ export default function InspirationGallery({
     setSelectedId(prev => prev === id ? null : id);
   };
 
+  const handlePreviewClick = (e: React.MouseEvent, item: InspoItem) => {
+    e.stopPropagation();
+    setPreviewImage(item);
+  };
+
   const handleContinue = () => {
     if (selectedId) {
       const selectedItem = items.find(item => item.id === selectedId);
@@ -96,18 +100,18 @@ export default function InspirationGallery({
 
   if (isInitialLoading) {
     return (
-      <div className="w-full max-w-4xl mx-auto flex flex-col items-center justify-center py-20">
+      <div className="flex flex-col items-center justify-center py-12">
         <Spinner size="lg" color="primary" />
-        <p className="text-default-500 mt-4">Loading inspiration gallery...</p>
+        <p className="text-default-500 mt-3 text-sm">Loading designs...</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="w-full max-w-4xl mx-auto text-center py-20">
-        <p className="text-danger mb-4">{error}</p>
-        <Button variant="flat" onPress={onSkip}>
+      <div className="text-center py-12">
+        <p className="text-danger mb-4 text-sm">{error}</p>
+        <Button variant="flat" size="sm" onPress={onSkip}>
           Skip and continue
         </Button>
       </div>
@@ -115,114 +119,105 @@ export default function InspirationGallery({
   }
 
   return (
-    <div className="h-full flex flex-col bg-background">
-      {/* Header with optional cancel button */}
-      <div className="flex items-center justify-between p-4 border-b border-divider">
-        <div className="flex-1" />
-        <div className="text-center flex-1">
-          <h2 className="text-lg font-semibold text-foreground">
-            Pick a design that inspires you
-          </h2>
-        </div>
-        <div className="flex-1 flex justify-end">
-          {onCancel && (
-            <Button
-              variant="light"
-              size="sm"
-              isIconOnly
-              onPress={onCancel}
-              title="Cancel onboarding"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Gallery content - scrollable */}
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="max-w-4xl mx-auto">
-          <p className="text-default-500 text-center mb-6">
-            Select a landing page style you like, or skip to let AI decide
-          </p>
-
-          {/* Gallery grid */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
-            {items.map((item) => (
-              <Card
-                key={item.id}
-                isPressable
-                onPress={() => handleItemClick(item.id)}
-                className={`
-                  relative overflow-hidden transition-all duration-200
-                  ${selectedId === item.id
-                    ? 'ring-3 ring-primary ring-offset-2 ring-offset-background scale-[1.02]'
-                    : 'hover:scale-[1.02] hover:shadow-lg'
-                  }
-                `}
+    <div className="relative bg-white max-h-[65vh] overflow-y-auto">
+      {/* Gallery grid - 3 columns */}
+      <div className="grid grid-cols-3 gap-3 p-4 pb-20">
+        {items.map((item) => (
+          <Card
+            key={item.id}
+            isPressable
+            onPress={() => handleItemClick(item.id)}
+            className={`
+              relative overflow-hidden transition-all duration-200 bg-white shadow-none
+              ${selectedId === item.id
+                ? 'border-2 border-primary'
+                : 'border border-default-200 hover:border-default-300'
+              }
+            `}
+          >
+            <CardBody className="p-0 relative group">
+              <img
+                src={item.imageUrl}
+                alt={item.name}
+                className="w-full aspect-[3/4] object-cover object-top"
+                loading="lazy"
+              />
+              {/* Zoom button - shows on hover in top left */}
+              <button
+                className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-white/90 backdrop-blur-sm rounded-full p-2 shadow-md hover:bg-white cursor-pointer z-10"
+                onClick={(e) => handlePreviewClick(e, item)}
               >
-                <CardBody className="p-0 relative">
-                  <img
-                    src={item.imageUrl}
-                    alt={item.name}
-                    className="w-full aspect-[760/950] object-cover object-top"
-                    loading="lazy"
-                  />
-                  {/* Selection indicator */}
-                  {selectedId === item.id && (
-                    <div className="absolute top-3 right-3 bg-primary text-primary-foreground rounded-full p-1.5 shadow-lg">
-                      <Check className="h-4 w-4" />
-                    </div>
-                  )}
-                  {/* Hover overlay */}
-                  <div className={`
-                    absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent
-                    opacity-0 hover:opacity-100 transition-opacity duration-200
-                    flex items-end p-3
-                    ${selectedId === item.id ? 'opacity-100' : ''}
-                  `}>
-                    <span className="text-white text-sm font-medium truncate">
-                      {item.name}
-                    </span>
-                  </div>
-                </CardBody>
-              </Card>
-            ))}
-          </div>
-
-          {/* Load more trigger */}
-          <div ref={loadMoreRef} className="h-20 flex items-center justify-center">
-            {isLoadingMore && <Spinner size="sm" color="primary" />}
-            {!hasMore && items.length > 0 && (
-              <p className="text-default-400 text-sm">No more designs to load</p>
-            )}
-          </div>
-        </div>
+                <ZoomIn className="h-4 w-4 text-default-700" />
+              </button>
+              {/* Selection indicator */}
+              {selectedId === item.id && (
+                <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1 shadow-lg z-10">
+                  <Check className="h-3 w-3" />
+                </div>
+              )}
+            </CardBody>
+          </Card>
+        ))}
       </div>
 
-      {/* Navigation buttons - fixed at bottom */}
-      <div className="p-4 border-t border-divider">
-        <div className="max-w-2xl mx-auto flex justify-between items-center">
-          <Button
-            variant="light"
-            onPress={onSkip}
-            isDisabled={isLoading}
-            startContent={<SkipForward className="h-4 w-4" />}
-          >
-            Skip
-          </Button>
-
-          <Button
-            color="primary"
-            onPress={handleContinue}
-            isDisabled={!selectedId || isLoading}
-            isLoading={isLoading}
-            endContent={!isLoading && <ArrowRight className="h-4 w-4" />}
-          >
-            {selectedId ? 'Continue with this design' : 'Select a design'}
-          </Button>
-        </div>
+      {/* Load more trigger */}
+      <div ref={loadMoreRef} className="h-8 flex items-center justify-center -mt-16 mb-8">
+        {isLoadingMore && <Spinner size="sm" color="primary" />}
       </div>
+
+      {/* Navigation buttons - glassmorphism footer */}
+      <div className="sticky bottom-0 left-0 right-0 py-4 px-4 flex justify-between items-center bg-white/70 backdrop-blur-md">
+        <Button
+          variant="light"
+          size="sm"
+          onPress={onSkip}
+          isDisabled={isLoading}
+          startContent={<SkipForward className="h-3 w-3" />}
+        >
+          Skip
+        </Button>
+
+        <Button
+          color="primary"
+          size="sm"
+          onPress={handleContinue}
+          isDisabled={!selectedId || isLoading}
+          isLoading={isLoading}
+          endContent={!isLoading && <ArrowRight className="h-3 w-3" />}
+        >
+          {selectedId ? 'Use this design' : 'Select a design'}
+        </Button>
+      </div>
+
+      {/* Image preview modal */}
+      <Modal
+        isOpen={!!previewImage}
+        onClose={() => setPreviewImage(null)}
+        isDismissable={true}
+        size="4xl"
+        backdrop="blur"
+        placement="center"
+        hideCloseButton={true}
+        classNames={{
+          base: "bg-transparent shadow-none",
+          wrapper: "cursor-default",
+        }}
+      >
+        <ModalContent className="bg-transparent shadow-none w-auto max-w-none">
+          {previewImage && (
+            <div
+              className="overflow-hidden rounded-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <img
+                src={previewImage.imageUrl}
+                alt={previewImage.name}
+                className="max-h-[85vh] object-contain block"
+              />
+            </div>
+          )}
+        </ModalContent>
+      </Modal>
     </div>
   );
 }

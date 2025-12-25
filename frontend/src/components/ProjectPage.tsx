@@ -6,7 +6,7 @@ import { ChatWidget } from './ChatWidget'
 import { NewProjectStarter } from './NewProjectStarter'
 import InspirationGallery from './InspirationGallery'
 import OnboardingQuestionPanel from './OnboardingQuestionPanel'
-import { Button, Spinner } from '@heroui/react'
+import { Button, Spinner, Card, CardHeader, CardBody } from '@heroui/react'
 import { Code2, ArrowLeft, Loader2 } from 'lucide-react'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { useOnboarding } from '../hooks/useOnboarding'
@@ -435,15 +435,24 @@ export const ProjectPage = () => {
           </div>
         )}
 
-        {/* Onboarding: Inspiration selection phase */}
+        {/* Onboarding: Inspiration selection phase - centered panel */}
         {onboardingPhase === 'INSPO_SELECTION' && (
-          <InspirationGallery
-            onSelect={() => {/* legacy, not used */}}
-            onSelectWithItem={(id, item) => handleInspoSelect(id, item)}
-            onSkip={handleInspoSkip}
-            onCancel={cancelOnboarding}
-            isLoading={isOnboardingLoading}
-          />
+          <div className="h-full flex items-center justify-center p-6">
+            <Card className="w-full max-w-2xl border border-default-200 shadow-none bg-white overflow-hidden">
+              <CardHeader className="flex flex-col gap-1 pb-2">
+                <h2 className="text-lg font-semibold">Pick a design that inspires you</h2>
+                <p className="text-sm text-default-500 font-normal">Select a style or skip to let AI decide</p>
+              </CardHeader>
+              <CardBody className="p-0 overflow-hidden">
+                <InspirationGallery
+                  onSelect={() => {/* legacy, not used */}}
+                  onSelectWithItem={(id, item) => handleInspoSelect(id, item)}
+                  onSkip={handleInspoSkip}
+                  isLoading={isOnboardingLoading}
+                />
+              </CardBody>
+            </Card>
+          </div>
         )}
 
         {/* Onboarding: Clarification phase */}
