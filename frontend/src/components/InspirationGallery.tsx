@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Card, CardBody, Button, Spinner, Modal, ModalContent, ModalBody } from '@heroui/react';
+import { Card, CardBody, Button, Spinner, Modal, ModalContent } from '@heroui/react';
 import { Check, SkipForward, ArrowRight, ZoomIn } from 'lucide-react';
 import { ApiService, type InspoItem } from '../services/api';
 
