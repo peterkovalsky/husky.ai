@@ -1,10 +1,11 @@
--- Migration: Backfill missing USER_PROMPT messages in chat_messages table
+-- Migration: Backfill missing USER_PROMPT messages and fix status values
 -- This script is RE-RUNNABLE (idempotent) - safe to run multiple times
 --
--- Purpose: Ensure every build has a corresponding USER_PROMPT in chat_messages
--- so that ChatWidget can display complete conversation history.
+-- Purpose:
+-- 1. Ensure every build has a corresponding USER_PROMPT in chat_messages
+-- 2. Fix status values to match actual build status (completed/failed/processing)
 
--- Backfill builds that don't have a USER_PROMPT message in chat_messages
+-- Step 1: Backfill builds that don't have a USER_PROMPT message in chat_messages
 INSERT INTO chat_messages (
   id,
   project_id,
@@ -47,10 +48,8 @@ SELECT
   b.created_at as modified_at
 FROM builds b
 WHERE
-  -- Only include builds with a user prompt
   b.user_prompt IS NOT NULL
   AND b.user_prompt != ''
-  -- Exclude builds that already have a USER_PROMPT message
   AND NOT EXISTS (
     SELECT 1
     FROM chat_messages cm
@@ -58,11 +57,22 @@ WHERE
     AND cm.type = 'USER_PROMPT'
   );
 
--- Log how many records were inserted
-DO $$
-DECLARE
-  inserted_count INTEGER;
-BEGIN
-  GET DIAGNOSTICS inserted_count = ROW_COUNT;
-  RAISE NOTICE 'Backfilled % missing USER_PROMPT messages', inserted_count;
-END $$;
+-- Step 2: Fix status values for existing chat_messages that don't match build status
+UPDATE chat_messages cm
+SET
+  status = CASE
+    WHEN b.status = 'COMPLETED' THEN 'completed'
+    WHEN b.status = 'FAILED' THEN 'failed'
+    ELSE 'processing'
+  END,
+  modified_at = NOW()
+FROM builds b
+WHERE cm.build_id = b.id
+AND cm.type = 'USER_PROMPT'
+AND (
+  (b.status = 'COMPLETED' AND cm.status != 'completed')
+  OR
+  (b.status = 'FAILED' AND cm.status != 'failed')
+  OR
+  (b.status NOT IN ('COMPLETED', 'FAILED') AND cm.status NOT IN ('processing'))
+);
