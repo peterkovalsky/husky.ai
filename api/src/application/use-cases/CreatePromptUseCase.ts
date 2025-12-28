@@ -79,6 +79,9 @@ export class CreatePromptUseCase {
       !!dto.inspoId // hasInspoImage flag
     );
 
+    // Get the next version number for chat_messages (build starts at 0, version assigned later)
+    const nextVersion = await this.buildRepository.getNextVersionForProject(projectId);
+
     // Create build directly with user prompt (builds are now the source of truth)
     const build = await this.buildRepository.create({
       fileTree: {},
@@ -90,7 +93,7 @@ export class CreatePromptUseCase {
       inspoId: dto.inspoId
     });
 
-    console.log(`[CreatePromptUseCase] Created build ${build.id} with status INITIALIZING`);
+    console.log(`[CreatePromptUseCase] Created build ${build.id} with status INITIALIZING, next version will be ${nextVersion}`);
 
     // Save chat messages if provided (onboarding conversation history)
     if (dto.chatMessages && dto.chatMessages.length > 0) {
@@ -102,7 +105,7 @@ export class CreatePromptUseCase {
         source: msg.source || ChatMessageSource.ONBOARDING,
         content: msg.content,
         role: msg.role,
-        conversationRound: build.version,
+        conversationRound: nextVersion,
         messageOrder: msg.messageOrder,
         mediaIds: msg.mediaIds,
         inspoId: msg.inspoId,
@@ -120,7 +123,7 @@ export class CreatePromptUseCase {
     } else {
       // No chatMessages provided - create a simple USER_PROMPT message
       // This ensures ALL prompts (including iterations) are stored in chat_messages table
-      const source = build.version === 1 ? ChatMessageSource.ONBOARDING : ChatMessageSource.ITERATION;
+      const source = nextVersion === 1 ? ChatMessageSource.ONBOARDING : ChatMessageSource.ITERATION;
       await this.chatMessageRepository.createMany([{
         projectId,
         buildId: build.id,
@@ -129,7 +132,7 @@ export class CreatePromptUseCase {
         source,
         content: dto.prompt,
         role: 'user',
-        conversationRound: build.version,
+        conversationRound: nextVersion,
         messageOrder: 0,
         mediaIds: dto.mediaIds,
         inspoId: dto.inspoId,
