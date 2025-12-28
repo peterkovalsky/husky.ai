@@ -37,7 +37,14 @@ export class GetProjectDetailsUseCase {
     const latestBuild = await this.buildRepository.findLatestByProjectId(projectId);
 
     // Get chat messages for this project
-    const chatMessages = await this.chatMessageRepository.findByProjectId(projectId);
+    let chatMessages: Awaited<ReturnType<typeof this.chatMessageRepository.findByProjectId>> = [];
+    try {
+      chatMessages = await this.chatMessageRepository.findByProjectId(projectId);
+      console.log(`[GetProjectDetailsUseCase] Found ${chatMessages.length} chat messages for project ${projectId}`);
+    } catch (error) {
+      console.error(`[GetProjectDetailsUseCase] Error fetching chat messages:`, error);
+      // Continue with empty array - don't fail the whole request
+    }
 
     return {
       project: {

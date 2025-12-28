@@ -50,9 +50,9 @@ function App() {
         path="/signin"
         element={
           user ? (
-            // If user has prompt param, redirect to /project/new with prompt
+            // If user has prompt param, redirect to home with prompt
             promptParam ? (
-              <Navigate to="/project/new" state={{ initialPrompt: promptParam }} replace />
+              <Navigate to="/" state={{ initialPrompt: promptParam }} replace />
             ) : (
               <Navigate to="/" replace />
             )
@@ -75,9 +75,9 @@ function App() {
         path="/signup"
         element={
           user ? (
-            // If user has prompt param, redirect to /project/new with prompt
+            // If user has prompt param, redirect to home with prompt
             promptParam ? (
-              <Navigate to="/project/new" state={{ initialPrompt: promptParam }} replace />
+              <Navigate to="/" state={{ initialPrompt: promptParam }} replace />
             ) : (
               <Navigate to="/" replace />
             )
@@ -90,25 +90,25 @@ function App() {
         path="/forgot-password" 
         element={user ? <Navigate to="/" replace /> : <ForgotPassword />} 
       />
-      <Route 
-        path="/" 
-        element={
-          <ProtectedRoute>
-            <ProjectProvider>
-              <AppLayout>
-                <Home />
-              </AppLayout>
-            </ProjectProvider>
-          </ProtectedRoute>
-        } 
-      />
       <Route
-        path="/project/new"
+        path="/"
         element={
           <ProtectedRoute>
             <ProjectProvider>
               <AppLayout>
                 <NewProjectPage />
+              </AppLayout>
+            </ProjectProvider>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/projects"
+        element={
+          <ProtectedRoute>
+            <ProjectProvider>
+              <AppLayout>
+                <Home />
               </AppLayout>
             </ProjectProvider>
           </ProtectedRoute>
@@ -136,7 +136,8 @@ function App() {
           </ProtectedRoute>
         }
       />
-      {/* Redirect old routes to /billing */}
+      {/* Redirect old routes */}
+      <Route path="/project/new" element={<Navigate to="/" replace />} />
       <Route path="/subscription" element={<Navigate to="/billing" replace />} />
       <Route path="/transactions" element={<Navigate to="/billing" replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />

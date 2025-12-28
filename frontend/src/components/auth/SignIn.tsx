@@ -34,9 +34,9 @@ export const SignIn = () => {
       setError('')
       setLoading(true)
       await signIn(email, password)
-      // If we have a prompt param, redirect to new project page with prompt
+      // If we have a prompt param, redirect to home with prompt
       if (promptParam) {
-        navigate('/project/new', { state: { initialPrompt: promptParam } })
+        navigate('/', { state: { initialPrompt: promptParam } })
       } else {
         navigate('/')
       }

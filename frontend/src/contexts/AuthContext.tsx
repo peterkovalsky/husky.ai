@@ -151,10 +151,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     if (!isSupabaseConfigured()) {
       throw new Error('Supabase is not configured. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env file.')
     }
-    // Build redirect URL - if prompt is provided, redirect to /project/new with prompt param
+    // Build redirect URL - if prompt is provided, redirect to home with prompt param
     // Otherwise redirect to home
     const redirectTo = prompt
-      ? `${window.location.origin}/project/new?prompt=${encodeURIComponent(prompt)}`
+      ? `${window.location.origin}/?prompt=${encodeURIComponent(prompt)}`
       : `${window.location.origin}/`
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',

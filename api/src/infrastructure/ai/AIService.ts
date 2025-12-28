@@ -112,55 +112,22 @@ export class AIService implements IAIService {
         lastError = error instanceof Error ? error : new Error(String(error));
         const errorMessage = lastError.message;
 
-        // Check if this is a retryable error (API error or timeout)
-        const isRetryable = this.isRetryableError(errorMessage);
-
-        if (isRetryable && currentModel !== modelsToTry[modelsToTry.length - 1]) {
+        // If there's a fallback model available, always try it on any error
+        const isLastModel = currentModel === modelsToTry[modelsToTry.length - 1];
+        if (!isLastModel) {
           const nextModel = modelsToTry[modelsToTry.indexOf(currentModel) + 1];
-          console.warn(`[AIService] ${currentModel} failed with retryable error: ${errorMessage}`);
-          console.log(`[AIService] Retrying with fallback model: ${nextModel}`);
+          console.warn(`[AIService] ${currentModel} failed: ${errorMessage}`);
+          console.log(`[AIService] Falling back to: ${nextModel}`);
           continue;
         }
 
-        // Not retryable or no more fallbacks - throw the error
+        // No more fallbacks - throw the error
         throw lastError;
       }
     }
 
     // Should not reach here, but just in case
     throw lastError || new Error('AI generation failed with no error details');
-  }
-
-  /**
-   * Check if an error is retryable (API errors, timeouts, stream interruptions)
-   */
-  private isRetryableError(errorMessage: string): boolean {
-    const retryablePatterns = [
-      'API error',
-      'timeout',
-      'Timeout',
-      'TIMEOUT',
-      'stream interrupted',
-      'terminated',
-      'ECONNRESET',
-      'ENOTFOUND',
-      'ETIMEDOUT',
-      'socket hang up',
-      'network error',
-      'Network error',
-      '500',
-      '502',
-      '503',
-      '504',
-      'Service Unavailable',
-      'Bad Gateway',
-      'Gateway Timeout',
-      'overloaded',
-      'rate limit',
-      'Rate limit',
-    ];
-
-    return retryablePatterns.some(pattern => errorMessage.includes(pattern));
   }
 
   /**

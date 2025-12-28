@@ -45,7 +45,7 @@ export const NewProjectPage = () => {
       setPrompt(initialPrompt)
       // Clean up URL query param after reading it (for Google OAuth flow)
       if (initialPromptFromQuery) {
-        navigate('/project/new', { replace: true })
+        navigate('/', { replace: true })
       }
     }
   }, [initialPrompt, initialPromptFromQuery, navigate, prompt])
@@ -127,8 +127,8 @@ export const NewProjectPage = () => {
 
           {/* Loading Indicator */}
           {isSubmitting && (
-            <div className="mb-8 p-4 rounded-2xl glass border border-white/30 flex items-center gap-4">
-              <Spinner size="sm" color="primary" />
+            <div className="mb-8 flex items-center gap-4">
+              <Spinner size="lg" color="primary" />
               <div>
                 <span className="text-sm font-medium text-default-700">
                   Creating your project...
@@ -175,6 +175,7 @@ export const NewProjectPage = () => {
               onDrop={handleDrop}
               isDragging={isDragging}
               autoFocus={true}
+              showLoadingOverlay={false}
             />
           </div>
 

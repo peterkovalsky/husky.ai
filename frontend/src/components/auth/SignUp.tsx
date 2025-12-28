@@ -54,7 +54,7 @@ export const SignUp = () => {
 
       // Redirect new users directly to create their first project
       // Pass along prompt if provided
-      navigate('/project/new', {
+      navigate('/', {
         replace: true,
         state: promptParam ? { initialPrompt: promptParam } : undefined
       })

@@ -13,7 +13,7 @@ export class PromptController {
 
   createPrompt = async (req: AuthRequest, res: Response) => {
     try {
-      const { prompt, projectId, mediaIds, clarificationAnswers, analysisId, skippedClarification, inspoId } = req.body;
+      const { prompt, projectId, mediaIds, clarificationAnswers, analysisId, skippedClarification, inspoId, chatMessages } = req.body;
 
       console.log('[PromptController] Creating prompt - projectId:', projectId, 'prompt:', prompt?.substring(0, 50), 'mediaIds:', mediaIds);
       if (clarificationAnswers) {
@@ -25,13 +25,16 @@ export class PromptController {
       if (inspoId) {
         console.log('[PromptController] With inspiration reference:', inspoId);
       }
+      if (chatMessages) {
+        console.log('[PromptController] With chat messages:', chatMessages.length);
+      }
 
       if (!req.user) {
         return res.status(401).json({ error: 'User not authenticated' });
       }
 
       const result = await this.createPromptUseCase.execute(
-        { prompt, projectId, mediaIds, clarificationAnswers, analysisId, skippedClarification, inspoId },
+        { prompt, projectId, mediaIds, clarificationAnswers, analysisId, skippedClarification, inspoId, chatMessages },
         req.user
       );
 

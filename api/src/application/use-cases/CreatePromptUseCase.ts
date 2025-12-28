@@ -190,13 +190,22 @@ Please incorporate these design preferences into your implementation.`;
       prompt = `${prompt}
 
 Design Inspiration Reference:
-The user has selected a design inspiration image shown above. Use this as a reference for:
-- Visual style and aesthetic direction
-- Layout patterns and structure
-- Color scheme inspiration
-- Typography choices
+The user has selected a design inspiration image. Extract ONLY visual design patterns:
+- Layout structure and spacing
+- Color palette and gradients
+- Typography style (fonts, sizes, weights)
+- UI component styles (buttons, cards, inputs)
+- Visual hierarchy and whitespace usage
+- Animation/interaction patterns if apparent
 
-IMPORTANT: Do NOT copy text content from the inspiration - only use it for design guidance.`;
+CRITICAL - DO NOT copy from the inspiration:
+- Text content, headlines, or copy
+- Business name, logo, or branding
+- Currency, prices, or specific numbers
+- Product names or service descriptions
+- Any business-specific information
+
+The inspiration is purely for VISUAL STYLE guidance. All content must come from the user's prompt describing THEIR business/project.`;
     }
 
     return prompt;

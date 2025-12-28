@@ -7,7 +7,7 @@ import { NewProjectStarter } from './NewProjectStarter'
 import InspirationGallery from './InspirationGallery'
 import OnboardingQuestionPanel from './OnboardingQuestionPanel'
 import { Button, Spinner, Card, CardHeader, CardBody } from '@heroui/react'
-import { Code2, ArrowLeft, Loader2 } from 'lucide-react'
+import { Code2, ArrowLeft, Loader2, AlertCircle } from 'lucide-react'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { useOnboarding } from '../hooks/useOnboarding'
 import type { ProjectPageLocationState } from '../types/onboarding'
@@ -16,6 +16,45 @@ import type { ProjectPageLocationState } from '../types/onboarding'
 const getCacheBustedUrl = (url: string) => {
   const timestamp = Date.now()
   return url.includes('?') ? `${url}&t=${timestamp}` : `${url}?t=${timestamp}`
+}
+
+// Funny rotating status messages for the build process (first build takes ~2 min)
+const BUILD_STATUS_MESSAGES = [
+  "Brewing some digital magic...",
+  "Teaching pixels to dance...",
+  "Convincing electrons to cooperate...",
+  "Polishing the user experience...",
+  "Herding digital cats...",
+  "Untangling the internet...",
+  "Watering the code garden...",
+  "Asking the hamsters to run faster...",
+  "Sprinkling some unicorn dust...",
+  "Aligning the cosmic bits...",
+  "Warming up the creative engines...",
+  "Negotiating with the cloud...",
+  "Painting with ones and zeros...",
+  "Almost there, promise...",
+]
+
+// Custom hook for rotating build messages
+function useRotatingMessage(isActive: boolean) {
+  const [messageIndex, setMessageIndex] = useState(0)
+
+  useEffect(() => {
+    if (!isActive) {
+      setMessageIndex(0)
+      return
+    }
+
+    // Rotate every 8 seconds (15 messages × 8 sec = 120 sec = 2 min coverage)
+    const interval = setInterval(() => {
+      setMessageIndex(prev => (prev + 1) % BUILD_STATUS_MESSAGES.length)
+    }, 8000)
+
+    return () => clearInterval(interval)
+  }, [isActive])
+
+  return BUILD_STATUS_MESSAGES[messageIndex]
 }
 
 export const ProjectPage = () => {
@@ -37,12 +76,12 @@ export const ProjectPage = () => {
     isLoading: isOnboardingLoading,
     buildStatus: onboardingBuildStatus,
     buildJustCompleted,
+    buildJustFailed,
     startOnboarding,
     handleInspoSelect,
     handleInspoSkip,
     handleQuestionAnswer,
     handleQuestionSkip,
-    cancelOnboarding,
   } = useOnboarding(project_id)
 
   // Debug: log project_id on every render
@@ -64,6 +103,11 @@ export const ProjectPage = () => {
 
   // Counter to force reload - increment to trigger re-fetch
   const [reloadCounter, setReloadCounter] = useState(0)
+
+  // Rotating build status message (for PROCESSING and BUILDING phases)
+  const isBuildInProgress = onboardingPhase === 'BUILDING' &&
+    (onboardingBuildStatus === 'PROCESSING' || onboardingBuildStatus === 'BUILDING')
+  const rotatingMessage = useRotatingMessage(isBuildInProgress)
 
   // Reset state when project_id changes
   useEffect(() => {
@@ -185,37 +229,63 @@ export const ProjectPage = () => {
     }
   }, [locationState, project_id, startOnboarding, navigate, location.pathname])
 
-  // Refresh project details when build just completed (to update build count)
+  // Refresh project details when build just completed (to update build count and preview URL)
   useEffect(() => {
     if (buildJustCompleted && project_id) {
       console.log('[ProjectPage] Build just completed, refreshing project details')
-      ApiService.getProjectDetails(project_id).then(details => {
+      ApiService.getProjectDetails(project_id).then(async details => {
         setProjectDetails(details)
+
+        // Find the latest READY prompt and get its preview URL
+        const readyPrompts = details.recentPrompts.filter(p => p.status === 'READY' || p.status === 'COMPLETED')
+        if (readyPrompts.length > 0) {
+          const latest = readyPrompts[0]
+          try {
+            const jobStatus = await ApiService.getJobStatus(latest.id)
+            if (jobStatus.previewUrl) {
+              console.log('[ProjectPage] Setting preview URL after build complete:', jobStatus.previewUrl)
+              const cacheBustedUrl = getCacheBustedUrl(jobStatus.previewUrl)
+              setLatestJobStatus(jobStatus)
+              setCurrentPreviewUrl(cacheBustedUrl)
+              currentPreviewUrlRef.current = cacheBustedUrl
+            }
+          } catch (err) {
+            console.warn('[ProjectPage] Could not fetch job status after build complete:', err)
+          }
+        }
       }).catch(err => {
         console.error('[ProjectPage] Failed to refresh project details:', err)
       })
     }
   }, [buildJustCompleted, project_id])
 
-  // Listen for preview reload events from ChatWidget
+  // Listen for preview reload events from ChatWidget/useOnboarding
   useEffect(() => {
     const handleReloadPreview = (event: CustomEvent) => {
       const { previewUrl } = event.detail
 
-      // Update the job status with new preview URL if provided
-      if (previewUrl && latestJobStatus) {
+      // Always update preview URL if provided (critical for first build!)
+      if (previewUrl) {
         const cacheBustedUrl = getCacheBustedUrl(previewUrl)
-        setLatestJobStatus(prev => prev ? { ...prev, previewUrl } : null)
+
+        // Update or create latestJobStatus with the new preview URL
+        setLatestJobStatus(prev => prev
+          ? { ...prev, previewUrl }
+          : { status: 'READY', previewUrl } as JobStatus
+        )
         setCurrentPreviewUrl(cacheBustedUrl)
         currentPreviewUrlRef.current = cacheBustedUrl
+
+        console.log('[ProjectPage] reloadPreview event - set preview URL:', cacheBustedUrl)
       }
 
       // Reset iframe loaded state - this will show loading overlay again
       setIframeLoaded(false)
 
       // Force reload by updating src with new cache-busting timestamp
-      if (iframeRef.current && currentPreviewUrlRef.current) {
-        iframeRef.current.src = getCacheBustedUrl(currentPreviewUrlRef.current)
+      if (iframeRef.current && (previewUrl || currentPreviewUrlRef.current)) {
+        const urlToUse = previewUrl || currentPreviewUrlRef.current
+        iframeRef.current.src = getCacheBustedUrl(urlToUse)
       }
     }
 
@@ -224,7 +294,7 @@ export const ProjectPage = () => {
     return () => {
       window.removeEventListener('reloadPreview', handleReloadPreview as EventListener)
     }
-  }, [latestJobStatus, currentPreviewUrl])
+  }, []) // No dependencies - handler uses refs for current values
 
   // Note: Removed aggressive redirect logic that was causing users to be redirected
   // to home page after a build completed. The page now stays on ProjectPage and either:
@@ -299,7 +369,7 @@ export const ProjectPage = () => {
           </div>
           <h2 className="text-xl font-semibold mb-2">Project not found</h2>
           <p className="text-muted-foreground mb-6">{error || 'The requested project could not be found.'}</p>
-          <Button onPress={() => navigate('/')} startContent={<ArrowLeft className="h-4 w-4" />}>
+          <Button onPress={() => navigate('/projects')} startContent={<ArrowLeft className="h-4 w-4" />}>
             Back to Projects
           </Button>
         </div>
@@ -312,15 +382,20 @@ export const ProjectPage = () => {
   const allBuildsFailed = (projectDetails?.recentPrompts?.length ?? 0) > 0 &&
     projectDetails?.recentPrompts?.every(p => p.status === 'FAILED')
   const latestReadyPrompt = projectDetails?.recentPrompts?.find(p => p.status === 'READY' || p.status === 'COMPLETED')
-  const hasReadyPreview = latestReadyPrompt && latestJobStatus?.previewUrl
+
+  // hasReadyPreview is true if:
+  // 1. We have a ready prompt AND a preview URL, OR
+  // 2. Build just completed AND we have a preview URL (projectDetails may not be refreshed yet)
+  const hasPreviewUrl = !!(latestJobStatus?.previewUrl || currentPreviewUrl)
+  const hasReadyPreview = (latestReadyPrompt && hasPreviewUrl) || (buildJustCompleted && hasPreviewUrl)
 
   // Check if onboarding is in progress
   const isOnboardingActive = onboardingPhase !== 'NONE'
 
   // Special case: NewProjectStarter is completely different UI
-  // BUT only show if not in onboarding mode AND build didn't just complete
-  // The buildJustCompleted flag prevents flash of NewProjectStarter after first build
-  if (projectDetails && !isOnboardingActive && !buildJustCompleted && (hasNoBuilds || allBuildsFailed)) {
+  // BUT only show if not in onboarding mode AND build didn't just complete/fail
+  // The buildJustCompleted/buildJustFailed flags prevent flash of NewProjectStarter after first build
+  if (projectDetails && !isOnboardingActive && !buildJustCompleted && !buildJustFailed && (hasNoBuilds || allBuildsFailed)) {
     return (
       <NewProjectStarter
         projectId={projectDetails.project.id}
@@ -330,19 +405,22 @@ export const ProjectPage = () => {
     )
   }
 
-  // Fully loaded when we have project details and (preview URL OR onboarding is active)
+  // Fully loaded when we have project details and (preview URL OR onboarding is active OR build just failed)
   // Note: iframeLoaded is intentionally NOT included here to prevent ChatWidget from unmounting
   // when the iframe is refreshed. ChatWidget needs to stay mounted to preserve message state.
-  const isFullyLoaded = projectDetails && (hasReadyPreview || isOnboardingActive)
-  // Show loading overlay only during initial load, not during iframe refresh or onboarding
-  const shouldShowLoading = !projectDetails || (!hasReadyPreview && !isOnboardingActive)
+  const isFullyLoaded = projectDetails && (hasReadyPreview || isOnboardingActive || buildJustFailed)
+  // Show loading overlay only during initial load, not during iframe refresh, onboarding, or failure
+  const shouldShowLoading = !projectDetails || (!hasReadyPreview && !isOnboardingActive && !buildJustFailed)
 
   // Debug logging
   console.log('[ProjectPage] State check:', {
     projectDetails: !!projectDetails,
     latestReadyPrompt: latestReadyPrompt ? { id: latestReadyPrompt.id, status: latestReadyPrompt.status } : null,
     latestJobStatus: latestJobStatus ? { previewUrl: !!latestJobStatus.previewUrl, status: latestJobStatus.status } : null,
-    hasReadyPreview: !!hasReadyPreview,
+    hasPreviewUrl,
+    buildJustCompleted,
+    buildJustFailed,
+    hasReadyPreview,
     currentPreviewUrl,
     iframeLoaded,
     isFullyLoaded,
@@ -411,6 +489,7 @@ export const ProjectPage = () => {
             }}
             onboardingPhase={onboardingPhase}
             onboardingMessages={onboardingMessages}
+            buildJustCompleted={buildJustCompleted}
           />
         </div>
       )}
@@ -455,17 +534,26 @@ export const ProjectPage = () => {
           </div>
         )}
 
-        {/* Onboarding: Clarification phase */}
+        {/* Onboarding: Clarification phase - centered panel */}
         {onboardingPhase === 'CLARIFICATION' && currentQuestion && (
-          <OnboardingQuestionPanel
-            question={currentQuestion}
-            questionNumber={(onboardingData?.currentQuestionIndex ?? 0) + 1}
-            totalQuestions={onboardingData?.clarificationQuestions.length ?? 0}
-            onAnswer={handleQuestionAnswer}
-            onSkip={handleQuestionSkip}
-            onCancel={cancelOnboarding}
-            isLoading={isOnboardingLoading}
-          />
+          <div className="h-full flex items-center justify-center p-6">
+            <Card className="w-full max-w-lg border border-default-200 shadow-none bg-white overflow-hidden">
+              <CardHeader className="flex flex-col gap-1 pb-2">
+                <h2 className="text-lg font-semibold">A few quick questions</h2>
+                <p className="text-sm text-default-500 font-normal">Help us understand your needs better</p>
+              </CardHeader>
+              <CardBody className="p-0 overflow-hidden">
+                <OnboardingQuestionPanel
+                  question={currentQuestion}
+                  questionNumber={(onboardingData?.currentQuestionIndex ?? 0) + 1}
+                  totalQuestions={onboardingData?.clarificationQuestions.length ?? 0}
+                  onAnswer={handleQuestionAnswer}
+                  onSkip={handleQuestionSkip}
+                  isLoading={isOnboardingLoading}
+                />
+              </CardBody>
+            </Card>
+          </div>
         )}
 
         {/* Onboarding: Submitting phase */}
@@ -481,20 +569,52 @@ export const ProjectPage = () => {
         {/* Onboarding: Building phase */}
         {onboardingPhase === 'BUILDING' && (
           <div className="h-full flex items-center justify-center bg-background">
-            <div className="text-center">
+            <div className="text-center max-w-xs">
               <Spinner size="lg" color="primary" />
-              <p className="mt-4 text-default-500">
-                {onboardingBuildStatus === 'QUEUED' && 'Queued... Getting ready to build'}
-                {onboardingBuildStatus === 'PROCESSING' && 'Processing your request...'}
-                {onboardingBuildStatus === 'BUILDING' && 'Building your app...'}
-                {!onboardingBuildStatus && 'Building your app...'}
+              <p
+                key={rotatingMessage}
+                className="mt-4 font-medium animate-fade-in"
+              >
+                {onboardingBuildStatus === 'QUEUED' && <span className="text-default-600">Queued... Getting ready to build</span>}
+                {(onboardingBuildStatus === 'PROCESSING' || onboardingBuildStatus === 'BUILDING' || !onboardingBuildStatus) && (
+                  <span className="text-shimmer">{rotatingMessage}</span>
+                )}
+              </p>
+              <p className="mt-2 text-xs text-default-400">
+                This usually takes 1-2 minutes
               </p>
             </div>
           </div>
         )}
 
-        {/* Normal preview mode (no onboarding) */}
-        {onboardingPhase === 'NONE' && (
+        {/* Build failed state */}
+        {buildJustFailed && onboardingPhase === 'NONE' && (
+          <div className="h-full flex items-center justify-center bg-background">
+            <Card className="max-w-md border border-danger-200 shadow-none">
+              <CardBody className="text-center py-8">
+                <div className="w-16 h-16 bg-danger-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <AlertCircle className="w-8 h-8 text-danger" />
+                </div>
+                <h2 className="text-xl font-semibold mb-2">Build Failed</h2>
+                <p className="text-default-500 mb-6">
+                  {onboardingError || 'Something went wrong while building your app. Please try again.'}
+                </p>
+                <Button
+                  color="primary"
+                  onPress={() => {
+                    // Reload the page to start fresh
+                    window.location.reload()
+                  }}
+                >
+                  Try Again
+                </Button>
+              </CardBody>
+            </Card>
+          </div>
+        )}
+
+        {/* Normal preview mode (no onboarding and no failure) */}
+        {onboardingPhase === 'NONE' && !buildJustFailed && (
           <>
             {/* Iframe loading overlay - shown when iframe is refreshing (but not during initial load) */}
             {isFullyLoaded && !iframeLoaded && (

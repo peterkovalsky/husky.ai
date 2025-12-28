@@ -40,6 +40,7 @@ interface ChatWidgetProps {
   // Onboarding props
   onboardingPhase?: OnboardingPhase;
   onboardingMessages?: OnboardingChatMessage[];
+  buildJustCompleted?: boolean;
 }
 
 export const ChatWidget = ({
@@ -50,6 +51,7 @@ export const ChatWidget = ({
   onToggleOpen,
   onboardingPhase = 'NONE',
   onboardingMessages = [],
+  buildJustCompleted = false,
 }: ChatWidgetProps = {}) => {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [conversationHistory, setConversationHistory] = useState<ChatMessage[]>([])
@@ -102,7 +104,7 @@ export const ChatWidget = ({
 
   useEffect(() => {
     scrollToBottom()
-  }, [messages])
+  }, [messages, conversationHistory, onboardingMessages])
 
   useEffect(() => {
     return () => {
@@ -145,6 +147,17 @@ export const ChatWidget = ({
 
       try {
         const details = await ApiService.getProjectDetails(activeProjectId)
+
+        console.log('[ChatWidget] Fetched project details:', {
+          projectId: activeProjectId,
+          chatMessagesCount: details.chatMessages?.length || 0,
+          recentPromptsCount: details.recentPrompts?.length || 0,
+        })
+        if (details.chatMessages && details.chatMessages.length > 0) {
+          console.log('[ChatWidget] Chat messages breakdown:',
+            details.chatMessages.map(m => ({ id: m.id, type: m.type, content: m.content.substring(0, 50), metadata: m.metadata }))
+          )
+        }
 
         // Use chatMessages if available, otherwise fall back to prompts
         if (details.chatMessages && details.chatMessages.length > 0) {
@@ -205,7 +218,7 @@ export const ChatWidget = ({
     }
 
     fetchConversationHistory()
-  }, [activeProjectId])
+  }, [activeProjectId, buildJustCompleted])
 
   const updateMessageStatus = (messageId: string, status: ChatMessage['status'], jobId?: string) => {
     setMessages(prev => prev.map(msg => 
@@ -487,20 +500,22 @@ export const ChatWidget = ({
     }
 
     // Inspo selection - right aligned with thumbnail
-    if (isInspoSelection && message.metadata?.inspoThumbnail) {
+    if (isInspoSelection) {
       return (
         <div key={message.id} className="flex justify-end">
           <div className="max-w-[85%]">
             <div className="rounded-2xl px-4 py-3 bg-[#2d2d2d] text-white shadow-sm">
-              <div className="mb-2">
-                <Image
-                  src={message.metadata.inspoThumbnail}
-                  alt={message.metadata.inspoName || 'Selected inspiration'}
-                  className="w-32 h-40 object-cover object-top rounded-lg"
-                />
-              </div>
+              {message.metadata?.inspoThumbnail && (
+                <div className="mb-2">
+                  <Image
+                    src={message.metadata.inspoThumbnail}
+                    alt={message.metadata.inspoName || 'Selected inspiration'}
+                    className="w-32 h-40 object-cover object-top rounded-lg"
+                  />
+                </div>
+              )}
               <span className="leading-relaxed break-words text-sm">
-                Selected: {message.metadata.inspoName || 'Design inspiration'}
+                {message.content || `Selected: ${message.metadata?.inspoName || 'Design inspiration'}`}
               </span>
               <div className="opacity-60 mt-2 text-xs">
                 {formatTime(message.timestamp)}
@@ -572,7 +587,7 @@ export const ChatWidget = ({
           <Button
             variant="light"
             size="sm"
-            onPress={() => navigate('/dashboard')}
+            onPress={() => navigate('/projects')}
             startContent={<ArrowLeft className="h-4 w-4" />}
           >
             Projects
@@ -622,88 +637,38 @@ export const ChatWidget = ({
             </div>
           )}
 
-          {/* Render onboarding messages */}
-          {onboardingMessages.map((message) => renderMessage(message))}
+          {/* Render onboarding messages (only during active onboarding, not after completion) */}
+          {/* After build completes, messages come from conversationHistory instead */}
+          {onboardingPhase !== 'NONE' && onboardingMessages.map((message) => renderMessage(message))}
 
-          {/* Display conversation history */}
+          {/* Display conversation history (all message types: user prompts, AI questions, answers, inspo) */}
           {(() => {
-            // Determine which message is the last completed one (eligible for undo)
+            // Determine which message is the last completed user prompt (eligible for undo)
             const sessionUserMessages = messages.filter(msg => msg.type === 'user')
-            const allCompletedMessages = [
-              ...conversationHistory.filter(m => m.status === 'completed'),
+            const allCompletedUserPrompts = [
+              ...conversationHistory.filter(m => m.type === 'user' && m.status === 'completed'),
               ...sessionUserMessages.filter(m => m.status === 'completed')
             ]
-            const lastCompletedId = allCompletedMessages.length > 0
-              ? allCompletedMessages[allCompletedMessages.length - 1].id
+            const lastCompletedId = allCompletedUserPrompts.length > 0
+              ? allCompletedUserPrompts[allCompletedUserPrompts.length - 1].id
               : null
 
             return (
               <>
+                {/* Render all conversation history messages using renderMessage */}
                 {conversationHistory.map((message) => {
-                  const isLastCompleted = message.id === lastCompletedId
-                  const showUndoButton = isLastCompleted && successfulBuildsCount >= 2 && !isProcessing && !isSubmitting
+                  const isLastCompletedPrompt = message.id === lastCompletedId
+                  const showUndoButton = isLastCompletedPrompt && successfulBuildsCount >= 2 && !isProcessing && !isSubmitting
 
-                  return (
-                    <div
-                      key={message.id}
-                      className="flex justify-end"
-                    >
-                      <div className="relative group max-w-[85%]">
-                        <div className="rounded-2xl px-4 py-3 bg-[#2d2d2d] text-white shadow-sm">
-                          <div className="flex items-start gap-2">
-                            <span className="flex-1 leading-relaxed break-words text-sm">{message.content}</span>
-                            {getStatusIcon(message.status)}
-                          </div>
-                          <div className="opacity-60 mt-2 text-xs">
-                            {formatTime(message.timestamp)}
-                          </div>
-                        </div>
-                        {showUndoButton && (
-                          <button
-                            className="absolute -bottom-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-default-100 hover:bg-default-200 rounded-full p-1.5 text-default-500 shadow-sm cursor-pointer"
-                            onClick={() => setIsUndoModalOpen(true)}
-                            title="Undo this version"
-                          >
-                            <Undo2 className="h-3 w-3" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )
+                  return renderMessage(message, showUndoButton, () => setIsUndoModalOpen(true))
                 })}
 
                 {/* Display current session messages */}
                 {sessionUserMessages.map((message) => {
-                  const isLastCompleted = message.id === lastCompletedId
-                  const showUndoButton = isLastCompleted && successfulBuildsCount >= 2 && !isProcessing && !isSubmitting
+                  const isLastCompletedPrompt = message.id === lastCompletedId
+                  const showUndoButton = isLastCompletedPrompt && successfulBuildsCount >= 2 && !isProcessing && !isSubmitting
 
-                  return (
-                    <div
-                      key={message.id}
-                      className="flex justify-end"
-                    >
-                      <div className="relative group max-w-[85%]">
-                        <div className="rounded-2xl px-4 py-3 bg-[#2d2d2d] text-white shadow-sm">
-                          <div className="flex items-start gap-2">
-                            <span className="flex-1 leading-relaxed break-words text-sm">{message.content}</span>
-                            {getStatusIcon(message.status)}
-                          </div>
-                          <div className="opacity-60 mt-2 text-xs">
-                            {formatTime(message.timestamp)}
-                          </div>
-                        </div>
-                        {showUndoButton && (
-                          <button
-                            className="absolute -bottom-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-default-100 hover:bg-default-200 rounded-full p-1.5 text-default-500 shadow-sm cursor-pointer"
-                            onClick={() => setIsUndoModalOpen(true)}
-                            title="Undo this version"
-                          >
-                            <Undo2 className="h-3 w-3" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )
+                  return renderMessage(message, showUndoButton, () => setIsUndoModalOpen(true))
                 })}
               </>
             )

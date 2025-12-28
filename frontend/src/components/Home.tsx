@@ -143,22 +143,11 @@ export const Home = () => {
     <div className="min-h-screen">
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8 flex justify-between items-start">
-          <div>
-            <h2 className="text-3xl font-bold mb-2 text-gray-900">
-              Your Projects
-            </h2>
-            <p className="text-default-500">Select a project to continue building your app</p>
-          </div>
-          {sortedProjects.length > 0 && (
-            <Button
-              color="primary"
-              onPress={() => navigate('/project/new')}
-              startContent={<Plus className="h-4 w-4" />}
-            >
-              Create Project
-            </Button>
-          )}
+        <div className="mb-8">
+          <h2 className="text-3xl font-bold mb-2 text-gray-900">
+            Your Projects
+          </h2>
+          <p className="text-default-500">Select a project to continue building your app</p>
         </div>
 
         {!loading && sortedProjects.length === 0 ? (
@@ -171,7 +160,7 @@ export const Home = () => {
             <Button
               size="lg"
               color="primary"
-              onPress={() => navigate('/project/new')}
+              onPress={() => navigate('/')}
               startContent={<Plus className="h-5 w-5" />}
             >
               Create Your First Project

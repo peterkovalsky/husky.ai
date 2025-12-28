@@ -238,7 +238,7 @@ export const NewProjectStarter = ({ projectId, onBuildComplete }: NewProjectStar
         <Button
           variant="light"
           size="md"
-          onPress={() => navigate('/')}
+          onPress={() => navigate('/projects')}
           startContent={<ArrowLeft className="h-4 w-4" />}
           className="rounded-full hover:bg-husky-50"
         >

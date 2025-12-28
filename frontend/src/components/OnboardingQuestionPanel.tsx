@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { RadioGroup, Radio, Input, Button, Progress } from '@heroui/react';
-import { ArrowRight, SkipForward, X } from 'lucide-react';
+import { ArrowRight, SkipForward } from 'lucide-react';
 import type { ClarificationQuestion, ClarificationAnswer } from '../types/clarification';
 
 interface OnboardingQuestionPanelProps {
@@ -9,7 +9,6 @@ interface OnboardingQuestionPanelProps {
   totalQuestions: number;
   onAnswer: (answer: ClarificationAnswer) => void;
   onSkip: () => void;
-  onCancel: () => void;
   isLoading?: boolean;
 }
 
@@ -19,7 +18,6 @@ export default function OnboardingQuestionPanel({
   totalQuestions,
   onAnswer,
   onSkip,
-  onCancel,
   isLoading = false,
 }: OnboardingQuestionPanelProps) {
   const [selection, setSelection] = useState<string>('');
@@ -91,25 +89,14 @@ export default function OnboardingQuestionPanel({
   };
 
   return (
-    <div className="h-full flex flex-col bg-background">
-      {/* Header with cancel button */}
-      <div className="flex items-center justify-between p-4 border-b border-divider">
-        <span className="text-sm text-default-500">
-          Question {questionNumber} of {totalQuestions}
-        </span>
-        <Button
-          variant="light"
-          size="sm"
-          isIconOnly
-          onPress={onCancel}
-          title="Cancel onboarding"
-        >
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
-
+    <div className="bg-white">
       {/* Progress bar */}
-      <div className="px-6 pt-6">
+      <div className="px-4 pt-4">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs text-default-400">
+            Question {questionNumber} of {totalQuestions}
+          </span>
+        </div>
         <Progress
           value={progress}
           size="sm"
@@ -122,100 +109,97 @@ export default function OnboardingQuestionPanel({
       </div>
 
       {/* Question content */}
-      <div className="flex-1 overflow-y-auto px-6 py-8">
-        <div className="max-w-lg mx-auto">
-          {/* Question */}
-          <h3 className="text-2xl font-medium text-foreground mb-8 text-center">
-            {question.question}
-          </h3>
+      <div className="px-4 py-6">
+        {/* Question */}
+        <h3 className="text-lg font-medium text-foreground mb-6 text-center">
+          {question.question}
+        </h3>
 
-          {/* Options as large buttons */}
-          <RadioGroup
-            value={selection}
-            onValueChange={handleOptionSelect}
-            className="gap-3"
-            isDisabled={isLoading}
-          >
-            {question.options.map((option) => (
-              <Radio
-                key={option.id}
-                value={option.id}
-                classNames={{
-                  base: `
-                    w-full max-w-none m-0 p-4
-                    border-2 border-default-200 rounded-xl
-                    cursor-pointer
-                    hover:border-primary hover:bg-primary-50/50
-                    data-[selected=true]:border-primary data-[selected=true]:bg-primary-50
-                    transition-all duration-150
-                  `,
-                  wrapper: 'hidden',
-                  labelWrapper: 'w-full m-0',
-                  label: 'w-full',
-                }}
-              >
-                <div className="flex items-center justify-between w-full">
-                  <div>
-                    <div className="font-medium text-foreground">{option.label}</div>
-                    {option.description && (
-                      <div className="text-sm text-default-500 mt-0.5">{option.description}</div>
-                    )}
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-default-400" />
-                </div>
-              </Radio>
-            ))}
-          </RadioGroup>
-
-          {/* Free text input */}
-          <div className="mt-4">
-            <Input
-              ref={inputRef}
-              placeholder="Or type your own answer..."
-              value={freeText}
-              onChange={(e) => handleFreeTextChange(e.target.value)}
-              onKeyDown={handleFreeTextKeyDown}
-              variant="bordered"
-              size="lg"
-              isDisabled={isLoading}
+        {/* Options as large buttons */}
+        <RadioGroup
+          value={selection}
+          onValueChange={handleOptionSelect}
+          className="gap-2"
+          isDisabled={isLoading}
+        >
+          {question.options.map((option) => (
+            <Radio
+              key={option.id}
+              value={option.id}
               classNames={{
-                input: 'text-base',
-                inputWrapper: 'h-14'
+                base: `
+                  w-full max-w-none m-0 p-3
+                  border border-default-200 rounded-lg bg-white
+                  cursor-pointer
+                  hover:border-primary hover:bg-primary-50/30
+                  data-[selected=true]:border-2 data-[selected=true]:border-primary data-[selected=true]:bg-primary-50/50
+                  transition-all duration-150
+                `,
+                wrapper: 'hidden',
+                labelWrapper: 'w-full m-0',
+                label: 'w-full',
               }}
-              endContent={
-                freeText.trim() ? (
-                  <Button
-                    isIconOnly
-                    size="sm"
-                    variant="flat"
-                    color="primary"
-                    onPress={handleFreeTextSubmit}
-                    isDisabled={isLoading}
-                  >
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                ) : null
-              }
-            />
-            <p className="text-xs text-default-400 mt-2 text-center">
-              Press Enter to continue
-            </p>
-          </div>
+            >
+              <div className="flex items-center justify-between w-full">
+                <div>
+                  <div className="text-sm font-medium text-foreground">{option.label}</div>
+                  {option.description && (
+                    <div className="text-xs text-default-500 mt-0.5">{option.description}</div>
+                  )}
+                </div>
+                <ArrowRight className="h-3 w-3 text-default-400" />
+              </div>
+            </Radio>
+          ))}
+        </RadioGroup>
+
+        {/* Free text input */}
+        <div className="mt-3">
+          <Input
+            ref={inputRef}
+            placeholder="Or type your own answer..."
+            value={freeText}
+            onChange={(e) => handleFreeTextChange(e.target.value)}
+            onKeyDown={handleFreeTextKeyDown}
+            variant="bordered"
+            size="sm"
+            isDisabled={isLoading}
+            classNames={{
+              input: 'text-sm',
+              inputWrapper: 'h-10 bg-white'
+            }}
+            endContent={
+              freeText.trim() ? (
+                <Button
+                  isIconOnly
+                  size="sm"
+                  variant="flat"
+                  color="primary"
+                  onPress={handleFreeTextSubmit}
+                  isDisabled={isLoading}
+                >
+                  <ArrowRight className="h-3 w-3" />
+                </Button>
+              ) : null
+            }
+          />
+          <p className="text-xs text-default-400 mt-1.5 text-center">
+            Press Enter to continue
+          </p>
         </div>
       </div>
 
-      {/* Footer with Skip button */}
-      <div className="p-4 border-t border-divider">
-        <div className="max-w-lg mx-auto flex justify-end">
-          <Button
-            variant="flat"
-            onPress={onSkip}
-            isDisabled={isLoading}
-            startContent={<SkipForward className="h-4 w-4" />}
-          >
-            Skip this question
-          </Button>
-        </div>
+      {/* Footer */}
+      <div className="py-4 px-4 flex justify-end">
+        <Button
+          variant="light"
+          size="sm"
+          onPress={onSkip}
+          isDisabled={isLoading}
+          startContent={<SkipForward className="h-3 w-3" />}
+        >
+          Skip
+        </Button>
       </div>
     </div>
   );

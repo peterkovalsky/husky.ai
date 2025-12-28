@@ -480,6 +480,115 @@
   }
 }
 
+/* Spotlight effect for loading states */
+.spotlight {
+  position: relative;
+  overflow: hidden;
+}
+
+.spotlight::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.4) 25%,
+    rgba(255, 255, 255, 0.8) 50%,
+    rgba(255, 255, 255, 0.4) 75%,
+    transparent 100%
+  );
+  transform: translateX(-100%);
+  animation: spotlight-sweep 2s ease-in-out infinite;
+}
+
+@keyframes spotlight-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Spotlight with glow border effect */
+.spotlight-glow {
+  position: relative;
+  overflow: hidden;
+}
+
+.spotlight-glow::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    transparent 40%,
+    rgba(139, 92, 246, 0.15) 45%,
+    rgba(139, 92, 246, 0.3) 50%,
+    rgba(139, 92, 246, 0.15) 55%,
+    transparent 60%,
+    transparent 100%
+  );
+  transform: translateX(-100%);
+  animation: spotlight-sweep 2.5s ease-in-out infinite;
+}
+
+.spotlight-glow::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    var(--husky-400),
+    var(--cyan-400),
+    var(--husky-400)
+  );
+  background-size: 200% 100%;
+  animation: border-glow 3s linear infinite;
+  z-index: -1;
+  opacity: 0.6;
+}
+
+@keyframes border-glow {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+/* Text shimmer/spotlight effect - sweeping light across letters */
+.text-shimmer {
+  background: linear-gradient(
+    90deg,
+    #71717a 0%,
+    #71717a 40%,
+    #9898a0 47%,
+    #ababb4 50%,
+    #9898a0 53%,
+    #71717a 60%,
+    #71717a 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: text-shimmer-sweep 3s ease-in-out infinite;
+}
+
+@keyframes text-shimmer-sweep {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: -100% 50%;
+  }
+}
+
 /* ============================================================================
    RESPONSIVE UTILITIES
    ============================================================================ */

@@ -59,6 +59,7 @@ interface UseOnboardingReturn {
   isLoading: boolean;
   buildStatus: JobStatus['status'] | null;
   buildJustCompleted: boolean;
+  buildJustFailed: boolean;
 
   // Actions
   startOnboarding: (prompt: string, mediaIds: string[], analysisData?: AnalyzePromptResponse) => Promise<void>;
@@ -81,6 +82,7 @@ export function useOnboarding(projectId: string | undefined): UseOnboardingRetur
   const [isRestoredFromStorage, setIsRestoredFromStorage] = useState(false);
   const [buildStatus, setBuildStatus] = useState<JobStatus['status'] | null>(null);
   const [buildJustCompleted, setBuildJustCompleted] = useState(false);
+  const [buildJustFailed, setBuildJustFailed] = useState(false);
 
   const lastActionRef = useRef<'analyze' | 'submit' | null>(null);
   const pollCleanupRef = useRef<(() => void) | null>(null);
@@ -347,7 +349,7 @@ export function useOnboarding(projectId: string | undefined): UseOnboardingRetur
 
     // Add user's answer to chat
     const displayAnswer = answer.freeTextAnswer || answer.selectedOptionLabel || 'Selected option';
-    addMessage('user-answer', displayAnswer, { questionId: answer.questionId });
+    const answerMsg = addMessage('user-answer', displayAnswer, { questionId: answer.questionId });
 
     const updatedAnswers = [...data.answers, answer];
     const nextIndex = data.currentQuestionIndex + 1;
@@ -371,9 +373,10 @@ export function useOnboarding(projectId: string | undefined): UseOnboardingRetur
       };
       setData(updatedData);
       setPhase('SUBMITTING');
-      submitWithData(updatedData);
+      // Pass current messages + the answer we just added to avoid stale closure issue
+      submitWithData(updatedData, [...messages, answerMsg]);
     }
-  }, [data, addMessage]);
+  }, [data, messages, addMessage]);
 
   // Handle question skip (skip current only)
   const handleQuestionSkip = useCallback(() => {
@@ -382,7 +385,7 @@ export function useOnboarding(projectId: string | undefined): UseOnboardingRetur
     const currentQ = data.clarificationQuestions[data.currentQuestionIndex];
 
     // Add skip message to chat
-    addMessage('user-answer', 'Skipped', { questionId: currentQ.id, isSkipped: true });
+    const skipMsg = addMessage('user-answer', 'Skipped', { questionId: currentQ.id, isSkipped: true });
 
     const nextIndex = data.currentQuestionIndex + 1;
 
@@ -403,12 +406,14 @@ export function useOnboarding(projectId: string | undefined): UseOnboardingRetur
       };
       setData(updatedData);
       setPhase('SUBMITTING');
-      submitWithData(updatedData);
+      // Pass current messages + the skip message we just added to avoid stale closure issue
+      submitWithData(updatedData, [...messages, skipMsg]);
     }
-  }, [data, addMessage]);
+  }, [data, messages, addMessage]);
 
   // Submit the final prompt with all collected data
-  const submitWithData = async (submitData: OnboardingData) => {
+  // Optional currentMessages parameter to handle async state updates (stale closure fix)
+  const submitWithData = async (submitData: OnboardingData, currentMessages?: OnboardingChatMessage[]) => {
     if (!projectId) {
       setError('Project ID is required');
       return;
@@ -426,10 +431,20 @@ export function useOnboarding(projectId: string | undefined): UseOnboardingRetur
         submitData.answers.length === 0;
 
       // Convert onboarding messages to backend format
-      // Include all messages up to now (before the "Building..." message we just added)
-      const chatMessageInputs = messages.map((msg, index) =>
+      // Use currentMessages if provided (handles stale closure), otherwise fall back to messages state
+      const messagesToConvert = currentMessages ?? messages;
+      const chatMessageInputs = messagesToConvert.map((msg, index) =>
         convertToChatMessageInput(msg, index, submitData.selectedInspoId)
       );
+
+      console.log('[useOnboarding] Submitting with chatMessageInputs:', {
+        stateMessagesCount: messages.length,
+        passedMessagesCount: currentMessages?.length ?? 'not passed',
+        usedMessagesCount: messagesToConvert.length,
+        chatMessageInputsCount: chatMessageInputs.length,
+        types: chatMessageInputs.map(m => m.type),
+        messages: chatMessageInputs,
+      });
 
       const response = await ApiService.submitPrompt(
         submitData.initialPrompt,
@@ -454,20 +469,22 @@ export function useOnboarding(projectId: string | undefined): UseOnboardingRetur
           if (status.status === 'READY') {
             addMessage('system', 'Your app is ready!');
             clearPersistedState();
-            setBuildJustCompleted(true);  // Flag to prevent NewProjectStarter flash
             setPhase('NONE');
             setBuildStatus(null);
 
-            // Dispatch event to reload preview
-            setTimeout(() => {
-              const cacheBustUrl = status.previewUrl?.includes('?')
+            // Dispatch event to reload preview with the URL (only if URL exists)
+            if (status.previewUrl) {
+              const cacheBustUrl = status.previewUrl.includes('?')
                 ? `${status.previewUrl}&t=${Date.now()}`
                 : `${status.previewUrl}?t=${Date.now()}`;
 
               window.dispatchEvent(new CustomEvent('reloadPreview', {
                 detail: { previewUrl: cacheBustUrl, forceReload: true }
               }));
-            }, 500);
+            }
+
+            // Set buildJustCompleted to prevent NewProjectStarter flash
+            setBuildJustCompleted(true);
           } else if (status.status === 'FAILED') {
             const errorMsg = status.errorMessage || 'Build failed';
             addMessage('system', `Build failed: ${errorMsg}`);
@@ -475,6 +492,8 @@ export function useOnboarding(projectId: string | undefined): UseOnboardingRetur
             clearPersistedState();
             setPhase('NONE');
             setBuildStatus(null);
+            // Set buildJustFailed to prevent NewProjectStarter flash and show error
+            setBuildJustFailed(true);
           }
         },
         (pollError) => {
@@ -550,6 +569,7 @@ export function useOnboarding(projectId: string | undefined): UseOnboardingRetur
     isLoading,
     buildStatus,
     buildJustCompleted,
+    buildJustFailed,
     startOnboarding,
     handleInspoSelect,
     handleInspoSkip,
