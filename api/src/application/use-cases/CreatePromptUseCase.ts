@@ -117,6 +117,24 @@ export class CreatePromptUseCase {
 
       await this.chatMessageRepository.createMany(chatMessageRequests);
       console.log(`[CreatePromptUseCase] Saved ${chatMessageRequests.length} chat messages for build ${build.id}`);
+    } else {
+      // No chatMessages provided - create a simple USER_PROMPT message
+      // This ensures ALL prompts (including iterations) are stored in chat_messages table
+      const source = build.version === 1 ? ChatMessageSource.ONBOARDING : ChatMessageSource.ITERATION;
+      await this.chatMessageRepository.createMany([{
+        projectId,
+        buildId: build.id,
+        userId: user.id,
+        type: 'USER_PROMPT',
+        source,
+        content: dto.prompt,
+        role: 'user',
+        conversationRound: build.version,
+        messageOrder: 0,
+        mediaIds: dto.mediaIds,
+        inspoId: dto.inspoId,
+      }]);
+      console.log(`[CreatePromptUseCase] Created USER_PROMPT message for ${source} build ${build.id}`);
     }
 
     // Send message to queue with just buildId - all data is in the build record
