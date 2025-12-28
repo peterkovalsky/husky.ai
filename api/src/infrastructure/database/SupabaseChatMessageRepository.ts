@@ -54,7 +54,7 @@ export class SupabaseChatMessageRepository implements IChatMessageRepository {
       .from('chat_messages')
       .select('*')
       .eq('project_id', projectId)
-      .order('conversation_round', { ascending: true })
+      .order('created_at', { ascending: true })
       .order('message_order', { ascending: true });
 
     if (error) throw error;

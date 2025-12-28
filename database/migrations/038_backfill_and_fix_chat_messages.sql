@@ -1,9 +1,10 @@
--- Migration: Backfill missing USER_PROMPT messages and fix status values
+-- Migration: Backfill missing USER_PROMPT messages and fix status/conversation_round values
 -- This script is RE-RUNNABLE (idempotent) - safe to run multiple times
 --
 -- Purpose:
 -- 1. Ensure every build has a corresponding USER_PROMPT in chat_messages
 -- 2. Fix status values to match actual build status (completed/failed/processing)
+-- 3. Fix conversation_round to match build version (was incorrectly set to 0)
 
 -- Step 1: Backfill builds that don't have a USER_PROMPT message in chat_messages
 INSERT INTO chat_messages (
@@ -76,3 +77,14 @@ AND (
   OR
   (b.status NOT IN ('COMPLETED', 'FAILED') AND cm.status NOT IN ('processing'))
 );
+
+-- Step 3: Fix conversation_round to match build version (was incorrectly set to 0)
+-- This ensures messages are ordered correctly by build version
+UPDATE chat_messages cm
+SET
+  conversation_round = b.version,
+  modified_at = NOW()
+FROM builds b
+WHERE cm.build_id = b.id
+AND cm.conversation_round != b.version
+AND b.version > 0;
