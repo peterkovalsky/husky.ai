@@ -37,11 +37,10 @@ ErrorBoundary → BrowserRouter → AuthProvider → ToastProvider → HeroUIPro
 | Path | Component | Auth Required |
 |------|-----------|---------------|
 | `/signin`, `/signup`, `/forgot-password` | Auth pages | No |
-| `/` | Home (dashboard) | Yes |
-| `/project/new` | NewProjectPage | Yes |
+| `/` | NewProjectPage (home) | Yes |
+| `/projects` | Home (projects list) | Yes |
 | `/project/:project_id` | ProjectPage | Yes |
-| `/subscription` | SubscriptionPage | Yes |
-| `/transactions` | TransactionsPage | Yes |
+| `/billing` | BillingPage | Yes |
 
 Protected routes use `ProtectedRoute` wrapper and include `ProjectProvider`.
 

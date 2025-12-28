@@ -1,4 +1,23 @@
 import { ClarificationAnswer } from './AnalyzePromptDto';
+import { ChatMessageMetadata } from '../../domain/entities/ChatMessage';
+
+// Input format for chat messages from frontend
+export interface ChatMessageInput {
+  type: string;
+  source?: string;
+  content: string;
+  role: 'user' | 'assistant' | 'system';
+  messageOrder: number;
+  mediaIds?: string[];
+  inspoId?: string;
+  questionId?: string;
+  parentMessageId?: string;
+  isSkipped?: boolean;
+  answerOptionId?: string;
+  answerOptionLabel?: string;
+  answerFreeText?: string;
+  metadata?: ChatMessageMetadata;
+}
 
 export interface CreatePromptDto {
   prompt: string;
@@ -10,6 +29,8 @@ export interface CreatePromptDto {
   skippedClarification?: boolean;
   // Inspiration selection (optional)
   inspoId?: string;
+  // Chat messages for onboarding conversation history (optional)
+  chatMessages?: ChatMessageInput[];
 }
 
 export interface CreatePromptResponseDto {

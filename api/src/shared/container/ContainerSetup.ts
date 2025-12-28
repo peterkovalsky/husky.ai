@@ -11,6 +11,7 @@ import { IMediaRepository } from '../../domain/repositories/IMediaRepository';
 import { IInspoRepository } from '../../domain/repositories/IInspoRepository';
 import { ICreditPurchaseRepository } from '../../domain/repositories/ICreditPurchaseRepository';
 import { IAILogRepository } from '../../domain/repositories/IAILogRepository';
+import { IChatMessageRepository } from '../../domain/repositories/IChatMessageRepository';
 
 // Domain Services
 import { IAIService } from '../../domain/services/IAIService';
@@ -33,6 +34,7 @@ import { SupabaseMediaRepository } from '../../infrastructure/database/SupabaseM
 import { SupabaseInspoRepository } from '../../infrastructure/database/SupabaseInspoRepository';
 import { SupabaseCreditPurchaseRepository } from '../../infrastructure/database/SupabaseCreditPurchaseRepository';
 import { SupabaseAILogRepository } from '../../infrastructure/database/SupabaseAILogRepository';
+import { SupabaseChatMessageRepository } from '../../infrastructure/database/SupabaseChatMessageRepository';
 import { AnthropicProvider } from '../../infrastructure/ai/AnthropicProvider';
 import { OpenAIProvider } from '../../infrastructure/ai/OpenAIProvider';
 import { GeminiProvider } from '../../infrastructure/ai/GeminiProvider';
@@ -129,6 +131,7 @@ export function setupContainer(): DIContainer {
   container.registerFactory<IInspoRepository>('inspoRepository', () => new SupabaseInspoRepository());
   container.registerFactory<ICreditPurchaseRepository>('creditPurchaseRepository', () => new SupabaseCreditPurchaseRepository());
   container.registerFactory<IAILogRepository>('aiLogRepository', () => new SupabaseAILogRepository());
+  container.registerFactory<IChatMessageRepository>('chatMessageRepository', () => new SupabaseChatMessageRepository());
 
   // Register AI Providers
   container.registerFactory<IAIProvider>('anthropicProvider', () => {
@@ -232,7 +235,8 @@ export function setupContainer(): DIContainer {
     container.get<IProjectRepository>('projectRepository'),
     container.get<IWorkspaceRepository>('workspaceRepository'),
     container.get<IQueueService>('queueService'),
-    container.get<IMediaRepository>('mediaRepository')
+    container.get<IMediaRepository>('mediaRepository'),
+    container.get<IChatMessageRepository>('chatMessageRepository')
   ));
 
   container.registerFactory<GetPromptStatusUseCase>('getPromptStatusUseCase', () => new GetPromptStatusUseCase(
@@ -263,7 +267,8 @@ export function setupContainer(): DIContainer {
   container.registerFactory<GetProjectDetailsUseCase>('getProjectDetailsUseCase', () => new GetProjectDetailsUseCase(
     container.get<IProjectRepository>('projectRepository'),
     container.get<IWorkspaceRepository>('workspaceRepository'),
-    container.get<IBuildRepository>('buildRepository')
+    container.get<IBuildRepository>('buildRepository'),
+    container.get<IChatMessageRepository>('chatMessageRepository')
   ));
 
   container.registerFactory<UpdateProjectUseCase>('updateProjectUseCase', () => new UpdateProjectUseCase(

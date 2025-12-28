@@ -1,7 +1,7 @@
 import React from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Button, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Tooltip } from '@heroui/react'
-import { Home, LogOut, Menu, X, CreditCard, PanelLeftClose } from 'lucide-react'
+import { Home, LogOut, Menu, X, CreditCard, PanelLeftClose, FolderOpen } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { CreditBalanceWidget } from './CreditBalanceWidget'
 import { useState } from 'react'
@@ -133,8 +133,13 @@ export const Sidebar = () => {
         <div className={`space-y-2 ${isCollapsed && !isMobile ? 'flex flex-col items-center' : ''}`}>
           <NavButton
             icon={<Home className="h-4 w-4" />}
-            label="Projects"
+            label="Home"
             path="/"
+          />
+          <NavButton
+            icon={<FolderOpen className="h-4 w-4" />}
+            label="Projects"
+            path="/projects"
           />
           <NavButton
             icon={<CreditCard className="h-4 w-4" />}

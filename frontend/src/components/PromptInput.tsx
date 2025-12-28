@@ -22,6 +22,7 @@ interface PromptInputProps {
   isDragging?: boolean
   loadingStatus?: 'QUEUED' | 'PROCESSING' | 'BUILDING' | null
   autoFocus?: boolean
+  showLoadingOverlay?: boolean // When false, just disables without showing internal loading UI
 }
 
 export const PromptInput = ({
@@ -41,6 +42,7 @@ export const PromptInput = ({
   isDragging = false,
   loadingStatus = null,
   autoFocus = false,
+  showLoadingOverlay = true,
 }: PromptInputProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -119,8 +121,8 @@ export const PromptInput = ({
 
         {/* Input Container - Hero UI Style */}
         <div className="relative flex flex-col gap-3 px-4 py-3 rounded-2xl bg-content2 border border-divider">
-          {/* Loading Overlay */}
-          {isSubmitting && (
+          {/* Loading Overlay - only show if showLoadingOverlay is true */}
+          {isSubmitting && showLoadingOverlay && (
             <div className="absolute inset-0 bg-content2/90 backdrop-blur-sm rounded-2xl flex items-center justify-center z-10">
               <div className="flex items-center gap-3">
                 {/* Spinner Icon */}
@@ -184,7 +186,7 @@ export const PromptInput = ({
               className="rounded-full"
               size="sm"
             >
-              {isSubmitting ? (
+              {isSubmitting && showLoadingOverlay ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
               ) : (
                 <ArrowUp className="h-5 w-5" />

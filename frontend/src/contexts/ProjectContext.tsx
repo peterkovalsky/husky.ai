@@ -84,8 +84,8 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
         const activeProjects = projects.filter(p => p.currentVersion && p.currentVersion > 0);
 
         if (activeProjects.length === 0) {
-          // No active projects - redirect to new project page
-          navigate('/project/new', { replace: true });
+          // No active projects - redirect to home (new project page)
+          navigate('/', { replace: true });
         } else if (projects.length > 0 && !currentProject) {
           // Select default project from active projects
           const defaultProject = activeProjects.find(p => p.name === 'My Project') || activeProjects[0];

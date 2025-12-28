@@ -2,11 +2,13 @@ import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
 import { IWorkspaceRepository } from '../../domain/repositories/IWorkspaceRepository';
 import { IMediaRepository } from '../../domain/repositories/IMediaRepository';
+import { IChatMessageRepository } from '../../domain/repositories/IChatMessageRepository';
 import { IQueueService } from '../../domain/services/IQueueService';
 import { CreatePromptDto, CreatePromptResponseDto } from '../dto/CreatePromptDto';
 import { ClarificationAnswer } from '../dto/AnalyzePromptDto';
 import { User } from '../../domain/entities/User';
 import { BuildStepStatus } from '../build-steps/IBuildStep';
+import { ChatMessageSource } from '../../domain/entities/ChatMessage';
 
 export class CreatePromptUseCase {
   constructor(
@@ -14,7 +16,8 @@ export class CreatePromptUseCase {
     private projectRepository: IProjectRepository,
     private workspaceRepository: IWorkspaceRepository,
     private queueService: IQueueService,
-    private mediaRepository: IMediaRepository
+    private mediaRepository: IMediaRepository,
+    private chatMessageRepository: IChatMessageRepository
   ) {}
 
   async execute(dto: CreatePromptDto, user: User): Promise<CreatePromptResponseDto> {
@@ -89,6 +92,33 @@ export class CreatePromptUseCase {
 
     console.log(`[CreatePromptUseCase] Created build ${build.id} with status INITIALIZING`);
 
+    // Save chat messages if provided (onboarding conversation history)
+    if (dto.chatMessages && dto.chatMessages.length > 0) {
+      const chatMessageRequests = dto.chatMessages.map(msg => ({
+        projectId,
+        buildId: build.id,
+        userId: user.id,
+        type: msg.type,
+        source: msg.source || ChatMessageSource.ONBOARDING,
+        content: msg.content,
+        role: msg.role,
+        conversationRound: build.version,
+        messageOrder: msg.messageOrder,
+        mediaIds: msg.mediaIds,
+        inspoId: msg.inspoId,
+        questionId: msg.questionId,
+        parentMessageId: msg.parentMessageId,
+        isSkipped: msg.isSkipped,
+        answerOptionId: msg.answerOptionId,
+        answerOptionLabel: msg.answerOptionLabel,
+        answerFreeText: msg.answerFreeText,
+        metadata: msg.metadata,
+      }));
+
+      await this.chatMessageRepository.createMany(chatMessageRequests);
+      console.log(`[CreatePromptUseCase] Saved ${chatMessageRequests.length} chat messages for build ${build.id}`);
+    }
+
     // Send message to queue with just buildId - all data is in the build record
     const message = {
       buildId: build.id,
@@ -160,13 +190,22 @@ Please incorporate these design preferences into your implementation.`;
       prompt = `${prompt}
 
 Design Inspiration Reference:
-The user has selected a design inspiration image shown above. Use this as a reference for:
-- Visual style and aesthetic direction
-- Layout patterns and structure
-- Color scheme inspiration
-- Typography choices
+The user has selected a design inspiration image. Extract ONLY visual design patterns:
+- Layout structure and spacing
+- Color palette and gradients
+- Typography style (fonts, sizes, weights)
+- UI component styles (buttons, cards, inputs)
+- Visual hierarchy and whitespace usage
+- Animation/interaction patterns if apparent
 
-IMPORTANT: Do NOT copy text content from the inspiration - only use it for design guidance.`;
+CRITICAL - DO NOT copy from the inspiration:
+- Text content, headlines, or copy
+- Business name, logo, or branding
+- Currency, prices, or specific numbers
+- Product names or service descriptions
+- Any business-specific information
+
+The inspiration is purely for VISUAL STYLE guidance. All content must come from the user's prompt describing THEIR business/project.`;
     }
 
     return prompt;

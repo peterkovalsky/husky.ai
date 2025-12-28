@@ -1,6 +1,7 @@
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
 import { IWorkspaceRepository } from '../../domain/repositories/IWorkspaceRepository';
 import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
+import { IChatMessageRepository } from '../../domain/repositories/IChatMessageRepository';
 import { ProjectDetailsDto } from '../dto/ProjectDto';
 import { User } from '../../domain/entities/User';
 import { mapBuildStatusToFrontend } from '../../domain/utils/statusMapper';
@@ -9,7 +10,8 @@ export class GetProjectDetailsUseCase {
   constructor(
     private projectRepository: IProjectRepository,
     private workspaceRepository: IWorkspaceRepository,
-    private buildRepository: IBuildRepository
+    private buildRepository: IBuildRepository,
+    private chatMessageRepository: IChatMessageRepository
   ) {}
 
   async execute(projectId: string, user: User): Promise<ProjectDetailsDto> {
@@ -33,6 +35,16 @@ export class GetProjectDetailsUseCase {
 
     // Get latest build for current version info
     const latestBuild = await this.buildRepository.findLatestByProjectId(projectId);
+
+    // Get chat messages for this project
+    let chatMessages: Awaited<ReturnType<typeof this.chatMessageRepository.findByProjectId>> = [];
+    try {
+      chatMessages = await this.chatMessageRepository.findByProjectId(projectId);
+      console.log(`[GetProjectDetailsUseCase] Found ${chatMessages.length} chat messages for project ${projectId}`);
+    } catch (error) {
+      console.error(`[GetProjectDetailsUseCase] Error fetching chat messages:`, error);
+      // Continue with empty array - don't fail the whole request
+    }
 
     return {
       project: {
@@ -71,7 +83,8 @@ export class GetProjectDetailsUseCase {
         previewUrl: project.previewUrl,
         createdAt: project.createdAt,
         promptId: undefined
-      }] : []
+      }] : [],
+      chatMessages
     };
   }
 }

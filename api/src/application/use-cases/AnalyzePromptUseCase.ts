@@ -64,19 +64,15 @@ FORMAT RULES:
 - 2-3 options per question
 
 ADDITIONAL TASK:
-Determine if this request is for a landing page, website, homepage, marketing site, or portfolio.
-Set isLandingPageRequest to true if the user wants to build:
-- A landing page or home page
-- A marketing website or product page
-- A portfolio or personal website
-- A company or business website
-- A SaaS marketing page
-- Any page-based website (vs an interactive app/tool)
+Determine if this request is for a website or landing page.
+Set isLandingPageRequest to true if:
+- The prompt contains the word "website", "site", "landing page", "homepage", or "page"
+- The user wants a landing page, marketing page, portfolio, or business website
+- ANY request that mentions "website" regardless of the type (e.g., "calculator website" = true)
 
-Set isLandingPageRequest to false for:
-- Interactive applications (dashboards, todo apps, calculators)
-- Tools and utilities
-- Games or interactive experiences
+Set isLandingPageRequest to false ONLY for:
+- Pure interactive apps/tools that do NOT mention "website" or "site" (e.g., "build me a todo app")
+- Games or interactive experiences without "website" in the prompt
 
 RESPONSE FORMAT (JSON only):
 {
