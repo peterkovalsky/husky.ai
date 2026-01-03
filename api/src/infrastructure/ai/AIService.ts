@@ -150,7 +150,7 @@ export class AIService implements IAIService {
     const request: AIGenerationRequest = {
       userPrompt: prompt,
       systemPrompt: getSystemPrompt(),
-      fileTreeContent: FileTreeFormatter.formatForPrompt(this.currentFileTree),
+      fileTreeContent: FileTreeFormatter.formatForPrompt(this.compactForPrompt(this.currentFileTree)),
       mediaUrls,
       model,
       userId: build.userId,
@@ -208,5 +208,40 @@ export class AIService implements IAIService {
     }
 
     return newFileTree;
+  }
+
+  /**
+   * Compact file tree for AI prompt - replace config files with placeholders
+   * AI sees the full file list but only essential content
+   * Config files are preserved during merge with full content
+   */
+  private compactForPrompt(fileTree: Record<string, string>): Record<string, string> {
+    // Files to replace with placeholder (AI never modifies these)
+    const PLACEHOLDER_FILES: Record<string, string> = {
+      'eslint.config.js': '// [ESLint config - do not modify]',
+      'vite.config.ts': '// [Vite build config - do not modify]',
+      'tsconfig.json': '// [TypeScript config]',
+      'tsconfig.app.json': '// [TypeScript config]',
+      'tsconfig.node.json': '// [TypeScript config]',
+      'postcss.config.js': '// [PostCSS config]',
+      'src/vite-env.d.ts': '/// <reference types="vite/client" />',
+      'src/main.tsx': '// [App entry point with router - do not modify]'
+      // Note: index.html kept with full content - users add analytics, meta tags
+    };
+
+    const compacted: Record<string, string> = {};
+
+    for (const [path, content] of Object.entries(fileTree)) {
+      // Replace config files with placeholder
+      if (PLACEHOLDER_FILES[path]) {
+        compacted[path] = PLACEHOLDER_FILES[path];
+        continue;
+      }
+
+      // Keep full content for all other files (package.json, src/*, tailwind.config.js, etc.)
+      compacted[path] = content;
+    }
+
+    return compacted;
   }
 }

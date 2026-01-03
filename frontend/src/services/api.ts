@@ -531,7 +531,7 @@ export class ApiService {
 
     // Only set up interval if not already stopped (job wasn't in final state)
     if (!isStopped) {
-      intervalId = setInterval(poll, 10000);
+      intervalId = setInterval(poll, 2000);
     }
 
     // Return cleanup function

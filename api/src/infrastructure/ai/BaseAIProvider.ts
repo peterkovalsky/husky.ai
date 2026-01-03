@@ -109,23 +109,37 @@ export abstract class BaseAIProvider implements IAIProvider {
 
   /**
    * Extract files from AI response in fenced block format
+   * Includes sanitization to strip any thinking/planning text outside file blocks
    */
   protected extractFiles(content: string): Record<string, string> {
     if (!FencedBlockParser.isFencedFormat(content)) {
       throw new Error(`AI response is not in fenced block format. Expected <<<FILE:...>>> blocks. Content preview: ${content.substring(0, 300)}...`);
     }
 
-    const validation = FencedBlockParser.validate(content);
+    // Step 1: Sanitize - strip any non-file-block content (thinking, planning, etc.)
+    const { sanitized, strippedChars, hadExtraContent, orphanEndTags } = FencedBlockParser.sanitize(content);
+    if (hadExtraContent) {
+      console.warn(`[${this.getName()}Provider] Stripped ${strippedChars} chars of non-file-block content from AI response`);
+    }
+    if (orphanEndTags > 0) {
+      console.warn(`[${this.getName()}Provider] Found ${orphanEndTags} orphan <<<END>>> tag(s) in AI response`);
+    }
+
+    // Step 2: Deduplicate - keep only the last occurrence of each file path
+    const deduplicated = FencedBlockParser.deduplicate(sanitized);
+
+    // Step 3: Validate the cleaned content
+    const validation = FencedBlockParser.validate(deduplicated);
 
     if (validation.valid) {
       console.log(`[${this.getName()}Provider] Parsed ${validation.fileCount} files from fenced block format`);
-      return FencedBlockParser.parse(content);
+      return FencedBlockParser.parse(deduplicated);
     }
 
     // Try partial recovery if validation failed
     if (validation.errors.length > 0) {
       console.warn(`[${this.getName()}Provider] Fenced block validation errors:`, validation.errors);
-      const partial = FencedBlockParser.parsePartial(content);
+      const partial = FencedBlockParser.parsePartial(deduplicated);
 
       if (Object.keys(partial.complete).length > 0) {
         console.warn(`[${this.getName()}Provider] Recovered ${Object.keys(partial.complete).length} complete files from partial response`);
@@ -136,7 +150,7 @@ export abstract class BaseAIProvider implements IAIProvider {
       }
     }
 
-    throw new Error(`Failed to parse fenced block response. Errors: ${validation.errors.join(', ')}. Content preview: ${content.substring(0, 300)}...`);
+    throw new Error(`Failed to parse fenced block response. Errors: ${validation.errors.join(', ')}. Content preview: ${deduplicated.substring(0, 300)}...`);
   }
 
   /**

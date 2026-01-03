@@ -19,6 +19,81 @@ export class FencedBlockParser {
   private static readonly DELETE_PATTERN = /<<<DELETE:(.+?)>>>/g;
 
   /**
+   * Sanitize AI response by extracting only fenced blocks
+   * Strips any thinking/planning text that appears outside file blocks
+   * This is a safety net for AI models that leak reasoning into output
+   */
+  static sanitize(content: string): { sanitized: string; strippedChars: number; hadExtraContent: boolean; orphanEndTags: number } {
+    const blocks: string[] = [];
+    let totalBlockChars = 0;
+
+    // Extract all FILE blocks (preserving order)
+    const fileMatches = [...content.matchAll(this.FILE_PATTERN)];
+    for (const match of fileMatches) {
+      const block = match[0];
+      blocks.push(block);
+      totalBlockChars += block.length;
+    }
+
+    // Extract all DELETE blocks
+    const deleteMatches = [...content.matchAll(this.DELETE_PATTERN)];
+    for (const match of deleteMatches) {
+      const block = match[0];
+      blocks.push(block);
+      totalBlockChars += block.length;
+    }
+
+    // Count orphan END tags (END tags not matched with FILE blocks)
+    const totalEndTags = (content.match(/<<<END>>>/g) || []).length;
+    const matchedEndTags = fileMatches.length; // Each FILE match includes its END
+    const orphanEndTags = totalEndTags - matchedEndTags;
+
+    // Reconstruct with only the blocks
+    const sanitized = blocks.join('\n\n');
+    const strippedChars = content.length - totalBlockChars;
+    const hadExtraContent = strippedChars > 100; // Allow small whitespace differences
+
+    return {
+      sanitized,
+      strippedChars,
+      hadExtraContent,
+      orphanEndTags
+    };
+  }
+
+  /**
+   * Deduplicate files - if same path appears multiple times, keep the last occurrence
+   * This handles AI models that output the same file multiple times with revisions
+   */
+  static deduplicate(content: string): string {
+    const fileMap = new Map<string, string>();
+    const deleteSet = new Set<string>();
+
+    // Process FILE blocks - later occurrences override earlier ones
+    for (const match of content.matchAll(this.FILE_PATTERN)) {
+      const filePath = match[1].trim();
+      const fullBlock = match[0];
+      fileMap.set(filePath, fullBlock);
+    }
+
+    // Process DELETE blocks
+    for (const match of content.matchAll(this.DELETE_PATTERN)) {
+      const filePath = match[1].trim();
+      deleteSet.add(filePath);
+      // If we have a FILE for this path, the DELETE takes precedence if it comes after
+      // For simplicity, we'll keep both - the delete marker will be processed
+    }
+
+    // Reconstruct: FILE blocks + DELETE blocks
+    const blocks: string[] = [...fileMap.values()];
+    for (const deletePath of deleteSet) {
+      blocks.push(`<<<DELETE:${deletePath}>>>`);
+    }
+
+    return blocks.join('\n\n');
+  }
+
+  /**
    * Parse fenced block response into file tree
    */
   static parse(content: string): Record<string, string> {

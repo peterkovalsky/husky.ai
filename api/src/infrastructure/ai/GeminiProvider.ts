@@ -42,6 +42,31 @@ export class GeminiProvider extends BaseAIProvider {
     try {
       // Build content parts with images if provided
       const contentParts = this.buildContentParts(request);
+      const contents = [{ role: "user" as const, parts: contentParts }];
+
+      // Pre-count input tokens before generation (required for thinking mode which doesn't return promptTokenCount)
+      // Note: countTokens doesn't support external image URLs, so we only count text
+      let preCountedInputTokens = 0;
+      try {
+        const textOnlyParts = contentParts.filter((p): p is { text: string } => 'text' in p);
+        const contentsForCounting = [
+          { role: "user" as const, parts: [{ text: request.systemPrompt }] },
+          { role: "user" as const, parts: textOnlyParts }
+        ];
+        const countResponse = await this.client.models.countTokens({
+          model: request.model,
+          contents: contentsForCounting
+        });
+        preCountedInputTokens = countResponse.totalTokens || 0;
+        // Add rough estimate for images (258 tokens per image is Gemini's default)
+        const imageCount = request.mediaUrls?.length || 0;
+        if (imageCount > 0) {
+          preCountedInputTokens += imageCount * 258;
+        }
+        console.log(`[GeminiProvider] Pre-counted input tokens: ${preCountedInputTokens} (${imageCount} images estimated)`);
+      } catch (countError) {
+        console.warn(`[GeminiProvider] Failed to pre-count tokens:`, countError instanceof Error ? countError.message : countError);
+      }
 
       // Configure thinking level based on model (high for pro models, low for flash)
       const isFlashModel = request.model.includes('flash');
@@ -50,7 +75,7 @@ export class GeminiProvider extends BaseAIProvider {
       console.log("[GeminiProvider] Calling Gemini API with streaming...");
       const response = await this.client.models.generateContentStream({
         model: request.model,
-        contents: [{ role: "user", parts: contentParts }],
+        contents: contents,
         config: {
           systemInstruction: request.systemPrompt,
           maxOutputTokens: 65536,
@@ -69,6 +94,7 @@ export class GeminiProvider extends BaseAIProvider {
       let rawContent = "";
       let inputTokens = 0;
       let outputTokens = 0;
+      let thinkingTokens = 0;
       let chunkCount = 0;
 
       console.log("[GeminiProvider] Streaming API response...");
@@ -79,9 +105,20 @@ export class GeminiProvider extends BaseAIProvider {
             rawContent += chunk.text;
           }
 
+          // Capture usage metadata - Gemini reports this in chunks (usually final chunk has complete data)
           if (chunk.usageMetadata) {
-            inputTokens = chunk.usageMetadata.promptTokenCount || 0;
-            outputTokens = chunk.usageMetadata.candidatesTokenCount || 0;
+            const metadata = chunk.usageMetadata as Record<string, unknown>;
+
+            // Standard token counts - promptTokenCount may be missing in thinking mode
+            if (metadata.promptTokenCount !== undefined && metadata.promptTokenCount !== null) {
+              inputTokens = metadata.promptTokenCount as number;
+            }
+            outputTokens = (metadata.candidatesTokenCount as number) || outputTokens;
+
+            // Thinking tokens (when thinkingConfig is enabled)
+            if (metadata.thoughtsTokenCount) {
+              thinkingTokens = metadata.thoughtsTokenCount as number;
+            }
           }
         }
       } catch (streamError) {
@@ -91,11 +128,20 @@ export class GeminiProvider extends BaseAIProvider {
         throw new Error(`Gemini API stream interrupted after ${chunkCount} chunks (${rawContent.length} chars): ${errorMessage}`);
       }
 
-      console.log("[GeminiProvider] Gemini API streaming completed");
+      // Use pre-counted input tokens if API didn't return promptTokenCount (happens with thinking mode)
+      if (inputTokens === 0 && preCountedInputTokens > 0) {
+        inputTokens = preCountedInputTokens;
+        console.log(`[GeminiProvider] Using pre-counted input tokens (thinking mode doesn't return promptTokenCount)`);
+      }
+
+      // Log final token counts (include thinking tokens in output for cost tracking)
+      const totalOutputTokens = outputTokens + thinkingTokens;
+      console.log(`[GeminiProvider] Gemini API streaming completed - tokens: input=${inputTokens}, output=${outputTokens}, thinking=${thinkingTokens}, total_output=${totalOutputTokens}`);
 
       return {
         rawContent,
-        usage: { inputTokens, outputTokens }
+        // Include thinking tokens in output count for accurate cost calculation
+        usage: { inputTokens, outputTokens: totalOutputTokens }
       };
     } catch (error) {
       // Check for specific error types
