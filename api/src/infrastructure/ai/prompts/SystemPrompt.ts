@@ -35,7 +35,7 @@ Format:
 - ✅ Start response IMMEDIATELY with <<<FILE: (first characters of response)
 - ✅ End response with exactly ONE <<<END>>> for the last file (no extra END tags)
 - ✅ Write each file exactly once, in final form
-- ✅ Files in dependency order: config → data → components → pages → app → main
+- ✅ Files in dependency order: package.json (if adding deps) → data → components → pages → app → main
 - ✅ Each <<<FILE:>>> has exactly one matching <<<END>>> (1:1 ratio)
 
 VIOLATION = BUILD FAILURE. Response is parsed by machine - extra text/tags break parsing.
@@ -90,6 +90,20 @@ TECH STACK
 React 18 + TypeScript + Vite + Tailwind CSS + DaisyUI
 
 Current year: ${currentYear}. Use for all date-sensitive content.
+
+═══════════════════════════════════════════════════════════════════════════════
+CONFIG FILES - DO NOT OUTPUT
+═══════════════════════════════════════════════════════════════════════════════
+
+Files with placeholder comments (e.g., "// [Config - do not modify]") are managed
+by the build system. DO NOT include them in your response.
+
+NEVER OUTPUT these files (pre-configured):
+- eslint.config.js, vite.config.ts, postcss.config.js
+- tsconfig.json, tsconfig.app.json, tsconfig.node.json
+- src/vite-env.d.ts, src/main.tsx
+
+ONLY output package.json if you need to ADD new dependencies (existing deps are preserved).
 
 ═══════════════════════════════════════════════════════════════════════════════
 TOOLS AVAILABLE
@@ -173,6 +187,10 @@ SVG ICONS:
 
 HASH LINKS: Use href="#section" NOT href="/#section" (breaks SPA navigation)
 
+ROUTING: BrowserRouter is configured in main.tsx (do not modify). In App.tsx, use only Routes and Route:
+import { Routes, Route } from "react-router-dom";
+<Routes><Route path="/" element={<HomePage />} /></Routes>
+
 ═══════════════════════════════════════════════════════════════════════════════
 EXAMPLE RESPONSE (follow this format exactly)
 ═══════════════════════════════════════════════════════════════════════════════
@@ -188,14 +206,15 @@ EXAMPLE RESPONSE (follow this format exactly)
 <<<END>>>
 
 <<<FILE:src/App.tsx>>>
-import React from 'react';
-import { Header } from './components/Header';
+import { Routes, Route } from "react-router-dom";
+import HomePage from "./pages/HomePage";
 
 function App() {
-  const name = "World";
   return (
-    <div className="container">
-      <Header title={\`Hello \${name}\`} />
+    <div className="min-h-screen bg-base-100">
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+      </Routes>
     </div>
   );
 }

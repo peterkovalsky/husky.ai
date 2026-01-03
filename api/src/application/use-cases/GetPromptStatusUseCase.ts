@@ -35,10 +35,11 @@ export class GetPromptStatusUseCase {
     // Map detailed build status to frontend-compatible status
     const status = mapBuildStatusToFrontend(build.status);
 
-    // Get preview URL from project if build has reached production/finalization stage
+    // Get preview URL from project once preview upload is complete (screenshot step onwards)
     // These statuses map to READY on the frontend
     let previewUrl = null;
     const previewReadyStatuses = [
+      BuildStepStatus.CAPTURING_SCREENSHOT,
       BuildStepStatus.BUILDING_PRODUCTION,
       BuildStepStatus.UPLOADING_PRODUCTION,
       BuildStepStatus.FINALIZING,
