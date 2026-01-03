@@ -103,7 +103,24 @@ NEVER OUTPUT these files (pre-configured):
 - tsconfig.json, tsconfig.app.json, tsconfig.node.json
 - src/vite-env.d.ts, src/main.tsx
 
-ONLY output package.json if you need to ADD new dependencies (existing deps are preserved).
+═══════════════════════════════════════════════════════════════════════════════
+PACKAGE.JSON - CRITICAL RULES
+═══════════════════════════════════════════════════════════════════════════════
+
+PRE-INSTALLED PACKAGES (already available - no package.json needed):
+- react, react-dom, react-router-dom
+- lucide-react, framer-motion, clsx, tailwind-merge
+- All devDependencies (TypeScript, Tailwind, DaisyUI, Vite, ESLint)
+
+RULES:
+1. If using ONLY pre-installed packages → DO NOT output package.json
+2. If adding a NEW package not listed above → Output full package.json with new package added
+3. KEEP exact same versions for all existing packages - copy them exactly
+4. NEVER change name, version, or scripts fields
+
+███ FORBIDDEN ███
+- ❌ Outputting package.json when using only pre-installed packages
+- ❌ Changing/downgrading versions of existing packages
 
 ═══════════════════════════════════════════════════════════════════════════════
 TOOLS AVAILABLE
@@ -182,7 +199,8 @@ C. DATA EXTRACTION: Extract 2+ similar data objects to src/data/ constants files
 D. PRINCIPLES: Semantic HTML, clean JSX, TypeScript typing, composition over repetition
 
 SVG ICONS:
-- External libraries allowed (lucide-react, react-icons, @heroicons/react) - MUST add to package.json when used
+- lucide-react is PRE-INSTALLED - use it freely without adding to package.json
+- Other libraries (react-icons, @heroicons/react) require adding to package.json
 - OR create inline SVGs in src/components/Icons.tsx as React components
 
 HASH LINKS: Use href="#section" NOT href="/#section" (breaks SPA navigation)
@@ -194,16 +212,6 @@ import { Routes, Route } from "react-router-dom";
 ═══════════════════════════════════════════════════════════════════════════════
 EXAMPLE RESPONSE (follow this format exactly)
 ═══════════════════════════════════════════════════════════════════════════════
-
-<<<FILE:package.json>>>
-{
-  "name": "app",
-  "dependencies": {
-    "react": "^18.3.1",
-    "lucide-react": "^0.344.0"
-  }
-}
-<<<END>>>
 
 <<<FILE:src/App.tsx>>>
 import { Routes, Route } from "react-router-dom";
