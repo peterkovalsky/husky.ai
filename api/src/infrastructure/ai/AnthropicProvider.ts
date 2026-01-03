@@ -101,7 +101,7 @@ export class AnthropicProvider extends BaseAIProvider {
   /**
    * Build user content array with media (images/videos) and text
    */
-  private buildUserContent(request: AIGenerationRequest): string | Array<{ type: string; text?: string; source?: { type: string; url: string; media_type?: string } }> {
+  private buildUserContent(request: AIGenerationRequest): string | Array<{ type: string; text?: string; source?: { type: string; url: string } }> {
     // Build the full prompt text
     let promptText = `Current app:
 ${request.fileTreeContent}
@@ -125,6 +125,7 @@ IMPORTANT: When the request mentions uploaded images or videos, use the EXACT UR
     }
 
     // Build content array with media first, then text
+    // Note: For URL sources, Anthropic auto-infers media_type - do not include it
     return [
       ...request.mediaUrls.map(url => {
         const mediaType = this.getMediaTypeFromUrl(url);
@@ -132,8 +133,7 @@ IMPORTANT: When the request mentions uploaded images or videos, use the EXACT UR
           type: mediaType.type,
           source: {
             type: "url" as const,
-            url,
-            ...(mediaType.mimeType && { media_type: mediaType.mimeType })
+            url
           }
         };
       }),

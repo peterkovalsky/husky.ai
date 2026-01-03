@@ -69,6 +69,7 @@ export class GeminiProvider extends BaseAIProvider {
       let rawContent = "";
       let inputTokens = 0;
       let outputTokens = 0;
+      let thinkingTokens = 0;
       let chunkCount = 0;
 
       console.log("[GeminiProvider] Streaming API response...");
@@ -79,9 +80,23 @@ export class GeminiProvider extends BaseAIProvider {
             rawContent += chunk.text;
           }
 
+          // Capture usage metadata - Gemini reports this in chunks (usually final chunk has complete data)
           if (chunk.usageMetadata) {
-            inputTokens = chunk.usageMetadata.promptTokenCount || 0;
-            outputTokens = chunk.usageMetadata.candidatesTokenCount || 0;
+            const metadata = chunk.usageMetadata as Record<string, unknown>;
+
+            // Standard token counts
+            inputTokens = (metadata.promptTokenCount as number) || inputTokens;
+            outputTokens = (metadata.candidatesTokenCount as number) || outputTokens;
+
+            // Thinking tokens (when thinkingConfig is enabled)
+            if (metadata.thoughtsTokenCount) {
+              thinkingTokens = metadata.thoughtsTokenCount as number;
+            }
+
+            // Log usage metadata structure on first occurrence for debugging
+            if (chunkCount <= 2 || inputTokens === 0) {
+              console.log(`[GeminiProvider] Chunk ${chunkCount} usageMetadata:`, JSON.stringify(metadata));
+            }
           }
         }
       } catch (streamError) {
@@ -91,11 +106,19 @@ export class GeminiProvider extends BaseAIProvider {
         throw new Error(`Gemini API stream interrupted after ${chunkCount} chunks (${rawContent.length} chars): ${errorMessage}`);
       }
 
-      console.log("[GeminiProvider] Gemini API streaming completed");
+      // Log final token counts (include thinking tokens in output for cost tracking)
+      const totalOutputTokens = outputTokens + thinkingTokens;
+      console.log(`[GeminiProvider] Gemini API streaming completed - tokens: input=${inputTokens}, output=${outputTokens}, thinking=${thinkingTokens}, total_output=${totalOutputTokens}`);
+
+      // Warn if input tokens is 0 (indicates potential API issue)
+      if (inputTokens === 0) {
+        console.warn(`[GeminiProvider] WARNING: inputTokens is 0 - this may indicate a Gemini API issue with usage reporting`);
+      }
 
       return {
         rawContent,
-        usage: { inputTokens, outputTokens }
+        // Include thinking tokens in output count for accurate cost calculation
+        usage: { inputTokens, outputTokens: totalOutputTokens }
       };
     } catch (error) {
       // Check for specific error types
