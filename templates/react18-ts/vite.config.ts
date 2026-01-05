@@ -1,37 +1,28 @@
 import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import react from '@vitejs/plugin-react-swc'
 
 /**
  * Optimized Vite Configuration for HuskyStudio Generated Apps
  *
- * Optimizations:
- * - Code splitting for better browser caching
+ * Performance Optimizations:
+ * - SWC instead of Babel (20-70x faster React transforms)
+ * - esbuild for minification (10-100x faster than terser)
+ * - Disabled code splitting for faster builds on limited CPU
  * - Console logs removed for smaller bundles
- * - Faster build times
  */
 export default defineConfig({
   base: process.env.VITE_BASE_PATH || '/',
 
   plugins: [
-    react({
-      jsxRuntime: 'automatic',
-      fastRefresh: true,
-    })
+    react()
   ],
 
   build: {
     target: 'es2020',
-    minify: 'esbuild',
 
-    // Enable code splitting for better caching
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom'],
-          'router': ['react-router-dom'],
-        },
-      },
-    },
+    // Use esbuild for all minification (much faster than terser/rollup)
+    minify: 'esbuild',
+    cssMinify: 'esbuild',
 
     // Faster builds - skip compressed size calculation
     reportCompressedSize: false,
@@ -44,6 +35,14 @@ export default defineConfig({
 
     // Enable CSS code splitting
     cssCodeSplit: true,
+
+    // Optimized Rollup settings for faster builds
+    rollupOptions: {
+      output: {
+        // Disable manual chunks - let Vite handle it automatically
+        // This reduces chunk analysis overhead on limited CPU
+      },
+    },
   },
 
   // Optimize dependency pre-bundling
