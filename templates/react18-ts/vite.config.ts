@@ -6,7 +6,7 @@ import react from '@vitejs/plugin-react-swc'
  *
  * Performance Optimizations:
  * - SWC instead of Babel (20-70x faster React transforms)
- * - esbuild for minification (10-100x faster than terser)
+ * - Oxc for minification (faster than esbuild, powered by Rolldown)
  * - Disabled code splitting for faster builds on limited CPU
  * - Console logs removed for smaller bundles
  */
@@ -23,9 +23,8 @@ export default defineConfig({
   build: {
     target: 'es2022', // Modern browsers - less transpilation needed
 
-    // Use esbuild for all minification (much faster than terser/rollup)
-    minify: 'esbuild',
-    cssMinify: 'esbuild',
+    // Minification handled by Oxc in rolldown-vite (faster than esbuild)
+    minify: true,
 
     // Faster builds - skip compressed size calculation
     reportCompressedSize: false,
