@@ -7,7 +7,7 @@ import { IAIService } from '../../domain/services/IAIService';
 import { IBuildService } from '../../domain/services/IBuildService';
 import { IStorageService } from '../../domain/services/IStorageService';
 import { IImageProcessingService } from '../../domain/services/IImageProcessingService';
-import { JobMessage } from '../../domain/services/IQueueService';
+import { JobMessage, IQueueService, GenerateScreenshotMessage } from '../../domain/services/IQueueService';
 import { ProjectStatus } from '../../domain/entities/Project';
 import { PrepareProjectEnvironmentUseCase } from './PrepareProjectEnvironmentUseCase';
 import { BuildStepContext } from '../build-steps/BuildStepContext';
@@ -19,11 +19,9 @@ import { FilePrepStep } from '../build-steps/steps/FilePrepStep';
 import { PreviewBuildStep } from '../build-steps/steps/PreviewBuildStep';
 import { AutoFixStep } from '../build-steps/steps/AutoFixStep';
 import { PreviewUploadStep } from '../build-steps/steps/PreviewUploadStep';
-import { ScreenshotStep } from '../build-steps/steps/ScreenshotStep';
 import { ProductionBuildStep } from '../build-steps/steps/ProductionBuildStep';
 import { ProductionUploadStep } from '../build-steps/steps/ProductionUploadStep';
 import { FinalizationStep } from '../build-steps/steps/FinalizationStep';
-import { IScreenshotService } from '../../infrastructure/screenshot/ScreenshotService';
 import { loadAppConfig } from '../../shared/config/AppConfig';
 
 /**
@@ -53,7 +51,7 @@ export class ProcessJobUseCase {
     private prepareProjectEnvironmentUseCase: PrepareProjectEnvironmentUseCase,
     private mediaRepository: IMediaRepository,
     private imageProcessingService: IImageProcessingService,
-    private screenshotService: IScreenshotService,
+    private queueService: IQueueService,
     private inspoRepository: IInspoRepository
   ) {}
 
@@ -127,12 +125,7 @@ export class ProcessJobUseCase {
       this.projectRepository,
       this.storageService
     );
-    const screenshotStep = new ScreenshotStep(
-      this.buildRepository,
-      this.projectRepository,
-      this.storageService,
-      this.screenshotService
-    );
+    // Screenshot is now handled asynchronously via SQS queue
     const productionBuildStep = new ProductionBuildStep(
       this.buildRepository,
       this.buildService
@@ -218,17 +211,17 @@ export class ProcessJobUseCase {
       // Step 6: Preview Upload
       await this.executeStep(context, previewUploadStep);
 
-      // Step 7: Screenshot (non-blocking)
-      await this.executeStep(context, screenshotStep);
-
-      // Step 8: Production Build
+      // Step 7: Production Build
       await this.executeStep(context, productionBuildStep);
 
-      // Step 9: Production Upload
+      // Step 8: Production Upload
       await this.executeStep(context, productionUploadStep);
 
-      // Step 10: Finalization
+      // Step 9: Finalization
       await this.executeStep(context, finalizationStep);
+
+      // Queue async screenshot generation (non-blocking)
+      await this.queueScreenshotGeneration(context, project);
 
       console.log(`\n========================================`);
       console.log(`Build completed successfully!`);
@@ -295,5 +288,34 @@ export class ProcessJobUseCase {
 
     // Re-throw error to be handled by queue processor
     throw error;
+  }
+
+  /**
+   * Queue async screenshot generation via SQS
+   * Screenshot is non-blocking - build is already complete when this runs
+   */
+  private async queueScreenshotGeneration(context: BuildStepContext, project: any): Promise<void> {
+    if (!project.previewUrl || !context.version) {
+      console.log(`[ProcessJobUseCase] Skipping screenshot queue - no preview URL or version`);
+      return;
+    }
+
+    try {
+      const screenshotMessage: GenerateScreenshotMessage = {
+        action: 'GENERATE_SCREENSHOT',
+        buildId: context.buildId,
+        projectId: context.projectId,
+        version: context.version,
+        previewUrl: project.previewUrl,
+        userId: context.userId,
+        timestamp: new Date().toISOString(),
+      };
+
+      await this.queueService.sendMessage(screenshotMessage);
+      console.log(`[ProcessJobUseCase] Queued screenshot generation for build ${context.buildId}`);
+    } catch (error) {
+      // Screenshot queueing failure shouldn't fail the build
+      console.warn(`[ProcessJobUseCase] Failed to queue screenshot (non-blocking):`, error);
+    }
   }
 }

@@ -39,7 +39,17 @@ export interface ProvisionHostnameMessage {
   timestamp: string;
 }
 
-export type QueueMessage = JobMessage | DeleteProjectMessage | DeleteMediaMessage | PublishProjectMessage | UnpublishProjectMessage | ProvisionHostnameMessage;
+export interface GenerateScreenshotMessage {
+  action: 'GENERATE_SCREENSHOT';
+  buildId: string;
+  projectId: string;
+  version: number;
+  previewUrl: string;
+  userId: string;
+  timestamp: string;
+}
+
+export type QueueMessage = JobMessage | DeleteProjectMessage | DeleteMediaMessage | PublishProjectMessage | UnpublishProjectMessage | ProvisionHostnameMessage | GenerateScreenshotMessage;
 
 export interface ReceiveMessageResult {
   messages: Array<{
