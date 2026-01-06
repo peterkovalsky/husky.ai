@@ -283,7 +283,7 @@ export class BuildService implements IBuildService {
       // Set up environment variables for the build
       const buildEnv = {
         ...process.env,
-        NODE_ENV: 'development', // Ensure TypeScript can find all type definitions
+        NODE_ENV: 'production', // Production mode enables optimizations in Vite/React/libraries
         PATH: `${nodeBinPath}:${process.env.PATH}`,
         ...(projectId ? { VITE_BASE_PATH: `/projects/${projectId}/` } : {}),
       };
@@ -326,7 +326,7 @@ export class BuildService implements IBuildService {
       // Set up environment variables for the build with custom base path
       const buildEnv = {
         ...process.env,
-        NODE_ENV: 'development',
+        NODE_ENV: 'production',
         PATH: `${nodeBinPath}:${process.env.PATH}`,
         VITE_BASE_PATH: basePath,
       };

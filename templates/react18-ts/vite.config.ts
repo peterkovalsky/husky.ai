@@ -13,12 +13,15 @@ import react from '@vitejs/plugin-react-swc'
 export default defineConfig({
   base: process.env.VITE_BASE_PATH || '/',
 
+  // Persistent cache for faster rebuilds
+  cacheDir: 'node_modules/.vite',
+
   plugins: [
     react()
   ],
 
   build: {
-    target: 'es2020',
+    target: 'es2022', // Modern browsers - less transpilation needed
 
     // Use esbuild for all minification (much faster than terser/rollup)
     minify: 'esbuild',
