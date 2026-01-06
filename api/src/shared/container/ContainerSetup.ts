@@ -78,6 +78,7 @@ import { GetPublishStatusUseCase } from '../../application/use-cases/GetPublishS
 import { ProcessPublishJobUseCase } from '../../application/use-cases/ProcessPublishJobUseCase';
 import { ProcessUnpublishJobUseCase } from '../../application/use-cases/ProcessUnpublishJobUseCase';
 import { ProvisionHostnameUseCase } from '../../application/use-cases/ProvisionHostnameUseCase';
+import { ProcessScreenshotUseCase } from '../../application/use-cases/ProcessScreenshotUseCase';
 import { SetCustomDomainUseCase } from '../../application/use-cases/SetCustomDomainUseCase';
 import { VerifyCustomDomainDNSUseCase } from '../../application/use-cases/VerifyCustomDomainDNSUseCase';
 import { RemoveCustomDomainUseCase } from '../../application/use-cases/RemoveCustomDomainUseCase';
@@ -295,7 +296,7 @@ export function setupContainer(): DIContainer {
     container.get<PrepareProjectEnvironmentUseCase>('prepareProjectEnvironmentUseCase'),
     container.get<IMediaRepository>('mediaRepository'),
     container.get<IImageProcessingService>('imageProcessingService'),
-    container.get<IScreenshotService>('screenshotService'),
+    container.get<IQueueService>('queueService'),
     container.get<IInspoRepository>('inspoRepository')
   ));
 
@@ -430,6 +431,13 @@ export function setupContainer(): DIContainer {
   container.registerFactory<ProvisionHostnameUseCase>('provisionHostnameUseCase', () => new ProvisionHostnameUseCase(
     container.get<IProjectRepository>('projectRepository'),
     container.get<CloudflareSaaSService>('cloudflareSaaSService')
+  ));
+
+  // Async screenshot generation use case
+  container.registerFactory<ProcessScreenshotUseCase>('processScreenshotUseCase', () => new ProcessScreenshotUseCase(
+    container.get<IScreenshotService>('screenshotService'),
+    container.get<IStorageService>('storageService'),
+    container.get<IBuildRepository>('buildRepository')
   ));
 
   // Register Custom Domain Use Cases

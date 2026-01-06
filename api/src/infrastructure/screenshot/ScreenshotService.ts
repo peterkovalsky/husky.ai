@@ -4,6 +4,7 @@ import { getPostHogErrorTracker } from '../monitoring/PostHogErrorTracker';
 
 export interface IScreenshotService {
   captureScreenshot(url: string, context?: { projectId?: string; userId?: string }): Promise<Buffer>;
+  shutdown(): Promise<void>;
 }
 
 export class ScreenshotService implements IScreenshotService {
@@ -12,6 +13,78 @@ export class ScreenshotService implements IScreenshotService {
   private readonly pageLoadTimeout = 30000; // 30 seconds
   private readonly thumbnailWidth = 480; // Resize for thumbnails
 
+  // Browser pooling - reuse browser instance across screenshots
+  private static browser: Browser | null = null;
+  private static browserLastUsed: number = 0;
+  private static readonly BROWSER_IDLE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+
+  /**
+   * Get or create a browser instance (pooled)
+   */
+  private async getBrowser(): Promise<Browser> {
+    // Check if existing browser is still valid
+    if (ScreenshotService.browser) {
+      try {
+        // Test if browser is still connected
+        const pages = await ScreenshotService.browser.pages();
+        if (pages) {
+          ScreenshotService.browserLastUsed = Date.now();
+          return ScreenshotService.browser;
+        }
+      } catch {
+        // Browser disconnected, will create new one
+        ScreenshotService.browser = null;
+      }
+    }
+
+    console.log('[ScreenshotService] Launching new browser instance...');
+    const isDev = process.env.NODE_ENV !== 'production';
+
+    ScreenshotService.browser = await puppeteer.launch({
+      headless: isDev ? 'shell' : true,
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--disable-software-rasterizer',
+        '--disable-extensions',
+        '--disable-background-networking',
+        '--disable-default-apps',
+        '--disable-sync',
+        '--disable-translate',
+        '--hide-scrollbars',
+        '--mute-audio',
+        '--no-first-run',
+        '--safebrowsing-disable-auto-update',
+        '--disable-features=HttpsUpgrades,HttpsFirstModeV2,HttpsFirstModeForTypedNavigations,HttpsOnlyMode',
+        '--disable-blink-features=AutomationControlled',
+        '--user-data-dir=/tmp/chromium-user-data',
+      ],
+      protocolTimeout: 30000,
+    });
+
+    ScreenshotService.browserLastUsed = Date.now();
+    console.log('[ScreenshotService] Browser launched successfully');
+    return ScreenshotService.browser;
+  }
+
+  /**
+   * Shutdown the browser instance (for graceful shutdown)
+   */
+  async shutdown(): Promise<void> {
+    if (ScreenshotService.browser) {
+      try {
+        await ScreenshotService.browser.close();
+        ScreenshotService.browser = null;
+        console.log('[ScreenshotService] Browser closed');
+      } catch (error) {
+        console.warn('[ScreenshotService] Error closing browser:', error);
+      }
+    }
+  }
+
   /**
    * Captures a screenshot of the given URL
    * @param url The URL to capture
@@ -19,41 +92,15 @@ export class ScreenshotService implements IScreenshotService {
    * @returns Buffer containing the PNG screenshot
    */
   async captureScreenshot(url: string, context?: { projectId?: string; userId?: string }): Promise<Buffer> {
-    let browser: Browser | null = null;
+    let page: Awaited<ReturnType<Browser['newPage']>> | null = null;
 
     try {
       console.log(`[ScreenshotService] Capturing screenshot of ${url}`);
 
-      // Use system Chromium in Docker (set via PUPPETEER_EXECUTABLE_PATH)
-      const isDev = process.env.NODE_ENV !== 'production';
-      browser = await puppeteer.launch({
-        headless: isDev ? 'shell' : true, // Use shell mode in dev to avoid HTTPS auto-upgrade issues
-        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-gpu',
-          '--disable-software-rasterizer',
-          '--disable-extensions',
-          '--disable-background-networking',
-          '--disable-default-apps',
-          '--disable-sync',
-          '--disable-translate',
-          '--hide-scrollbars',
-          '--mute-audio',
-          '--no-first-run',
-          '--safebrowsing-disable-auto-update',
-          '--disable-features=HttpsUpgrades,HttpsFirstModeV2,HttpsFirstModeForTypedNavigations,HttpsOnlyMode',
-          '--disable-blink-features=AutomationControlled',
-          // Use /tmp for user data to avoid permission issues
-          '--user-data-dir=/tmp/chromium-user-data',
-        ],
-        // Increase protocol timeout for slower container environments
-        protocolTimeout: 30000,
-      });
+      // Get pooled browser instance
+      const browser = await this.getBrowser();
 
-      const page = await browser.newPage();
+      page = await browser.newPage();
 
       // Set a realistic user agent to avoid being blocked
       await page.setUserAgent(
@@ -133,11 +180,12 @@ export class ScreenshotService implements IScreenshotService {
 
       throw error;
     } finally {
-      if (browser) {
+      // Close only the page, keep browser alive for reuse
+      if (page) {
         try {
-          await browser.close();
+          await page.close();
         } catch (closeError) {
-          console.warn('[ScreenshotService] Error closing browser:', closeError);
+          console.warn('[ScreenshotService] Error closing page:', closeError);
         }
       }
     }

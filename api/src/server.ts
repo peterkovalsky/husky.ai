@@ -34,6 +34,7 @@ const jobProcessorService = new JobProcessorService(
   container.get('processPublishJobUseCase'),
   container.get('processUnpublishJobUseCase'),
   container.get('provisionHostnameUseCase'),
+  container.get('processScreenshotUseCase'),
   logger,
   config.jobProcessor.intervalMs
 );
@@ -54,11 +55,27 @@ server.keepAliveTimeout = config.timeouts.keepAlive;
 server.headersTimeout = config.timeouts.headers;
 
 // Graceful shutdown handlers
+const SHUTDOWN_TIMEOUT_MS = 25000; // 25 seconds - App Runner default is 30s
+
 const gracefulShutdown = (signal: string) => {
   logger.info(`${signal} received, shutting down gracefully...`);
+
+  // Force exit after timeout to prevent hanging
+  const forceExitTimeout = setTimeout(() => {
+    logger.error(`Graceful shutdown timeout after ${SHUTDOWN_TIMEOUT_MS}ms - forcing exit`);
+    process.exit(1);
+  }, SHUTDOWN_TIMEOUT_MS);
+
+  // Don't let this timeout keep the process alive if everything else closes
+  forceExitTimeout.unref();
+
+  // Stop accepting new jobs
   jobProcessorService.stop();
+
+  // Close HTTP server (stops accepting new connections, waits for existing)
   server.close(() => {
-    logger.info('Server closed');
+    clearTimeout(forceExitTimeout);
+    logger.info('Server closed gracefully');
     process.exit(0);
   });
 };
