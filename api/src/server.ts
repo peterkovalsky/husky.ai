@@ -1,5 +1,4 @@
 import { app, config, logger, container } from './app';
-import { JobProcessorService } from './application/services/JobProcessorService';
 import { handleUnhandledRejection, handleUncaughtException } from './presentation/middleware/ErrorMiddleware';
 import { getPostHogErrorTracker } from './infrastructure/monitoring/PostHogErrorTracker';
 
@@ -25,28 +24,12 @@ try {
   process.exit(1);
 }
 
-// Initialize job processor service
-const jobProcessorService = new JobProcessorService(
-  container.get('queueService'),
-  container.get('processJobUseCase'),
-  container.get('deleteProjectUseCase'),
-  container.get('processMediaDeletionUseCase'),
-  container.get('processPublishJobUseCase'),
-  container.get('processUnpublishJobUseCase'),
-  container.get('provisionHostnameUseCase'),
-  container.get('processScreenshotUseCase'),
-  logger,
-  config.jobProcessor.intervalMs
-);
-
-// Register job processor in container for health checks
-container.register('jobProcessorService', jobProcessorService);
+// Note: Job processing is now handled by the separate worker service
+// The API is stateless and only handles HTTP requests
 
 const server = app.listen(config.port, () => {
-  logger.info(`Server running at http://localhost:${config.port}`);
-  
-  // Start the job processor
-  jobProcessorService.start();
+  logger.info(`API server running at http://localhost:${config.port}`);
+  logger.info('Job processing handled by separate worker service');
 });
 
 // Set server timeouts
@@ -68,9 +51,6 @@ const gracefulShutdown = (signal: string) => {
 
   // Don't let this timeout keep the process alive if everything else closes
   forceExitTimeout.unref();
-
-  // Stop accepting new jobs
-  jobProcessorService.stop();
 
   // Close HTTP server (stops accepting new connections, waits for existing)
   server.close(() => {

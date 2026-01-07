@@ -1,0 +1,40 @@
+{
+  "name": "husky-worker",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "scripts": {
+    "start": "node dist/index.js",
+    "dev": "nodemon",
+    "build": "npx tsc && npx copyfiles src/**/*.json dist/ --up 1",
+    "build:prod": "npm run build && npm prune --production"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "SQS Worker for Husky AI - handles all background job processing",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.56.0",
+    "@aws-sdk/client-cloudfront": "^3.917.0",
+    "@aws-sdk/client-route-53": "^3.917.0",
+    "@aws-sdk/client-s3": "^3.848.0",
+    "@aws-sdk/client-sqs": "^3.848.0",
+    "@aws-sdk/s3-request-presigner": "^3.913.0",
+    "@google/genai": "^1.31.0",
+    "@supabase/supabase-js": "^2.52.0",
+    "cloudflare": "^3.0.0",
+    "dotenv": "^17.2.0",
+    "express": "^5.1.0",
+    "openai": "^6.9.1",
+    "posthog-node": "^5.17.2",
+    "puppeteer": "^24.31.0",
+    "sharp": "^0.33.5"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.0.13",
+    "copyfiles": "^2.4.1",
+    "nodemon": "^3.1.10",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  }
+}

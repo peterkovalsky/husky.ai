@@ -1,0 +1,54 @@
+name: Deploy Prod Worker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'worker/**'
+      - 'templates/**'
+      - '.github/workflows/deploy-prod-worker.yml'
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: ${{ vars.PROD_ECR_WORKER_REPOSITORY }}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build, tag, and push image to Amazon ECR
+      run: |
+        # Build from repository root with worker Dockerfile
+        # The Dockerfile expects paths like worker/package.json and templates/
+        docker build -f worker/Dockerfile -t $ECR_REPOSITORY:latest -t $ECR_REPOSITORY:$GITHUB_SHA .
+
+        # Push both tags to ECR
+        docker push $ECR_REPOSITORY:latest
+        docker push $ECR_REPOSITORY:$GITHUB_SHA
+
+    - name: Deploy to App Runner
+      run: |
+        # Trigger new deployment on App Runner
+        aws apprunner start-deployment --service-arn ${{ secrets.APPRUNNER_WORKER_SERVICE_ARN }}
+
+    - name: Deployment summary
+      run: |
+        echo "## Worker Deployment Complete" >> $GITHUB_STEP_SUMMARY
+        echo "- Image: $ECR_REPOSITORY:$GITHUB_SHA" >> $GITHUB_STEP_SUMMARY
+        echo "- Region: $AWS_REGION" >> $GITHUB_STEP_SUMMARY
