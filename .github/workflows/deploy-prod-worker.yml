@@ -42,11 +42,6 @@ jobs:
         docker push $ECR_REPOSITORY:latest
         docker push $ECR_REPOSITORY:$GITHUB_SHA
 
-    - name: Deploy to App Runner
-      run: |
-        # Trigger new deployment on App Runner
-        aws apprunner start-deployment --service-arn ${{ secrets.APPRUNNER_WORKER_SERVICE_ARN }}
-
     - name: Deployment summary
       run: |
         echo "## Worker Deployment Complete" >> $GITHUB_STEP_SUMMARY
