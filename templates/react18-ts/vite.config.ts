@@ -14,7 +14,8 @@ export default defineConfig({
   base: process.env.VITE_BASE_PATH || '/',
 
   // Persistent cache for faster rebuilds
-  cacheDir: 'node_modules/.vite',
+  // Use shared cache directory if VITE_CACHE_DIR is set (for build server optimization)
+  cacheDir: process.env.VITE_CACHE_DIR || 'node_modules/.vite',
 
   plugins: [
     react()

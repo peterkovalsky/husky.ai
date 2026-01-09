@@ -10,6 +10,7 @@ import crypto from "crypto";
 export class BuildService implements IBuildService {
   private readonly execAsync = promisify(exec);
   private readonly fileSystemHelper: FileSystemHelper;
+  private readonly viteCacheDir = '/tmp/.vite-cache';
 
   constructor(private buildRepository: IBuildRepository) {
     this.fileSystemHelper = FileSystemHelper.getInstance();
@@ -225,9 +226,9 @@ export class BuildService implements IBuildService {
         };
       }
 
-      // Always use npm run build for better dependency resolution
-      // This ensures that locally installed dependencies are used instead of npx downloading them
-      let buildCommand = "npm run build";
+      // Use vite build directly with --minify false for faster preview builds
+      // Production builds (via buildAppWithBasePath) still use full minification
+      let buildCommand = "npx vite build --minify false";
 
       // Check if we need to install dependencies
       const nodeModulesPath = path.join(appDirectory, 'node_modules');
@@ -265,6 +266,10 @@ export class BuildService implements IBuildService {
         dependencyInstallTime = Date.now() - installStartTime;
         console.log(`Dependencies installed in ${dependencyInstallTime}ms`);
 
+        // Pre-warm Vite cache after installing dependencies
+        // This significantly speeds up subsequent builds by pre-bundling dependencies
+        await this.prewarmViteCache(appDirectory);
+
         // Save the new package.json hash after successful install
         const packageJsonPath = path.join(appDirectory, 'package.json');
         const newHash = this.calculatePackageJsonHash(packageJsonPath);
@@ -285,9 +290,10 @@ export class BuildService implements IBuildService {
         ...process.env,
         NODE_ENV: 'production', // Production mode enables optimizations in Vite/React/libraries
         PATH: `${nodeBinPath}:${process.env.PATH}`,
+        VITE_CACHE_DIR: this.viteCacheDir, // Use shared Vite cache for faster builds
         ...(projectId ? { VITE_BASE_PATH: `/projects/${projectId}/` } : {}),
       };
-      console.log(`Running: ${buildCommand}` + (projectId ? ` with VITE_BASE_PATH=/projects/${projectId}/` : ''));
+      console.log(`Running preview build: ${buildCommand}` + (projectId ? ` with VITE_BASE_PATH=/projects/${projectId}/` : ''));
 
       const { stdout, stderr } = await this.execAsync(buildCommand, {
         cwd: appDirectory,
@@ -328,6 +334,7 @@ export class BuildService implements IBuildService {
         ...process.env,
         NODE_ENV: 'production',
         PATH: `${nodeBinPath}:${process.env.PATH}`,
+        VITE_CACHE_DIR: this.viteCacheDir, // Use shared Vite cache for faster builds
         VITE_BASE_PATH: basePath,
       };
 
@@ -354,6 +361,38 @@ export class BuildService implements IBuildService {
         output: error.stdout || "",
         error: error.stderr || error.message,
       };
+    }
+  }
+
+  /**
+   * Pre-warm Vite's dependency cache by running vite optimize.
+   * This ensures dependencies are pre-bundled before the actual build,
+   * significantly reducing build times for fresh installations.
+   */
+  async prewarmViteCache(appDirectory: string): Promise<number> {
+    const startTime = Date.now();
+    const nodeBinPath = path.join(appDirectory, 'node_modules', '.bin');
+
+    try {
+      console.log('[VITE] Pre-warming dependency cache...');
+
+      await this.execAsync('npx vite optimize', {
+        cwd: appDirectory,
+        env: {
+          ...process.env,
+          PATH: `${nodeBinPath}:${process.env.PATH}`,
+          VITE_CACHE_DIR: this.viteCacheDir,
+        },
+        timeout: 120000, // 2 minutes timeout
+        killSignal: "SIGTERM",
+      });
+
+      const duration = Date.now() - startTime;
+      console.log(`[VITE] Cache pre-warmed in ${duration}ms`);
+      return duration;
+    } catch (error) {
+      console.warn('[VITE] Cache pre-warm failed (non-fatal):', error instanceof Error ? error.message : 'Unknown error');
+      return 0;
     }
   }
 }

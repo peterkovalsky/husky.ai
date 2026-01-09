@@ -4,13 +4,58 @@ import fs from "fs";
 import path from "path";
 import { exec } from "child_process";
 import { promisify } from "util";
+import crypto from "crypto";
 
 export class ProjectEnvironmentService implements IProjectEnvironmentService {
   private readonly execAsync = promisify(exec);
   private readonly fileSystemHelper: FileSystemHelper;
+  private readonly viteCacheDir = '/tmp/.vite-cache';
 
   constructor() {
     this.fileSystemHelper = FileSystemHelper.getInstance();
+  }
+
+  /**
+   * Initialize the shared Vite cache on worker startup.
+   * This pre-warms the cache so first builds don't have to wait for dependency pre-bundling.
+   */
+  async initializeViteCache(): Promise<void> {
+    const depsDir = path.join(this.viteCacheDir, 'deps');
+
+    // Check if cache is already initialized
+    if (fs.existsSync(depsDir)) {
+      console.log('[VITE CACHE] Already initialized, skipping');
+      return;
+    }
+
+    console.log('[VITE CACHE] Pre-warming from template...');
+    const templateDir = this.fileSystemHelper.getTemplateDir();
+    const templateNodeModules = path.join(templateDir, 'node_modules');
+
+    // Only initialize if template has node_modules
+    if (!fs.existsSync(templateNodeModules)) {
+      console.log('[VITE CACHE] Template node_modules not found, skipping initialization');
+      return;
+    }
+
+    try {
+      const nodeBinPath = path.join(templateDir, 'node_modules', '.bin');
+
+      await this.execAsync('npx vite optimize', {
+        cwd: templateDir,
+        env: {
+          ...process.env,
+          PATH: `${nodeBinPath}:${process.env.PATH}`,
+          VITE_CACHE_DIR: this.viteCacheDir,
+        },
+        timeout: 180000, // 3 minutes timeout
+        killSignal: "SIGTERM",
+      });
+
+      console.log('[VITE CACHE] Initialized successfully');
+    } catch (error) {
+      console.warn('[VITE CACHE] Initialization failed (non-fatal):', error instanceof Error ? error.message : 'Unknown error');
+    }
   }
 
   async prepareEnvironmentAsync(projectId: string): Promise<ProjectEnvironmentResult> {
@@ -73,6 +118,11 @@ export class ProjectEnvironmentService implements IProjectEnvironmentService {
 
         const copyTime = Date.now() - copyStartTime;
         console.log(`[ENV PREP] node_modules copy completed in ${copyTime}ms`);
+
+        // Copy or create .package-hash to prevent unnecessary npm install
+        // This tells BuildService that deps are already installed from template
+        await this.copyOrCreatePackageHash(webDir, templateDir);
+
         return { copied: true, copyTime };
       }
 
@@ -113,6 +163,37 @@ export class ProjectEnvironmentService implements IProjectEnvironmentService {
     } catch (error) {
       console.warn("[ENV PREP] Failed to copy package-lock.json:", error instanceof Error ? error.message : 'Unknown error');
       return false;
+    }
+  }
+
+  /**
+   * Copy or create .package-hash file after copying node_modules from template.
+   * This prevents unnecessary npm install when package.json matches template.
+   */
+  private async copyOrCreatePackageHash(webDir: string, templateDir: string): Promise<void> {
+    try {
+      const targetHashFile = path.join(webDir, '.package-hash');
+      const templateHashFile = path.join(templateDir, '.package-hash');
+
+      // First, try to copy existing hash file from template
+      if (fs.existsSync(templateHashFile)) {
+        fs.copyFileSync(templateHashFile, targetHashFile);
+        console.log(`[ENV PREP] .package-hash copied from template`);
+        return;
+      }
+
+      // If no hash file in template, create one from template's package.json
+      const templatePackageJson = path.join(templateDir, 'package.json');
+      if (fs.existsSync(templatePackageJson)) {
+        const content = fs.readFileSync(templatePackageJson, 'utf8');
+        const normalized = JSON.stringify(JSON.parse(content));
+        const hash = crypto.createHash('sha256').update(normalized).digest('hex');
+        fs.writeFileSync(targetHashFile, hash, 'utf8');
+        console.log(`[ENV PREP] .package-hash created from template package.json`);
+      }
+    } catch (error) {
+      console.warn("[ENV PREP] Failed to copy/create .package-hash:", error instanceof Error ? error.message : 'Unknown error');
+      // Non-fatal - npm install will run if hash is missing
     }
   }
 }
