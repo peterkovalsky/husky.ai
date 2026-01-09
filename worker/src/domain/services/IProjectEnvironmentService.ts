@@ -13,4 +13,11 @@ export interface IProjectEnvironmentService {
    * @returns Promise with preparation results and timing
    */
   prepareEnvironmentAsync(projectId: string): Promise<ProjectEnvironmentResult>;
+
+  /**
+   * Initialize the shared Vite cache on worker startup.
+   * This pre-warms the cache so first builds don't have to wait for dependency pre-bundling.
+   * Should be called once during worker initialization.
+   */
+  initializeViteCache(): Promise<void>;
 }

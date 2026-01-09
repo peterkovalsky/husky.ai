@@ -7,6 +7,7 @@ import { loadAppConfig } from './shared/config/AppConfig';
 import { ILogger } from './shared/logger/Logger';
 import { JobProcessorService } from './application/services/JobProcessorService';
 import { getPostHogErrorTracker } from './infrastructure/monitoring/PostHogErrorTracker';
+import { IProjectEnvironmentService } from './domain/services/IProjectEnvironmentService';
 
 const config = loadAppConfig();
 
@@ -15,6 +16,12 @@ const container = setupContainer();
 
 // Get logger from container
 const logger = container.get<ILogger>('logger');
+
+// Initialize Vite cache on startup (non-blocking)
+const projectEnvironmentService = container.get<IProjectEnvironmentService>('projectEnvironmentService');
+projectEnvironmentService.initializeViteCache()
+  .then(() => logger.info('Vite cache initialization complete'))
+  .catch(err => logger.warn('Vite cache initialization failed (non-fatal)', err));
 
 // Minimal Express server for health checks only
 const app = express();
