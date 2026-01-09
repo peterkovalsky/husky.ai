@@ -281,6 +281,10 @@ export class BuildService implements IBuildService {
         dependencyInstallTime = 0;
       }
 
+      // Ensure Vite cache is warmed before building (even if npm install was skipped)
+      // This handles the case where node_modules was copied from template but cache wasn't ready
+      await this.ensureViteCacheWarmed(appDirectory);
+
       // Run build command
       console.log("Running build...");
       const buildStartTime = Date.now();
@@ -326,6 +330,9 @@ export class BuildService implements IBuildService {
       const buildCommand = "npm run build";
       const nodeBinPath = path.join(appDirectory, 'node_modules', '.bin');
 
+      // Ensure Vite cache is warmed (should already be from preview build, but be safe)
+      await this.ensureViteCacheWarmed(appDirectory);
+
       console.log(`Building with base path: ${basePath}`);
       const buildStartTime = Date.now();
 
@@ -362,6 +369,25 @@ export class BuildService implements IBuildService {
         error: error.stderr || error.message,
       };
     }
+  }
+
+  /**
+   * Ensure the Vite cache is warmed before building.
+   * This handles the case where node_modules was copied from template
+   * but the shared Vite cache wasn't ready yet (e.g., worker just started).
+   */
+  private async ensureViteCacheWarmed(appDirectory: string): Promise<void> {
+    const depsDir = path.join(this.viteCacheDir, 'deps');
+
+    // Check if Vite cache already has deps (meaning it's been warmed)
+    if (fs.existsSync(depsDir)) {
+      console.log('[VITE] Cache already warmed, skipping');
+      return;
+    }
+
+    // Cache not ready - warm it now
+    console.log('[VITE] Cache not found, pre-warming before build...');
+    await this.prewarmViteCache(appDirectory);
   }
 
   /**
