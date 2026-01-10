@@ -1,47 +1,9 @@
-import { BuildStepContext } from './BuildStepContext';
-
-/**
- * Result returned by a build step after execution
- */
-export interface StepResult {
-  /** Whether the step completed successfully */
-  success: boolean;
-
-  /** Step-specific performance metrics (timing data) */
-  metrics?: Record<string, number>;
-
-  /** Error that occurred during step execution */
-  error?: Error;
-
-  /** Optional step-specific output data to pass to next steps */
-  data?: any;
-}
-
-/**
- * Base interface for all build steps
- * Each step is responsible for:
- * 1. Updating its own step_status in the database
- * 2. Executing its core logic
- * 3. Returning metrics and results
- */
-export interface IBuildStep {
-  /** Human-readable name of the step (for logging) */
-  readonly stepName: string;
-
-  /** Database step_status value for this step */
-  readonly stepStatus: string;
-
-  /**
-   * Execute the build step
-   * @param context Shared build context containing state and dependencies
-   * @returns StepResult with success status, metrics, and optional data
-   */
-  execute(context: BuildStepContext): Promise<StepResult>;
-}
-
 /**
  * Build step status values (stored in builds.step_status column)
  * These represent the current phase of the build process
+ *
+ * Note: Build execution now happens in the worker service.
+ * This enum is kept for status tracking and database compatibility.
  */
 export enum BuildStepStatus {
   /** Validating job, creating build record */
