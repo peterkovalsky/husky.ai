@@ -10,7 +10,7 @@ import crypto from "crypto";
 export class BuildService implements IBuildService {
   private readonly execAsync = promisify(exec);
   private readonly fileSystemHelper: FileSystemHelper;
-  private readonly viteCacheDir = '/tmp/.vite-cache';
+  private readonly viteCacheDir = '/app/.vite-cache';
 
   constructor(private buildRepository: IBuildRepository) {
     this.fileSystemHelper = FileSystemHelper.getInstance();

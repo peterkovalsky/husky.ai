@@ -51,12 +51,12 @@ RUN if [ -f "templates/react18-ts/package.json" ]; then \
     fi
 
 # Pre-warm Vite cache during image build
-# This bakes the dependency pre-bundling into the image so first builds are fast
-RUN mkdir -p /tmp/.vite-cache && \
+# Use /app/.vite-cache instead of /tmp/.vite-cache because /tmp is often a fresh tmpfs at runtime
+RUN mkdir -p /app/.vite-cache && \
     if [ -d "templates/react18-ts/node_modules" ]; then \
         echo "Pre-warming Vite cache from template..."; \
         cd templates/react18-ts && \
-        VITE_CACHE_DIR=/tmp/.vite-cache npx vite optimize && \
+        VITE_CACHE_DIR=/app/.vite-cache npx vite optimize && \
         cd /app; \
         echo "Vite cache pre-warmed successfully"; \
     fi
@@ -74,9 +74,7 @@ RUN addgroup -g 1001 -S nodejs && \
     adduser -S worker -u 1001
 
 # Create /tmp/apps directory with proper permissions for generated apps
-# Also ensure Vite cache directory has proper permissions
-RUN mkdir -p /tmp/apps && chown -R worker:nodejs /tmp/apps && \
-    chown -R worker:nodejs /tmp/.vite-cache
+RUN mkdir -p /tmp/apps && chown -R worker:nodejs /tmp/apps
 
 # Create Chromium cache directory with proper permissions
 RUN mkdir -p /home/worker/.cache/puppeteer && chown -R worker:nodejs /home/worker
