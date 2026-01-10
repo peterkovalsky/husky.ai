@@ -246,7 +246,7 @@ export class BuildService implements IBuildService {
         console.log(`Installing dependencies (${reason})...`);
 
         const installStartTime = Date.now();
-        const installCommand = "npm install --silent --no-audit --no-fund";
+        const installCommand = "npm install --silent --no-audit --no-fund --legacy-peer-deps";
 
         console.log(`Running: ${installCommand}`);
 

@@ -47,7 +47,7 @@ COPY templates ./templates
 # Install dependencies for react18-ts template (including dev dependencies for build tools)
 RUN if [ -f "templates/react18-ts/package.json" ]; then \
         echo "Installing dependencies for templates/react18-ts"; \
-        cd templates/react18-ts && npm ci && cd /app; \
+        cd templates/react18-ts && npm ci --legacy-peer-deps && cd /app; \
     fi
 
 # Pre-warm Vite cache during image build
