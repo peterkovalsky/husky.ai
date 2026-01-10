@@ -2,14 +2,11 @@ import { IProjectRepository } from '../../domain/repositories/IProjectRepository
 import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
 import { IStorageService } from '../../domain/services/IStorageService';
 import { DeleteProjectMessage } from '../../domain/services/IQueueService';
-import { FileSystemHelper } from '../../shared/utils/FileSystemHelper';
 import { R2PublishedAppsService } from '../../infrastructure/storage/R2PublishedAppsService';
 import { CloudflareSaaSService } from '../../infrastructure/cdn/CloudflareSaaSService';
 import { CloudflareKVService } from '../../infrastructure/storage/CloudflareKVService';
 
 export class DeleteProjectUseCase {
-  private readonly fileSystemHelper: FileSystemHelper;
-
   constructor(
     private projectRepository: IProjectRepository,
     private buildRepository: IBuildRepository,
@@ -17,9 +14,7 @@ export class DeleteProjectUseCase {
     private r2PublishedAppsService: R2PublishedAppsService,
     private cloudflareSaaSService: CloudflareSaaSService,
     private cloudflareKVService: CloudflareKVService
-  ) {
-    this.fileSystemHelper = FileSystemHelper.getInstance();
-  }
+  ) {}
 
   async execute(message: DeleteProjectMessage): Promise<void> {
     const { projectId, userId } = message;
@@ -43,10 +38,7 @@ export class DeleteProjectUseCase {
       // Step 2: Delete S3 resources
       await this.deleteS3Resources(projectId, builds);
 
-      // Step 3: Delete local disk resources (apps folder)
-      await this.deleteDiskResources(projectId);
-
-      // Step 4: Delete database records in order (foreign key constraints)
+      // Step 3: Delete database records in order (foreign key constraints)
       await this.deleteDatabaseRecords(projectId);
 
       console.log(`Successfully deleted project ${projectId}`);
@@ -88,16 +80,6 @@ export class DeleteProjectUseCase {
     } catch (error) {
       console.error(`Error during S3 cleanup for project ${projectId}:`, error);
       throw error;
-    }
-  }
-
-  private async deleteDiskResources(projectId: string): Promise<void> {
-    try {
-      const projectDir = this.fileSystemHelper.getProjectDir(projectId);
-      await this.fileSystemHelper.deleteDirectory(projectDir);
-    } catch (error) {
-      console.warn(`Failed to delete local directory for project ${projectId}:`, error);
-      // Don't throw error - this shouldn't block the deletion process
     }
   }
 

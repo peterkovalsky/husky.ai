@@ -9,7 +9,6 @@ import { loadAppConfig } from './shared/config/AppConfig';
 import { ILogger } from './shared/logger/Logger';
 import { IPostHogErrorTracker } from './infrastructure/monitoring/PostHogErrorTracker';
 import { createApiRoutes } from './presentation/routes/api';
-import { JobProcessorService } from './application/services/JobProcessorService';
 import { ErrorMiddleware } from './presentation/middleware/ErrorMiddleware';
 import { requestIdMiddleware } from './presentation/middleware/RequestIdMiddleware';
 
@@ -55,13 +54,10 @@ app.get('/', (_req, res) => {
 });
 
 app.get('/health', (_req, res) => {
-  const jobProcessor = container.get<JobProcessorService>('jobProcessorService');
-  const processorStatus = jobProcessor.getStatus();
-  
   res.json({
     status: 'healthy',
-    timestamp: new Date().toISOString(),
-    processor: processorStatus
+    service: 'api',
+    timestamp: new Date().toISOString()
   });
 });
 

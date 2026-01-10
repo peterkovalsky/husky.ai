@@ -18,13 +18,10 @@ import { IAIService } from '../../domain/services/IAIService';
 import { IAIProvider } from '../../domain/services/IAIProvider';
 import { IStorageService } from '../../domain/services/IStorageService';
 import { IQueueService } from '../../domain/services/IQueueService';
-import { IBuildService } from '../../domain/services/IBuildService';
-import { IProjectEnvironmentService } from '../../domain/services/IProjectEnvironmentService';
 import { ISubdomainService } from '../../domain/services/ISubdomainService';
 import { ICloudFrontService } from '../../domain/services/ICloudFrontService';
 import { IRoute53Service } from '../../domain/services/IRoute53Service';
 import { IStripeService } from '../../domain/services/IStripeService';
-import { IImageProcessingService } from '../../domain/services/IImageProcessingService';
 
 // Infrastructure Implementations
 import { SupabaseWorkspaceRepository } from '../../infrastructure/database/SupabaseWorkspaceRepository';
@@ -41,8 +38,6 @@ import { GeminiProvider } from '../../infrastructure/ai/GeminiProvider';
 import { AIService } from '../../infrastructure/ai/AIService';
 import { S3StorageService } from '../../infrastructure/storage/S3StorageService';
 import { SQSQueueService } from '../../infrastructure/queue/SQSQueueService';
-import { BuildService } from '../../infrastructure/build/BuildService';
-import { ProjectEnvironmentService } from '../../infrastructure/build/ProjectEnvironmentService';
 import { SupabaseAuthService } from '../../infrastructure/auth/SupabaseAuthService';
 import { SubdomainService } from '../../infrastructure/subdomain/SubdomainService';
 import { CloudFrontService } from '../../infrastructure/cdn/CloudFrontService';
@@ -52,8 +47,6 @@ import { CloudflareSaaSService } from '../../infrastructure/cdn/CloudflareSaaSSe
 import { CloudflareKVService } from '../../infrastructure/storage/CloudflareKVService';
 import { DNSVerificationService, IDNSVerificationService } from '../../infrastructure/dns/DNSVerificationService';
 import { StripeService } from '../../infrastructure/payment/StripeService';
-import { ImageProcessingService } from '../../infrastructure/services/ImageProcessingService';
-import { ScreenshotService, IScreenshotService } from '../../infrastructure/screenshot/ScreenshotService';
 
 // Application Use Cases
 import { CreatePromptUseCase } from '../../application/use-cases/CreatePromptUseCase';
@@ -63,8 +56,6 @@ import { CreateProjectUseCase } from '../../application/use-cases/CreateProjectU
 import { CreateProjectFromPromptUseCase } from '../../application/use-cases/CreateProjectFromPromptUseCase';
 import { GetProjectDetailsUseCase } from '../../application/use-cases/GetProjectDetailsUseCase';
 import { UpdateProjectUseCase } from '../../application/use-cases/UpdateProjectUseCase';
-import { ProcessJobUseCase } from '../../application/use-cases/ProcessJobUseCase';
-import { PrepareProjectEnvironmentUseCase } from '../../application/use-cases/PrepareProjectEnvironmentUseCase';
 import { DeleteProjectUseCase } from '../../application/use-cases/DeleteProjectUseCase';
 import { SetupUserUseCase } from '../../application/use-cases/SetupUserUseCase';
 import { GeneratePresignedUploadUseCase } from '../../application/use-cases/GeneratePresignedUploadUseCase';
@@ -78,7 +69,6 @@ import { GetPublishStatusUseCase } from '../../application/use-cases/GetPublishS
 import { ProcessPublishJobUseCase } from '../../application/use-cases/ProcessPublishJobUseCase';
 import { ProcessUnpublishJobUseCase } from '../../application/use-cases/ProcessUnpublishJobUseCase';
 import { ProvisionHostnameUseCase } from '../../application/use-cases/ProvisionHostnameUseCase';
-import { ProcessScreenshotUseCase } from '../../application/use-cases/ProcessScreenshotUseCase';
 import { SetCustomDomainUseCase } from '../../application/use-cases/SetCustomDomainUseCase';
 import { VerifyCustomDomainDNSUseCase } from '../../application/use-cases/VerifyCustomDomainDNSUseCase';
 import { RemoveCustomDomainUseCase } from '../../application/use-cases/RemoveCustomDomainUseCase';
@@ -188,13 +178,6 @@ export function setupContainer(): DIContainer {
   
   container.registerFactory<IStorageService>('storageService', () => new S3StorageService());
   container.registerFactory<IQueueService>('queueService', () => new SQSQueueService());
-  
-  container.registerFactory<IBuildService>('buildService', () => {
-    const buildRepository = container.get<IBuildRepository>('buildRepository');
-    return new BuildService(buildRepository);
-  });
-
-  container.registerFactory<IProjectEnvironmentService>('projectEnvironmentService', () => new ProjectEnvironmentService());
 
   container.registerFactory<SupabaseAuthService>('authService', () => new SupabaseAuthService());
 
@@ -212,23 +195,6 @@ export function setupContainer(): DIContainer {
 
   // Stripe payment service
   container.registerFactory<IStripeService>('stripeService', () => new StripeService());
-
-  // Image processing service
-  container.registerFactory<IImageProcessingService>('imageProcessingService', () => {
-    const { S3Client } = require('@aws-sdk/client-s3');
-    const s3Client = new S3Client({
-      region: process.env.AWS_REGION,
-      credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-      },
-    });
-    const logger = container.get<ILogger>('logger');
-    return new ImageProcessingService(s3Client, logger);
-  });
-
-  // Screenshot service for capturing project thumbnails
-  container.registerFactory<IScreenshotService>('screenshotService', () => new ScreenshotService());
 
   // Register Use Cases
   container.registerFactory<CreatePromptUseCase>('createPromptUseCase', () => new CreatePromptUseCase(
@@ -280,24 +246,6 @@ export function setupContainer(): DIContainer {
     container.get<IBuildRepository>('buildRepository'),
     container.get<IProjectRepository>('projectRepository'),
     container.get<IStorageService>('storageService')
-  ));
-
-  container.registerFactory<PrepareProjectEnvironmentUseCase>('prepareProjectEnvironmentUseCase', () => new PrepareProjectEnvironmentUseCase(
-    container.get<IProjectEnvironmentService>('projectEnvironmentService')
-  ));
-
-  container.registerFactory<ProcessJobUseCase>('processJobUseCase', () => new ProcessJobUseCase(
-    container.get<IBuildRepository>('buildRepository'),
-    container.get<IProjectRepository>('projectRepository'),
-    container.get<IWorkspaceRepository>('workspaceRepository'),
-    container.get<IAIService>('aiService'),
-    container.get<IBuildService>('buildService'),
-    container.get<IStorageService>('storageService'),
-    container.get<PrepareProjectEnvironmentUseCase>('prepareProjectEnvironmentUseCase'),
-    container.get<IMediaRepository>('mediaRepository'),
-    container.get<IImageProcessingService>('imageProcessingService'),
-    container.get<IQueueService>('queueService'),
-    container.get<IInspoRepository>('inspoRepository')
   ));
 
   container.registerFactory<DeleteProjectUseCase>('deleteProjectUseCase', () => new DeleteProjectUseCase(
@@ -431,13 +379,6 @@ export function setupContainer(): DIContainer {
   container.registerFactory<ProvisionHostnameUseCase>('provisionHostnameUseCase', () => new ProvisionHostnameUseCase(
     container.get<IProjectRepository>('projectRepository'),
     container.get<CloudflareSaaSService>('cloudflareSaaSService')
-  ));
-
-  // Async screenshot generation use case
-  container.registerFactory<ProcessScreenshotUseCase>('processScreenshotUseCase', () => new ProcessScreenshotUseCase(
-    container.get<IScreenshotService>('screenshotService'),
-    container.get<IStorageService>('storageService'),
-    container.get<IBuildRepository>('buildRepository')
   ));
 
   // Register Custom Domain Use Cases
