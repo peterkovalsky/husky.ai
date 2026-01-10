@@ -9,7 +9,7 @@ import crypto from "crypto";
 export class ProjectEnvironmentService implements IProjectEnvironmentService {
   private readonly execAsync = promisify(exec);
   private readonly fileSystemHelper: FileSystemHelper;
-  private readonly viteCacheDir = '/tmp/.vite-cache';
+  private readonly viteCacheDir = '/app/.vite-cache';
 
   constructor() {
     this.fileSystemHelper = FileSystemHelper.getInstance();
