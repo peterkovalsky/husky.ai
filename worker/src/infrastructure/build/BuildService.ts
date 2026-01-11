@@ -228,8 +228,7 @@ export class BuildService implements IBuildService {
 
       // Use vite build directly with --minify false for faster preview builds
       // Production builds (via buildAppWithBasePath) still use full minification
-      // Also skip CSS minification with --cssMinify false for even faster preview
-      let buildCommand = "npx vite build --minify false --cssMinify false";
+      let buildCommand = "npx vite build --minify false";
 
       // Check if we need to install dependencies
       const nodeModulesPath = path.join(appDirectory, 'node_modules');
