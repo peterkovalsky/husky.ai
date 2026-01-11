@@ -34,9 +34,13 @@ export interface CreatePromptDto {
 }
 
 export interface CreatePromptResponseDto {
-  promptId: string;
-  jobId: string; // for backward compatibility
+  promptId?: string;
+  jobId?: string; // for backward compatibility
   status: string;
   projectId: string;
-  timestamp: Date;
+  timestamp?: Date;
+  // Insufficient credits response
+  insufficientCredits?: boolean;
+  creditsRemaining?: number;
+  message?: string;
 }

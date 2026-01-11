@@ -653,11 +653,34 @@ export const ProjectPage = () => {
         )}
 
         {/* Onboarding error display */}
-        {onboardingError && (
+        {onboardingError && onboardingError !== 'insufficient_credits' && (
           <div className="absolute bottom-4 left-4 right-4 z-20">
             <div className="bg-danger-50 border border-danger-200 rounded-lg p-4">
               <p className="text-danger-700 text-sm">{onboardingError}</p>
             </div>
+          </div>
+        )}
+
+        {/* Insufficient credits display */}
+        {onboardingError === 'insufficient_credits' && (
+          <div className="h-full flex items-center justify-center bg-background">
+            <Card className="max-w-md border border-warning-200 shadow-none">
+              <CardBody className="text-center py-8">
+                <div className="w-16 h-16 bg-warning-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-3xl">💳</span>
+                </div>
+                <h2 className="text-xl font-semibold mb-2">Out of Credits</h2>
+                <p className="text-default-500 mb-6">
+                  You've run out of credits. Purchase more to continue building your app.
+                </p>
+                <Button
+                  color="warning"
+                  onPress={() => navigate('/billing')}
+                >
+                  Purchase Credits
+                </Button>
+              </CardBody>
+            </Card>
           </div>
         )}
       </div>

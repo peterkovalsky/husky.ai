@@ -457,12 +457,28 @@ export function useOnboarding(projectId: string | undefined): UseOnboardingRetur
         chatMessageInputs.length > 0 ? chatMessageInputs : undefined
       );
 
+      // Check for insufficient credits
+      if (response.insufficientCredits) {
+        addMessage('system', response.message || "You've run out of credits. Purchase more to continue building.");
+        clearPersistedState();
+        setPhase('NONE');
+        setError('insufficient_credits');
+        return;
+      }
+
+      const jobIdToTrack = response.promptId || response.jobId;
+      if (!jobIdToTrack) {
+        setError('No job ID returned from server');
+        addMessage('system', 'Error: No job ID returned from server');
+        return;
+      }
+
       setPhase('BUILDING');
       setBuildStatus('QUEUED');
 
       // Start polling for build status
       const cleanup = await ApiService.pollJobStatus(
-        response.promptId || response.jobId,
+        jobIdToTrack,
         (status: JobStatus) => {
           setBuildStatus(status.status);
 

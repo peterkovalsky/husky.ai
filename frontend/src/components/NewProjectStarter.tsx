@@ -122,6 +122,20 @@ export const NewProjectStarter = ({ projectId, onBuildComplete }: NewProjectStar
         skippedClarification
       )
 
+      // Check for insufficient credits
+      if (response.insufficientCredits) {
+        setError(response.message || "You've run out of credits. Purchase more to continue building.")
+        navigate('/billing')
+        return
+      }
+
+      const jobIdToTrack = response.promptId || response.jobId
+      if (!jobIdToTrack) {
+        setError('No job ID returned from server')
+        setAppState('error')
+        return
+      }
+
       // Start generating - stay on initial screen
       setIsGenerating(true)
       setShowClarification(false)
@@ -135,7 +149,7 @@ export const NewProjectStarter = ({ projectId, onBuildComplete }: NewProjectStar
       }
 
       const cleanup = await ApiService.pollJobStatus(
-        response.promptId || response.jobId,
+        jobIdToTrack,
         (status) => {
           console.log('[NewProjectStarter] Poll status received:', status.status, 'previewUrl:', status.previewUrl)
           setJobStatus(status)

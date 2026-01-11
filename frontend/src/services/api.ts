@@ -14,12 +14,15 @@ export interface JobStatus {
 }
 
 export interface PromptResponse {
-  message: string;
-  jobId: string;
+  message?: string;
+  jobId?: string;
   promptId?: string;
   status: string;
-  timestamp: string;
+  timestamp?: string;
   projectId?: string;
+  // Insufficient credits response
+  insufficientCredits?: boolean;
+  creditsRemaining?: number;
 }
 
 export interface Workspace {

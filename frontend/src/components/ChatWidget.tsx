@@ -64,6 +64,7 @@ export const ChatWidget = ({
   const [undoError, setUndoError] = useState<string | null>(null)
   const [successfulBuildsCount, setSuccessfulBuildsCount] = useState(0)
   const [lastPromptText, setLastPromptText] = useState<string | null>(null)
+  const [showInsufficientCredits, setShowInsufficientCredits] = useState(false)
   const { currentProject } = useProject()
   const navigate = useNavigate()
 
@@ -289,7 +290,23 @@ export const ChatWidget = ({
         mediaIds.length > 0 ? mediaIds : undefined
       )
       console.log('[ChatWidget] Submit response:', response)
-      updateMessageStatus(messageId, 'processing', response.promptId || response.jobId)
+
+      // Check for insufficient credits
+      if (response.insufficientCredits) {
+        updateMessageStatus(messageId, 'failed')
+        addSystemMessage(`💳 ${response.message || "You've run out of credits. Purchase more to continue building."}`, 'error')
+        setShowInsufficientCredits(true)
+        return
+      }
+
+      const jobIdToTrack = response.promptId || response.jobId
+      if (!jobIdToTrack) {
+        updateMessageStatus(messageId, 'failed')
+        addSystemMessage('❌ Error: No job ID returned from server', 'error')
+        return
+      }
+
+      updateMessageStatus(messageId, 'processing', jobIdToTrack)
 
       addSystemMessage('🚀 Building your app update...')
       lastStatusRef.current = 'QUEUED'
@@ -298,7 +315,7 @@ export const ChatWidget = ({
       setIsProcessing(true)
 
       const cleanup = await ApiService.pollJobStatus(
-        response.promptId || response.jobId,
+        jobIdToTrack,
         (status: JobStatus) => {
           // Update loading status for progress indicator
           if (status.status === 'QUEUED' || status.status === 'PROCESSING' || status.status === 'BUILDING') {
@@ -678,6 +695,33 @@ export const ChatWidget = ({
         </div>
 
         <Divider />
+
+        {/* Insufficient credits alert */}
+        {showInsufficientCredits && (
+          <div className="px-4 pt-4">
+            <Alert
+              color="warning"
+              variant="flat"
+              title="Out of credits"
+              description="You've run out of credits. Purchase more to continue building your app."
+              endContent={
+                <Button
+                  color="warning"
+                  variant="solid"
+                  size="sm"
+                  onPress={() => {
+                    setShowInsufficientCredits(false)
+                    navigate('/billing')
+                  }}
+                >
+                  Purchase Credits
+                </Button>
+              }
+              onClose={() => setShowInsufficientCredits(false)}
+              isClosable
+            />
+          </div>
+        )}
 
         {/* Input area at bottom */}
         <div className="p-4 bg-background">
