@@ -228,7 +228,8 @@ export class BuildService implements IBuildService {
 
       // Use vite build directly with --minify false for faster preview builds
       // Production builds (via buildAppWithBasePath) still use full minification
-      let buildCommand = "npx vite build --minify false";
+      // Also skip CSS minification with --cssMinify false for even faster preview
+      let buildCommand = "npx vite build --minify false --cssMinify false";
 
       // Check if we need to install dependencies
       const nodeModulesPath = path.join(appDirectory, 'node_modules');
@@ -246,7 +247,7 @@ export class BuildService implements IBuildService {
         console.log(`Installing dependencies (${reason})...`);
 
         const installStartTime = Date.now();
-        const installCommand = "npm install --silent --no-audit --no-fund --legacy-peer-deps";
+        const installCommand = "npm install --silent --no-audit --no-fund";
 
         console.log(`Running: ${installCommand}`);
 
@@ -266,9 +267,7 @@ export class BuildService implements IBuildService {
         dependencyInstallTime = Date.now() - installStartTime;
         console.log(`Dependencies installed in ${dependencyInstallTime}ms`);
 
-        // Pre-warm Vite cache after installing dependencies
-        // This significantly speeds up subsequent builds by pre-bundling dependencies
-        await this.prewarmViteCache(appDirectory);
+        // Note: rolldown-vite handles dependency optimization automatically during builds
 
         // Save the new package.json hash after successful install
         const packageJsonPath = path.join(appDirectory, 'package.json');
@@ -281,12 +280,17 @@ export class BuildService implements IBuildService {
         dependencyInstallTime = 0;
       }
 
-      // Ensure Vite cache is warmed before building (even if npm install was skipped)
-      // This handles the case where node_modules was copied from template but cache wasn't ready
-      await this.ensureViteCacheWarmed(appDirectory);
+      // Note: rolldown-vite handles dependency optimization automatically during builds
+      // Log cache status for debugging
+      this.logViteCacheStatus();
 
       // Run build command
-      console.log("Running build...");
+      console.log("[BUILD] Starting vite build...");
+      console.log(`[BUILD] Command: ${buildCommand}`);
+      console.log(`[BUILD] CWD: ${appDirectory}`);
+      console.log(`[BUILD] VITE_CACHE_DIR: ${this.viteCacheDir}`);
+      if (projectId) console.log(`[BUILD] VITE_BASE_PATH: /projects/${projectId}/`);
+
       const buildStartTime = Date.now();
 
       // Set up environment variables for the build
@@ -297,7 +301,6 @@ export class BuildService implements IBuildService {
         VITE_CACHE_DIR: this.viteCacheDir, // Use shared Vite cache for faster builds
         ...(projectId ? { VITE_BASE_PATH: `/projects/${projectId}/` } : {}),
       };
-      console.log(`Running preview build: ${buildCommand}` + (projectId ? ` with VITE_BASE_PATH=/projects/${projectId}/` : ''));
 
       const { stdout, stderr } = await this.execAsync(buildCommand, {
         cwd: appDirectory,
@@ -306,6 +309,15 @@ export class BuildService implements IBuildService {
         killSignal: "SIGTERM",
       });
       const buildTime = Date.now() - buildStartTime;
+
+      console.log(`[BUILD] Completed in ${buildTime}ms`);
+      if (stdout) {
+        // Extract key info from vite output (e.g., "built in Xms")
+        const builtInMatch = stdout.match(/built in (\d+)ms/);
+        if (builtInMatch) {
+          console.log(`[BUILD] Vite reported: built in ${builtInMatch[1]}ms`);
+        }
+      }
 
       return {
         success: true,
@@ -330,10 +342,11 @@ export class BuildService implements IBuildService {
       const buildCommand = "npm run build";
       const nodeBinPath = path.join(appDirectory, 'node_modules', '.bin');
 
-      // Ensure Vite cache is warmed (should already be from preview build, but be safe)
-      await this.ensureViteCacheWarmed(appDirectory);
+      // Note: rolldown-vite handles dependency optimization automatically
+      // Log cache status for debugging
+      this.logViteCacheStatus();
 
-      console.log(`Building with base path: ${basePath}`);
+      console.log(`[BUILD] Starting production build with base path: ${basePath}`);
       const buildStartTime = Date.now();
 
       // Set up environment variables for the build with custom base path
@@ -372,53 +385,51 @@ export class BuildService implements IBuildService {
   }
 
   /**
-   * Ensure the Vite cache is warmed before building.
-   * This handles the case where node_modules was copied from template
-   * but the shared Vite cache wasn't ready yet (e.g., worker just started).
+   * Log detailed Vite cache status for debugging
    */
-  private async ensureViteCacheWarmed(appDirectory: string): Promise<void> {
-    const depsDir = path.join(this.viteCacheDir, 'deps');
-
-    // Check if Vite cache already has deps (meaning it's been warmed)
-    if (fs.existsSync(depsDir)) {
-      console.log('[VITE] Cache already warmed, skipping');
-      return;
-    }
-
-    // Cache not ready - warm it now
-    console.log('[VITE] Cache not found, pre-warming before build...');
-    await this.prewarmViteCache(appDirectory);
-  }
-
-  /**
-   * Pre-warm Vite's dependency cache by running vite optimize.
-   * This ensures dependencies are pre-bundled before the actual build,
-   * significantly reducing build times for fresh installations.
-   */
-  async prewarmViteCache(appDirectory: string): Promise<number> {
-    const startTime = Date.now();
-    const nodeBinPath = path.join(appDirectory, 'node_modules', '.bin');
+  private logViteCacheStatus(): void {
+    console.log(`[VITE CACHE] === Cache Status ===`);
+    console.log(`[VITE CACHE] Directory: ${this.viteCacheDir}`);
 
     try {
-      console.log('[VITE] Pre-warming dependency cache...');
+      if (!fs.existsSync(this.viteCacheDir)) {
+        console.log(`[VITE CACHE] Status: MISSING (directory does not exist)`);
+        return;
+      }
 
-      await this.execAsync('npx vite optimize', {
-        cwd: appDirectory,
-        env: {
-          ...process.env,
-          PATH: `${nodeBinPath}:${process.env.PATH}`,
-          VITE_CACHE_DIR: this.viteCacheDir,
-        },
-        timeout: 120000, // 2 minutes timeout
-        killSignal: "SIGTERM",
-      });
+      const items = fs.readdirSync(this.viteCacheDir);
+      console.log(`[VITE CACHE] Contents: ${items.length} items - ${items.slice(0, 5).join(', ')}${items.length > 5 ? '...' : ''}`);
 
-      const duration = Date.now() - startTime;
-      console.log(`[VITE] Cache pre-warmed in ${duration}ms`);
-      return duration;
+      // Check for deps directory specifically
+      const depsDir = path.join(this.viteCacheDir, 'deps');
+      if (fs.existsSync(depsDir)) {
+        const depsFiles = fs.readdirSync(depsDir);
+        console.log(`[VITE CACHE] deps/ contains: ${depsFiles.length} files`);
+      }
+
+      // Calculate total cache size
+      let totalSize = 0;
+      const countFiles = (dir: string): void => {
+        try {
+          const dirItems = fs.readdirSync(dir);
+          for (const item of dirItems) {
+            const fullPath = path.join(dir, item);
+            const stat = fs.statSync(fullPath);
+            if (stat.isDirectory()) {
+              countFiles(fullPath);
+            } else {
+              totalSize += stat.size;
+            }
+          }
+        } catch {
+          // Ignore errors when counting
+        }
+      };
+      countFiles(this.viteCacheDir);
+      console.log(`[VITE CACHE] Total size: ${(totalSize / 1024 / 1024).toFixed(2)} MB`);
+      console.log(`[VITE CACHE] Status: READY`);
     } catch (error) {
-      console.warn('[VITE] Cache pre-warm failed (non-fatal):', error instanceof Error ? error.message : 'Unknown error');
-      return 0;
+      console.log(`[VITE CACHE] Status: ERROR - ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 }

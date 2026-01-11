@@ -48,11 +48,26 @@ export const Dashboard = () => {
 
     try {
       const response = await ApiService.submitPrompt(prompt.trim(), currentProject?.id)
-      setJobId(response.promptId || response.jobId)
+
+      // Check for insufficient credits
+      if (response.insufficientCredits) {
+        setError(response.message || "You've run out of credits. Purchase more to continue building.")
+        navigate('/billing')
+        return
+      }
+
+      const jobIdToTrack = response.promptId || response.jobId
+      if (!jobIdToTrack) {
+        setError('No job ID returned from server')
+        setAppState('error')
+        return
+      }
+
+      setJobId(jobIdToTrack)
       setAppState('submitted')
 
       const cleanup = await ApiService.pollJobStatus(
-        response.promptId || response.jobId,
+        jobIdToTrack,
         (status) => {
           setJobStatus(status)
           if (status.status === 'READY' && status.previewUrl) {

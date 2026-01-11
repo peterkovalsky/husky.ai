@@ -38,6 +38,12 @@ export class PromptController {
         req.user
       );
 
+      // Handle insufficient credits - return 200 with flag so frontend can show UI
+      if (result.insufficientCredits) {
+        console.log('[PromptController] Insufficient credits for project:', result.projectId);
+        return res.json(result);
+      }
+
       console.log('[PromptController] Prompt created successfully - promptId:', result.promptId, 'finalProjectId:', result.projectId);
 
       res.json({

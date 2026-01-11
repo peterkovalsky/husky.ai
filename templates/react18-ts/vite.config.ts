@@ -4,10 +4,11 @@ import react from '@vitejs/plugin-react-swc'
 /**
  * Optimized Vite Configuration for HuskyStudio Generated Apps
  *
- * Performance Optimizations (Vite 8 / Rolldown):
+ * Performance Optimizations (rolldown-vite):
  * - SWC for React transforms (20-70x faster than Babel)
- * - Oxc for minification (native to Rolldown)
- * - Module-level persistent cache for fast rebuilds
+ * - Oxc for minification (faster than esbuild, powered by Rolldown)
+ * - Persistent cache for fast rebuilds
+ * - Console logs removed for smaller bundles
  */
 export default defineConfig({
   base: process.env.VITE_BASE_PATH || '/',
@@ -50,6 +51,12 @@ export default defineConfig({
   // Optimize dependency pre-bundling
   optimizeDeps: {
     include: ['react', 'react-dom', 'react-router-dom'],
+  },
+
+  esbuild: {
+    logOverride: { 'this-is-undefined-in-esm': 'silent' },
+    // Remove console logs and debugger statements for smaller bundles
+    drop: ['console', 'debugger'],
   },
 
   // Dev server configuration

@@ -17,44 +17,43 @@ export class ProjectEnvironmentService implements IProjectEnvironmentService {
 
   /**
    * Initialize the shared Vite cache on worker startup.
-   * This pre-warms the cache so first builds don't have to wait for dependency pre-bundling.
+   * Note: rolldown-vite handles dependency optimization automatically during builds,
+   * so we just log the cache status here for debugging.
    */
   async initializeViteCache(): Promise<void> {
-    const depsDir = path.join(this.viteCacheDir, 'deps');
-
-    // Check if cache is already initialized
-    if (fs.existsSync(depsDir)) {
-      console.log('[VITE CACHE] Already initialized, skipping');
-      return;
-    }
-
-    console.log('[VITE CACHE] Pre-warming from template...');
-    const templateDir = this.fileSystemHelper.getTemplateDir();
-    const templateNodeModules = path.join(templateDir, 'node_modules');
-
-    // Only initialize if template has node_modules
-    if (!fs.existsSync(templateNodeModules)) {
-      console.log('[VITE CACHE] Template node_modules not found, skipping initialization');
-      return;
-    }
+    console.log('[VITE CACHE] Checking cache status on worker startup...');
+    console.log(`[VITE CACHE] Cache directory: ${this.viteCacheDir}`);
 
     try {
-      const nodeBinPath = path.join(templateDir, 'node_modules', '.bin');
+      if (!fs.existsSync(this.viteCacheDir)) {
+        console.log(`[VITE CACHE] Cache directory does not exist (will be created on first build)`);
+        console.log(`[VITE CACHE] Note: rolldown-vite handles dependency optimization automatically`);
+        return;
+      }
 
-      await this.execAsync('npx vite optimize', {
-        cwd: templateDir,
-        env: {
-          ...process.env,
-          PATH: `${nodeBinPath}:${process.env.PATH}`,
-          VITE_CACHE_DIR: this.viteCacheDir,
-        },
-        timeout: 180000, // 3 minutes timeout
-        killSignal: "SIGTERM",
-      });
+      // Log cache contents if it exists
+      const items = fs.readdirSync(this.viteCacheDir);
+      console.log(`[VITE CACHE] Cache exists with ${items.length} items: ${items.slice(0, 5).join(', ')}${items.length > 5 ? '...' : ''}`);
 
-      console.log('[VITE CACHE] Initialized successfully');
+      // Calculate total cache size
+      let totalSize = 0;
+      const countFiles = (dir: string): void => {
+        const dirItems = fs.readdirSync(dir);
+        for (const item of dirItems) {
+          const fullPath = path.join(dir, item);
+          const stat = fs.statSync(fullPath);
+          if (stat.isDirectory()) {
+            countFiles(fullPath);
+          } else {
+            totalSize += stat.size;
+          }
+        }
+      };
+      countFiles(this.viteCacheDir);
+      console.log(`[VITE CACHE] Total size: ${(totalSize / 1024 / 1024).toFixed(2)} MB`);
+      console.log(`[VITE CACHE] Status: READY`);
     } catch (error) {
-      console.warn('[VITE CACHE] Initialization failed (non-fatal):', error instanceof Error ? error.message : 'Unknown error');
+      console.log(`[VITE CACHE] Status check failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 

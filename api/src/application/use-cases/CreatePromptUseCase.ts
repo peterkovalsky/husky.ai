@@ -52,7 +52,13 @@ export class CreatePromptUseCase {
 
     const totalCredits = workspace.creditsMonthlyRemaining + workspace.creditsPurchased;
     if (totalCredits <= 0) {
-      throw new Error('INSUFFICIENT_CREDITS: You have run out of credits. Please purchase more credits or upgrade your plan.');
+      return {
+        status: 'INSUFFICIENT_CREDITS',
+        projectId,
+        insufficientCredits: true,
+        creditsRemaining: 0,
+        message: "You've run out of credits. Purchase more to continue building."
+      };
     }
 
     // Validate media IDs if provided

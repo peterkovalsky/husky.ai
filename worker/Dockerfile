@@ -47,19 +47,12 @@ COPY templates ./templates
 # Install dependencies for react18-ts template (including dev dependencies for build tools)
 RUN if [ -f "templates/react18-ts/package.json" ]; then \
         echo "Installing dependencies for templates/react18-ts"; \
-        cd templates/react18-ts && npm ci --legacy-peer-deps && cd /app; \
+        cd templates/react18-ts && npm ci && cd /app; \
     fi
 
-# Pre-warm Vite cache during image build
-# Use /app/.vite-cache instead of /tmp/.vite-cache because /tmp is often a fresh tmpfs at runtime
-RUN mkdir -p /app/.vite-cache && \
-    if [ -d "templates/react18-ts/node_modules" ]; then \
-        echo "Pre-warming Vite cache from template..."; \
-        cd templates/react18-ts && \
-        VITE_CACHE_DIR=/app/.vite-cache npx vite optimize && \
-        cd /app; \
-        echo "Vite cache pre-warmed successfully"; \
-    fi
+# Create shared Vite cache directory
+# Note: rolldown-vite handles dependency optimization automatically during builds
+RUN mkdir -p /app/.vite-cache
 
 # Build the TypeScript code
 RUN npm run build
