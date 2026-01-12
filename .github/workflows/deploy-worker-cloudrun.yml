@@ -61,7 +61,9 @@ jobs:
             --port 3334 \
             --timeout 900 \
             --set-env-vars="NODE_ENV=production,WORKER_PORT=3334,AI_PROVIDER_PRIMARY=anthropic,AI_MODEL_PRIMARY=claude-sonnet-4-5-20250929,AI_PROVIDER_FAST=anthropic,AI_MODEL_FAST=claude-haiku-4-5-20251001" \
-            --set-secrets="AWS_REGION=aws-region:latest,AWS_ACCESS_KEY_ID=aws-access-key-id:latest,AWS_SECRET_ACCESS_KEY=aws-secret-access-key:latest,SQS_QUEUE_URL=sqs-queue-url:latest,S3_BUCKET_NAME=s3-bucket-name:latest,S3_PROJECTS_BUCKET_NAME=s3-projects-bucket-name:latest,SUPABASE_URL=supabase-url:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest,ANTHROPIC_API_KEY=anthropic-api-key:latest,OPENAI_API_KEY=openai-api-key:latest,GEMINI_API_KEY=gemini-api-key:latest,CLOUDFLARE_API_TOKEN=cloudflare-api-token:latest,CLOUDFLARE_ZONE_ID=cloudflare-zone-id:latest,CF_ACCOUNT_ID=cf-account-id:latest,CF_R2_ACCESS_KEY=cf-r2-access-key:latest,CF_R2_SECRET_KEY=cf-r2-secret-key:latest"
+            --set-secrets="AWS_REGION=aws-region:latest,AWS_ACCESS_KEY_ID=aws-access-key-id:latest,AWS_SECRET_ACCESS_KEY=aws-secret-access-key:latest,SQS_QUEUE_URL=sqs-queue-url:latest,S3_BUCKET_NAME=s3-bucket-name:latest,S3_PROJECTS_BUCKET_NAME=s3-projects-bucket-name:latest,S3_BUCKET_PUBLIC_MEDIA=s3-bucket-public-media:latest,SUPABASE_URL=supabase-url:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest,ANTHROPIC_API_KEY=anthropic-api-key:latest,OPENAI_API_KEY=openai-api-key:latest,GEMINI_API_KEY=gemini-api-key:latest,CLOUDFLARE_API_TOKEN=cloudflare-api-token:latest,CLOUDFLARE_ZONE_ID=cloudflare-zone-id:latest,CF_ACCOUNT_ID=cf-account-id:latest,CF_R2_ACCESS_KEY=cf-r2-access-key:latest,CF_R2_SECRET_KEY=cf-r2-secret-key:latest" \
+            --cpu-boost \
+            --startup-cpu-boost
 
       - name: Verify Deployment
         run: |
