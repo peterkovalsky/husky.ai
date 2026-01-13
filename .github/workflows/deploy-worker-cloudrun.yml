@@ -68,5 +68,4 @@ jobs:
       - name: Verify Deployment
         run: |
           SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE }} --region ${{ env.REGION }} --format 'value(status.url)')
-          TOKEN=$(gcloud auth print-identity-token)
-          curl -f -H "Authorization: Bearer $TOKEN" "$SERVICE_URL/health" || exit 1
+          curl -f "$SERVICE_URL/health" || exit 1
