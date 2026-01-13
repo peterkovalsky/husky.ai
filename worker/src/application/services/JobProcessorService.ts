@@ -80,7 +80,13 @@ export class JobProcessorService {
         await this.processMessage(message.body, message.receiptHandle);
       }
     } catch (error) {
-      this.logger.error("Error processing messages", { error });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      this.logger.error("Error processing messages", {
+        message: errorMessage,
+        stack: errorStack,
+        errorName: error instanceof Error ? error.name : typeof error
+      });
       // Continue processing even if there's an error
     }
   }
