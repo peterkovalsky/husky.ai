@@ -16,10 +16,11 @@ export class R2PublishedAppsService {
   private bucketName: string;
 
   constructor() {
-    const endpoint = process.env.CLOUDFLARE_R2_ENDPOINT;
-    const accessKeyId = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID;
-    const secretAccessKey = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
-    this.bucketName = process.env.CLOUDFLARE_R2_BUCKET_NAME!;
+    // Trim to remove any trailing newlines from secrets
+    const endpoint = process.env.CLOUDFLARE_R2_ENDPOINT?.trim();
+    const accessKeyId = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID?.trim();
+    const secretAccessKey = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY?.trim();
+    this.bucketName = process.env.CLOUDFLARE_R2_BUCKET_NAME?.trim() || '';
 
     if (!endpoint || !accessKeyId || !secretAccessKey || !this.bucketName) {
       throw new Error(
