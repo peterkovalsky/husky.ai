@@ -158,10 +158,10 @@ MODE 2 - EXACT COPY (explicit request only):
 - Match everything: design AND text content exactly
 - Triggered by: "copy exactly", "replicate exactly", "exact copy"
 
-UPLOADED IMAGES (S3 URLs) - Use ONLY when explicitly requested:
+UPLOADED IMAGES (Media URLs) - Use ONLY when explicitly requested:
 - "add/use this image", "replace [X] with this image", "set as background"
-- Use EXACT S3 URL: https://dev-husky-public-media.s3.ap-southeast-2.amazonaws.com/...
-- Format: <img src="EXACT_S3_URL" /> or style={{ backgroundImage: 'url(EXACT_S3_URL)' }}
+- Use EXACT media URL: ${process.env.R2_PUBLIC_MEDIA_BASE_URL || 'https://media.huskystudio.app'}/...
+- Format: <img src="EXACT_MEDIA_URL" /> or style={{ backgroundImage: 'url(EXACT_MEDIA_URL)' }}
 
 STOCK IMAGES - Use when:
 - Images are for reference/inspiration only
