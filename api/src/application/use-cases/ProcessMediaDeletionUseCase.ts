@@ -1,6 +1,7 @@
 import { IMediaRepository } from '../../domain/repositories/IMediaRepository';
 import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
 import { IStorageService } from '../../domain/services/IStorageService';
+import { IPublicMediaStorageService } from '../../domain/services/IPublicMediaStorageService';
 import { DeleteMediaMessage } from '../../domain/services/IQueueService';
 import { ILogger } from '../../shared/logger/Logger';
 
@@ -9,6 +10,7 @@ export class ProcessMediaDeletionUseCase {
     private mediaRepository: IMediaRepository,
     private buildRepository: IBuildRepository,
     private storageService: IStorageService,
+    private publicMediaStorageService: IPublicMediaStorageService,
     private logger: ILogger
   ) {}
 
@@ -60,13 +62,13 @@ export class ProcessMediaDeletionUseCase {
         // Continue with deletion even if this fails
       }
 
-      // Step 3: Delete from public S3 bucket if exists
+      // Step 3: Delete from public R2 bucket if exists
       if (media.s3PublicKey) {
         try {
-          await this.storageService.deleteFromPublicBucket(media.s3PublicKey);
-          this.logger.info(`[ProcessMediaDeletionUseCase] Deleted media ${mediaId} from public bucket`);
+          await this.publicMediaStorageService.deleteFile(media.s3PublicKey);
+          this.logger.info(`[ProcessMediaDeletionUseCase] Deleted media ${mediaId} from public R2 bucket`);
         } catch (error) {
-          this.logger.error(`[ProcessMediaDeletionUseCase] Failed to delete from public bucket`, {
+          this.logger.error(`[ProcessMediaDeletionUseCase] Failed to delete from public R2 bucket`, {
             mediaId,
             s3PublicKey: media.s3PublicKey,
             error: error instanceof Error ? error.message : 'Unknown error'

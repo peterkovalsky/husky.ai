@@ -5,6 +5,7 @@ import { IMediaRepository } from '../../../domain/repositories/IMediaRepository'
 import { IInspoRepository } from '../../../domain/repositories/IInspoRepository';
 import { IAIService } from '../../../domain/services/IAIService';
 import { IStorageService } from '../../../domain/services/IStorageService';
+import { IPublicMediaStorageService } from '../../../domain/services/IPublicMediaStorageService';
 import { PrepareProjectEnvironmentUseCase } from '../../use-cases/PrepareProjectEnvironmentUseCase';
 import { BuildLogger } from '../../../shared/logger/BuildLogger';
 import { FileTreeMerger } from '../../../shared/utils/FileTreeMerger';
@@ -40,7 +41,8 @@ export class CodeGenerationStep implements IBuildStep {
     private inspoRepository: IInspoRepository,
     private aiService: IAIService,
     private storageService: IStorageService,
-    private prepareProjectEnvironmentUseCase: PrepareProjectEnvironmentUseCase
+    private prepareProjectEnvironmentUseCase: PrepareProjectEnvironmentUseCase,
+    private publicMediaStorageService: IPublicMediaStorageService
   ) {
     this.templateFilePath = path.join(__dirname, "../../../template-react18-ts.json");
     this.buildLogger = new BuildLogger();
@@ -72,32 +74,32 @@ export class CodeGenerationStep implements IBuildStep {
         .map((b) => `User: ${b.userPrompt}`)
         .join("\n\n");
 
-      // 3. Upload media to public S3 bucket
+      // 3. Upload media to public R2 bucket
       let publicMediaUrls: string[] = [];
       const publicUploadStartTime = Date.now();
-      let publicS3UploadTimeMs = 0;
+      let publicR2UploadTimeMs = 0;
 
       if (context.mediaIds && context.mediaIds.length > 0) {
-        console.log(`[${this.stepName}] Uploading ${context.mediaIds.length} media files to public S3...`);
+        console.log(`[${this.stepName}] Uploading ${context.mediaIds.length} media files to public R2...`);
         const medias = await this.mediaRepository.findByIds(context.mediaIds);
 
         // Upload each media file in parallel
         const uploadPromises = medias.map(async (media) => {
-          const { publicKey, publicUrl } = await this.storageService.copyToPublicBucket(
+          const { publicKey, publicUrl } = await this.publicMediaStorageService.copyFromS3ToR2(
             media.s3Key,
             media.s3Bucket,
             context.projectId
           );
 
-          // Update media record with public S3 info
-          await this.mediaRepository.updatePublicS3Info(media.id, publicKey, process.env.S3_BUCKET_PUBLIC_MEDIA!);
+          // Update media record with public R2 info
+          await this.mediaRepository.updatePublicS3Info(media.id, publicKey, process.env.CLOUDFLARE_R2_PUBLIC_MEDIA_BUCKET!);
 
           return publicUrl;
         });
 
         publicMediaUrls = await Promise.all(uploadPromises);
-        publicS3UploadTimeMs = Date.now() - publicUploadStartTime;
-        console.log(`[${this.stepName}] Uploaded ${publicMediaUrls.length} images to public S3 in ${publicS3UploadTimeMs}ms`);
+        publicR2UploadTimeMs = Date.now() - publicUploadStartTime;
+        console.log(`[${this.stepName}] Uploaded ${publicMediaUrls.length} images to public R2 in ${publicR2UploadTimeMs}ms`);
       }
 
       // 3b. Add inspiration image if selected
@@ -164,7 +166,7 @@ export class CodeGenerationStep implements IBuildStep {
       // Update build with merged file tree
       await this.buildRepository.updateFileTree(buildId, mergeResult.mergedFileTree);
 
-      // 7. Scan for image references and cleanup unreferenced images
+      // 7. Scan for image references and cleanup unreferenced images from R2
       if (context.mediaIds && context.mediaIds.length > 0 && publicMediaUrls.length > 0) {
         console.log(`[${this.stepName}] [Image Cleanup] Scanning file tree for image references...`);
         const referencedImages = this.scanFileTreeForImageReferences(mergeResult.mergedFileTree, publicMediaUrls);
@@ -173,12 +175,12 @@ export class CodeGenerationStep implements IBuildStep {
 
         for (const media of medias) {
           if (media.s3PublicKey && !referencedImages.has(media.s3PublicKey)) {
-            console.log(`[${this.stepName}] [Image Cleanup] Deleting unreferenced image: ${media.s3PublicKey}`);
+            console.log(`[${this.stepName}] [Image Cleanup] Deleting unreferenced image from R2: ${media.s3PublicKey}`);
             try {
-              await this.storageService.deleteFromPublicBucket(media.s3PublicKey);
+              await this.publicMediaStorageService.deleteFile(media.s3PublicKey);
               await this.mediaRepository.updatePublicS3Info(media.id, '', '');
             } catch (error) {
-              console.warn(`[${this.stepName}] [Image Cleanup] Failed to delete unreferenced image:`, error);
+              console.warn(`[${this.stepName}] [Image Cleanup] Failed to delete unreferenced image from R2:`, error);
             }
           } else if (media.s3PublicKey) {
             console.log(`[${this.stepName}] [Image Cleanup] Keeping referenced image: ${media.s3PublicKey}`);
@@ -218,7 +220,7 @@ export class CodeGenerationStep implements IBuildStep {
           aiGenerationTimeMs,
           environmentPrepTimeMs,
           nodeModulesCopyTimeMs,
-          publicS3UploadTimeMs
+          publicR2UploadTimeMs
         }
       };
     } catch (error) {
@@ -262,15 +264,30 @@ export class CodeGenerationStep implements IBuildStep {
     const referenced = new Set<string>();
     const fileTreeString = JSON.stringify(fileTree);
 
+    // Get the R2 public media base URL for parsing
+    const r2BaseUrl = process.env.R2_PUBLIC_MEDIA_BASE_URL;
+
     for (const url of publicUrls) {
       if (fileTreeString.includes(url)) {
-        // Extract S3 key from public URL
-        // Format: https://<bucket>.s3.<region>.amazonaws.com/<key>
-        const urlParts = url.split('.amazonaws.com/');
-        if (urlParts.length > 1) {
-          const key = urlParts[1];
-          referenced.add(key);
-          console.log(`[${this.stepName}] [Image Reference] Found reference to: ${url}`);
+        // Extract key from R2 public URL
+        // Format: https://media.huskystudio.app/<projectId>/<filename>
+        if (r2BaseUrl) {
+          const urlParts = url.split(r2BaseUrl + '/');
+          if (urlParts.length > 1) {
+            const key = urlParts[1];
+            referenced.add(key);
+            console.log(`[${this.stepName}] [Image Reference] Found reference to: ${url}`);
+          }
+        } else {
+          // Fallback: try to extract key from URL path
+          try {
+            const parsedUrl = new URL(url);
+            const key = parsedUrl.pathname.substring(1); // Remove leading slash
+            referenced.add(key);
+            console.log(`[${this.stepName}] [Image Reference] Found reference to: ${url}`);
+          } catch {
+            console.warn(`[${this.stepName}] [Image Reference] Could not parse URL: ${url}`);
+          }
         }
       }
     }

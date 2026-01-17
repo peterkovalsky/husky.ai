@@ -6,6 +6,7 @@ import { IInspoRepository } from '../../domain/repositories/IInspoRepository';
 import { IAIService } from '../../domain/services/IAIService';
 import { IBuildService } from '../../domain/services/IBuildService';
 import { IStorageService } from '../../domain/services/IStorageService';
+import { IPublicMediaStorageService } from '../../domain/services/IPublicMediaStorageService';
 import { IImageProcessingService } from '../../domain/services/IImageProcessingService';
 import { JobMessage, IQueueService, GenerateScreenshotMessage } from '../../domain/services/IQueueService';
 import { ProjectStatus } from '../../domain/entities/Project';
@@ -52,7 +53,8 @@ export class ProcessJobUseCase {
     private mediaRepository: IMediaRepository,
     private imageProcessingService: IImageProcessingService,
     private queueService: IQueueService,
-    private inspoRepository: IInspoRepository
+    private inspoRepository: IInspoRepository,
+    private publicMediaStorageService: IPublicMediaStorageService
   ) {}
 
   async execute(jobMessage: JobMessage): Promise<void> {
@@ -106,7 +108,8 @@ export class ProcessJobUseCase {
       this.inspoRepository,
       this.aiService,
       this.storageService,
-      this.prepareProjectEnvironmentUseCase
+      this.prepareProjectEnvironmentUseCase,
+      this.publicMediaStorageService
     );
     const filePrepStep = new FilePrepStep(
       this.buildRepository,

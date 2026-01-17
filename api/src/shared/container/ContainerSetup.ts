@@ -17,6 +17,7 @@ import { IChatMessageRepository } from '../../domain/repositories/IChatMessageRe
 import { IAIService } from '../../domain/services/IAIService';
 import { IAIProvider } from '../../domain/services/IAIProvider';
 import { IStorageService } from '../../domain/services/IStorageService';
+import { IPublicMediaStorageService } from '../../domain/services/IPublicMediaStorageService';
 import { IQueueService } from '../../domain/services/IQueueService';
 import { ISubdomainService } from '../../domain/services/ISubdomainService';
 import { ICloudFrontService } from '../../domain/services/ICloudFrontService';
@@ -43,6 +44,7 @@ import { SubdomainService } from '../../infrastructure/subdomain/SubdomainServic
 import { CloudFrontService } from '../../infrastructure/cdn/CloudFrontService';
 import { Route53Service } from '../../infrastructure/dns/Route53Service';
 import { R2PublishedAppsService } from '../../infrastructure/storage/R2PublishedAppsService';
+import { R2PublicMediaService } from '../../infrastructure/storage/R2PublicMediaService';
 import { CloudflareSaaSService } from '../../infrastructure/cdn/CloudflareSaaSService';
 import { CloudflareKVService } from '../../infrastructure/storage/CloudflareKVService';
 import { DNSVerificationService, IDNSVerificationService } from '../../infrastructure/dns/DNSVerificationService';
@@ -185,6 +187,7 @@ export function setupContainer(): DIContainer {
 
   // Cloudflare services for publishing
   container.registerFactory<R2PublishedAppsService>('r2PublishedAppsService', () => new R2PublishedAppsService());
+  container.registerFactory<IPublicMediaStorageService>('r2PublicMediaService', () => new R2PublicMediaService());
   container.registerFactory<CloudflareSaaSService>('cloudflareSaaSService', () => new CloudflareSaaSService());
   container.registerFactory<CloudflareKVService>('cloudflareKVService', () => new CloudflareKVService());
   container.registerFactory<IDNSVerificationService>('dnsVerificationService', () => new DNSVerificationService());
@@ -323,6 +326,7 @@ export function setupContainer(): DIContainer {
       container.get<IMediaRepository>('mediaRepository'),
       container.get<IBuildRepository>('buildRepository'),
       container.get<IStorageService>('storageService'),
+      container.get<IPublicMediaStorageService>('r2PublicMediaService'),
       container.get<ILogger>('logger')
     );
   });
