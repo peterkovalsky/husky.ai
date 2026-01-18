@@ -21,12 +21,12 @@ export class R2PublicMediaService implements IPublicMediaStorageService {
   private publicBaseUrl: string;
 
   constructor() {
-    // R2 Configuration - trim to remove any trailing newlines from secrets
-    const r2Endpoint = process.env.CLOUDFLARE_R2_ENDPOINT?.trim();
-    const r2AccessKeyId = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID?.trim();
-    const r2SecretAccessKey = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY?.trim();
-    this.bucketName = process.env.CLOUDFLARE_R2_PUBLIC_MEDIA_BUCKET?.trim() || '';
-    this.publicBaseUrl = process.env.R2_PUBLIC_MEDIA_BASE_URL?.trim() || '';
+    // R2 Configuration
+    const r2Endpoint = process.env.CLOUDFLARE_R2_ENDPOINT;
+    const r2AccessKeyId = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID;
+    const r2SecretAccessKey = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
+    this.bucketName = process.env.CLOUDFLARE_R2_PUBLIC_MEDIA_BUCKET!;
+    this.publicBaseUrl = process.env.R2_PUBLIC_MEDIA_BASE_URL!;
 
     // S3 Configuration (for reading source files)
     const awsRegion = process.env.AWS_REGION;
