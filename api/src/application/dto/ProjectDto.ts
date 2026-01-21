@@ -1,9 +1,45 @@
-import { ChatMessage } from '../../domain/entities/ChatMessage';
-
 export interface CreateProjectDto {
   name: string;
   description?: string;
   workspaceId?: string;
+}
+
+export interface ChatMessageMediaDto {
+  id: string;
+  thumbnailUrl: string;  // Presigned URL to thumbnail (256x256)
+  fullUrl: string;       // Presigned URL to original file (for lightbox)
+  type: 'image' | 'video' | 'doc';
+  mimeType: string;
+}
+
+export interface ChatMessageDto {
+  id: string;
+  projectId: string;
+  buildId?: string;
+  userId: string;
+  type: string;
+  source: string;
+  content: string;
+  role: 'user' | 'assistant' | 'system';
+  conversationRound: number;
+  messageOrder: number;
+  mediaIds?: string[];
+  mediaUrls?: ChatMessageMediaDto[];
+  inspoId?: string;
+  questionId?: string;
+  parentMessageId?: string;
+  isSkipped?: boolean;
+  answerOptionId?: string;
+  answerOptionLabel?: string;
+  answerFreeText?: string;
+  status: string;
+  metadata?: {
+    inspoThumbnail?: string;
+    inspoName?: string;
+    [key: string]: unknown;
+  };
+  createdAt: Date;
+  modifiedAt: Date;
 }
 
 export interface ProjectDetailsDto {
@@ -44,5 +80,5 @@ export interface ProjectDetailsDto {
     createdAt: Date;
     promptId?: string;
   }>;
-  chatMessages?: ChatMessage[];
+  chatMessages?: ChatMessageDto[];
 }

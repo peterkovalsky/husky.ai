@@ -167,8 +167,10 @@ export const useMediaUpload = ({ projectId, onError, maxFiles = 1 }: UseMediaUpl
       .map(img => img.mediaId!)
   }
 
-  const clearFiles = () => {
-    attachedImages.forEach(img => URL.revokeObjectURL(img.preview))
+  const clearFiles = (revokeUrls: boolean = true) => {
+    if (revokeUrls) {
+      attachedImages.forEach(img => URL.revokeObjectURL(img.preview))
+    }
     setAttachedImages([])
   }
 

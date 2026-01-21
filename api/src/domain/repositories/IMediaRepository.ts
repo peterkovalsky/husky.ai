@@ -8,6 +8,7 @@ export interface IMediaRepository {
   findByUserId(userId: string): Promise<Media[]>; // Excludes soft-deleted records
   updateDimensions(id: string, width: number, height: number): Promise<void>;
   updatePublicS3Info(id: string, s3PublicKey: string, s3PublicBucket: string): Promise<void>;
+  updateThumbnailInfo(id: string, thumbnailS3Key: string, thumbnailS3Bucket: string): Promise<void>;
   softDelete(id: string): Promise<void>;
   delete(id: string): Promise<void>; // Hard delete (kept for potential future use)
 }

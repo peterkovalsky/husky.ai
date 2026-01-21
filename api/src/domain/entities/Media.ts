@@ -7,6 +7,8 @@ export interface Media {
   s3Bucket: string;
   s3PublicKey?: string;
   s3PublicBucket?: string;
+  thumbnailS3Key?: string;
+  thumbnailS3Bucket?: string;
   fileSize: number;
   width?: number;
   height?: number;

@@ -11,6 +11,8 @@ interface MediaRow {
   s3_bucket: string;
   s3_public_key?: string;
   s3_public_bucket?: string;
+  thumbnail_s3_key?: string;
+  thumbnail_s3_bucket?: string;
   file_size: number;
   width?: number;
   height?: number;
@@ -39,6 +41,8 @@ export class SupabaseMediaRepository implements IMediaRepository {
       s3Bucket: row.s3_bucket,
       s3PublicKey: row.s3_public_key,
       s3PublicBucket: row.s3_public_bucket,
+      thumbnailS3Key: row.thumbnail_s3_key,
+      thumbnailS3Bucket: row.thumbnail_s3_bucket,
       fileSize: row.file_size,
       width: row.width,
       height: row.height,
@@ -166,6 +170,21 @@ export class SupabaseMediaRepository implements IMediaRepository {
 
     if (error) {
       throw new Error(`Failed to update media public S3 info: ${error.message}`);
+    }
+  }
+
+  async updateThumbnailInfo(id: string, thumbnailS3Key: string, thumbnailS3Bucket: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('medias')
+      .update({
+        thumbnail_s3_key: thumbnailS3Key || null,
+        thumbnail_s3_bucket: thumbnailS3Bucket || null,
+        modified_at: new Date().toISOString(),
+      })
+      .eq('id', id);
+
+    if (error) {
+      throw new Error(`Failed to update media thumbnail info: ${error.message}`);
     }
   }
 
