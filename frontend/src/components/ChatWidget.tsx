@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { ApiService, type JobStatus, type ChatMessage as APIChatMessage } from '../services/api'
+import { ApiService, type JobStatus, type ChatMessage as APIChatMessage, type ChatMessageMedia } from '../services/api'
 import { useProject } from '../contexts/ProjectContext'
 import { Button, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Alert, Divider, Image } from '@heroui/react'
-import { MessageCircle, Loader2, CheckCircle, AlertCircle, Undo2, ArrowLeft, CircleChevronLeft, PanelLeft, Bot, SkipForward } from 'lucide-react'
+import { MessageCircle, Loader2, CheckCircle, AlertCircle, Undo2, ArrowLeft, CircleChevronLeft, PanelLeft, Bot, SkipForward, FileText, X } from 'lucide-react'
 import { PromptInput } from './PromptInput'
 import { useMediaUpload } from '../hooks/useMediaUpload'
 import type { OnboardingPhase, OnboardingChatMessage, OnboardingMessageMetadata } from '../types/onboarding'
@@ -27,6 +28,7 @@ interface ChatMessage {
   status?: 'sending' | 'processing' | 'completed' | 'failed'
   jobId?: string
   metadata?: OnboardingMessageMetadata
+  mediaUrls?: ChatMessageMedia[]
 }
 
 
@@ -65,6 +67,7 @@ export const ChatWidget = ({
   const [successfulBuildsCount, setSuccessfulBuildsCount] = useState(0)
   const [lastPromptText, setLastPromptText] = useState<string | null>(null)
   const [showInsufficientCredits, setShowInsufficientCredits] = useState(false)
+  const [lightboxMedia, setLightboxMedia] = useState<{ url: string; type: 'image' | 'video' | 'doc' } | null>(null)
   const { currentProject } = useProject()
   const navigate = useNavigate()
 
@@ -174,7 +177,8 @@ export const ChatWidget = ({
               inspoName: msg.metadata?.inspoName,
               questionId: msg.questionId,
               isSkipped: msg.isSkipped,
-            } as OnboardingMessageMetadata
+            } as OnboardingMessageMetadata,
+            mediaUrls: msg.mediaUrls,
           }))
 
           // Already sorted by conversation_round and message_order from backend
@@ -264,16 +268,30 @@ export const ChatWidget = ({
     }
 
     const messageId = Date.now().toString()
+
+    // Get mediaIds from ready images
+    const mediaIds = getMediaIds()
+
+    // Create media URLs from attached images for immediate display
+    const localMediaUrls: ChatMessageMedia[] = attachedImages
+      .filter(img => img.uploadStatus === 'ready' && img.mediaId)
+      .map(img => ({
+        id: img.mediaId!,
+        thumbnailUrl: img.preview, // Use blob URL for thumbnail
+        fullUrl: img.preview,      // Use blob URL for full view
+        type: (img.file.type.startsWith('video/') ? 'video' :
+               img.file.type.startsWith('image/') ? 'image' : 'doc') as 'image' | 'video' | 'doc',
+        mimeType: img.file.type,
+      }))
+
     const userMessage: ChatMessage = {
       id: messageId,
       type: 'user',
       content: currentPrompt.trim(),
       timestamp: new Date(),
-      status: 'sending'
+      status: 'sending',
+      mediaUrls: localMediaUrls.length > 0 ? localMediaUrls : undefined,
     }
-
-    // Get mediaIds from ready images
-    const mediaIds = getMediaIds()
 
     console.log('[ChatWidget] Attached images:', attachedImages)
     console.log('[ChatWidget] Media IDs to submit:', mediaIds)
@@ -378,7 +396,8 @@ export const ChatWidget = ({
       pollCleanupRef.current = cleanup
 
       // Clear attached images after successful submission
-      clearFiles()
+      // Don't revoke URLs - they're used by the chat message until page refresh
+      clearFiles(false)
     } catch (error) {
       updateMessageStatus(messageId, 'failed')
       addSystemMessage(`❌ Failed to submit: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error')
@@ -572,6 +591,32 @@ export const ChatWidget = ({
                 <span className="flex-1 leading-relaxed break-words text-sm">{message.content}</span>
                 {getStatusIcon(message.status)}
               </div>
+              {/* Media attachments - shown below the prompt */}
+              {message.mediaUrls && message.mediaUrls.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {message.mediaUrls.map((media) => (
+                    <button
+                      key={media.id}
+                      className="relative w-16 h-16 rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
+                      onClick={() => setLightboxMedia({ url: media.fullUrl, type: media.type })}
+                    >
+                      {media.type === 'video' ? (
+                        <video
+                          src={media.thumbnailUrl}
+                          preload="metadata"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : media.type === 'image' ? (
+                        <Image src={media.thumbnailUrl} className="w-full h-full object-cover" removeWrapper />
+                      ) : (
+                        <div className="w-full h-full bg-default-200 flex items-center justify-center">
+                          <FileText className="h-6 w-6" />
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="opacity-60 mt-2 text-xs">
                 {formatTime(message.timestamp)}
               </div>
@@ -813,6 +858,43 @@ export const ChatWidget = ({
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      {/* Media Lightbox Modal - rendered via portal to escape chat widget */}
+      {lightboxMedia && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 cursor-pointer"
+          onClick={() => setLightboxMedia(null)}
+        >
+          <Button
+            isIconOnly
+            variant="light"
+            className="absolute top-4 right-4 z-10 bg-black/50 hover:bg-black/70 text-white"
+            onPress={() => setLightboxMedia(null)}
+          >
+            <X className="h-5 w-5" />
+          </Button>
+          <div
+            className="max-w-[90vw] max-h-[90vh] cursor-default"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {lightboxMedia.type === 'video' ? (
+              <video
+                src={lightboxMedia.url}
+                controls
+                autoPlay
+                className="max-w-full max-h-[90vh] object-contain rounded-lg"
+              />
+            ) : lightboxMedia.type === 'image' ? (
+              <Image
+                src={lightboxMedia.url}
+                className="max-w-full max-h-[90vh] object-contain"
+                removeWrapper
+              />
+            ) : null}
+          </div>
+        </div>,
+        document.body
+      )}
     </>
   )
 }

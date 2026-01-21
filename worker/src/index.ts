@@ -8,6 +8,7 @@ import { ILogger } from './shared/logger/Logger';
 import { JobProcessorService } from './application/services/JobProcessorService';
 import { getPostHogErrorTracker } from './infrastructure/monitoring/PostHogErrorTracker';
 import { IProjectEnvironmentService } from './domain/services/IProjectEnvironmentService';
+import { IScreenshotService } from './infrastructure/screenshot/ScreenshotService';
 
 const config = loadAppConfig();
 
@@ -44,6 +45,9 @@ const jobProcessorService = new JobProcessorService(
 // Register job processor in container for health checks
 container.register('jobProcessorService', jobProcessorService);
 
+// Get screenshot service for graceful shutdown
+const screenshotService = container.get<IScreenshotService>('screenshotService');
+
 // Health check endpoint
 app.get('/health', (_req, res) => {
   const processorStatus = jobProcessorService.getStatus();
@@ -66,7 +70,7 @@ const server = app.listen(port, () => {
 // Graceful shutdown handlers
 const SHUTDOWN_TIMEOUT_MS = 25000; // 25 seconds - App Runner default is 30s
 
-const gracefulShutdown = (signal: string) => {
+const gracefulShutdown = async (signal: string) => {
   logger.info(`${signal} received, shutting down worker gracefully...`);
 
   // Force exit after timeout to prevent hanging
@@ -80,6 +84,14 @@ const gracefulShutdown = (signal: string) => {
 
   // Stop accepting new jobs
   jobProcessorService.stop();
+
+  // Close browser instance if running
+  try {
+    await screenshotService.shutdown();
+    logger.info('Screenshot service browser closed');
+  } catch (error) {
+    logger.warn('Error closing screenshot service browser:', error);
+  }
 
   // Close HTTP server (stops accepting new connections, waits for existing)
   server.close(() => {

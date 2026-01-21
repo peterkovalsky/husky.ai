@@ -92,102 +92,141 @@ export class ScreenshotService implements IScreenshotService {
    * @returns Buffer containing the PNG screenshot
    */
   async captureScreenshot(url: string, context?: { projectId?: string; userId?: string }): Promise<Buffer> {
-    let page: Awaited<ReturnType<Browser['newPage']>> | null = null;
+    const maxRetries = 2;
+    let lastError: Error | null = null;
 
-    try {
-      console.log(`[ScreenshotService] Capturing screenshot of ${url}`);
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      let page: Awaited<ReturnType<Browser['newPage']>> | null = null;
 
-      // Get pooled browser instance
-      const browser = await this.getBrowser();
-
-      page = await browser.newPage();
-
-      // Set a realistic user agent to avoid being blocked
-      await page.setUserAgent(
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      );
-
-      // Block only analytics/tracking to speed up loading
-      await page.setRequestInterception(true);
-      page.on('request', (request) => {
-        const url = request.url();
-        // Block analytics and tracking scripts
-        const blockedUrls = ['google-analytics', 'googletagmanager', 'facebook.net', 'analytics', 'tracking', 'hotjar'];
-        const shouldBlock = blockedUrls.some(blocked => url.includes(blocked));
-
-        if (shouldBlock) {
-          request.abort();
-        } else {
-          request.continue();
-        }
-      });
-
-      // Set viewport size
-      await page.setViewport({
-        width: this.width,
-        height: this.height,
-        deviceScaleFactor: 1,
-      });
-
-      // Navigate to the URL
-      await page.goto(url, {
-        waitUntil: 'load',
-        timeout: this.pageLoadTimeout,
-      });
-
-      // Wait a bit for any animations to settle
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // Take screenshot as PNG first (lossless capture)
-      const rawScreenshot = await page.screenshot({
-        type: 'png',
-        fullPage: false,
-      });
-
-      const rawBuffer = rawScreenshot instanceof Buffer ? rawScreenshot : Buffer.from(rawScreenshot);
-      console.log(`[ScreenshotService] Raw screenshot captured (${rawBuffer.length} bytes)`);
-
-      // Resize using Sharp, keep as PNG
-      const compressedBuffer = await sharp(rawBuffer)
-        .resize(this.thumbnailWidth, null, {
-          fit: 'inside',
-          withoutEnlargement: true,
-        })
-        .png({
-          compressionLevel: 9, // Max compression
-        })
-        .toBuffer();
-
-      console.log(`[ScreenshotService] Screenshot compressed (${rawBuffer.length} -> ${compressedBuffer.length} bytes, ${Math.round((1 - compressedBuffer.length / rawBuffer.length) * 100)}% reduction)`);
-
-      return compressedBuffer;
-
-    } catch (error) {
-      console.error('[ScreenshotService] Failed to capture screenshot:', error);
-
-      // Log error to PostHog (use captureException to flush immediately)
       try {
-        const posthog = getPostHogErrorTracker();
-        await posthog.captureException(error instanceof Error ? error : new Error(String(error)), {
-          projectId: context?.projectId,
-          userId: context?.userId,
-          screenshotUrl: url,
-          component: 'ScreenshotService',
-        });
-      } catch (posthogError) {
-        console.warn('[ScreenshotService] Failed to log error to PostHog:', posthogError);
-      }
-
-      throw error;
-    } finally {
-      // Close only the page, keep browser alive for reuse
-      if (page) {
-        try {
-          await page.close();
-        } catch (closeError) {
-          console.warn('[ScreenshotService] Error closing page:', closeError);
+        if (attempt > 0) {
+          console.log(`[ScreenshotService] Retry attempt ${attempt}/${maxRetries} for ${url}`);
+        } else {
+          console.log(`[ScreenshotService] Capturing screenshot of ${url}`);
         }
+
+        // Get pooled browser instance
+        const browser = await this.getBrowser();
+
+        page = await browser.newPage();
+
+        // Set a realistic user agent to avoid being blocked
+        await page.setUserAgent(
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        );
+
+        // Block only analytics/tracking to speed up loading
+        await page.setRequestInterception(true);
+        page.on('request', (request) => {
+          const reqUrl = request.url();
+          // Block analytics and tracking scripts
+          const blockedUrls = ['google-analytics', 'googletagmanager', 'facebook.net', 'analytics', 'tracking', 'hotjar'];
+          const shouldBlock = blockedUrls.some(blocked => reqUrl.includes(blocked));
+
+          if (shouldBlock) {
+            request.abort();
+          } else {
+            request.continue();
+          }
+        });
+
+        // Set viewport size
+        await page.setViewport({
+          width: this.width,
+          height: this.height,
+          deviceScaleFactor: 1,
+        });
+
+        // Navigate to the URL
+        await page.goto(url, {
+          waitUntil: 'load',
+          timeout: this.pageLoadTimeout,
+        });
+
+        // Wait a bit for any animations to settle
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // Take screenshot as PNG first (lossless capture)
+        const rawScreenshot = await page.screenshot({
+          type: 'png',
+          fullPage: false,
+        });
+
+        const rawBuffer = rawScreenshot instanceof Buffer ? rawScreenshot : Buffer.from(rawScreenshot);
+        console.log(`[ScreenshotService] Raw screenshot captured (${rawBuffer.length} bytes)`);
+
+        // Resize using Sharp, keep as PNG
+        const compressedBuffer = await sharp(rawBuffer)
+          .resize(this.thumbnailWidth, null, {
+            fit: 'inside',
+            withoutEnlargement: true,
+          })
+          .png({
+            compressionLevel: 9, // Max compression
+          })
+          .toBuffer();
+
+        console.log(`[ScreenshotService] Screenshot compressed (${rawBuffer.length} -> ${compressedBuffer.length} bytes, ${Math.round((1 - compressedBuffer.length / rawBuffer.length) * 100)}% reduction)`);
+
+        // Success - close page and return
+        if (page) {
+          try {
+            await page.close();
+          } catch (closeError) {
+            console.warn('[ScreenshotService] Error closing page:', closeError);
+          }
+        }
+
+        return compressedBuffer;
+
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+
+        // Close the page if it was opened
+        if (page) {
+          try {
+            await page.close();
+          } catch (closeError) {
+            console.warn('[ScreenshotService] Error closing page:', closeError);
+          }
+        }
+
+        // Check if this is a connection error that warrants a retry
+        const isConnectionError = lastError.message.includes('Connection closed') ||
+          lastError.message.includes('Protocol error') ||
+          lastError.message.includes('Target closed') ||
+          lastError.name === 'ConnectionClosedError';
+
+        if (isConnectionError && attempt < maxRetries) {
+          console.warn(`[ScreenshotService] Browser connection lost, clearing browser for retry...`);
+          // Clear the static browser so next attempt launches a fresh one
+          ScreenshotService.browser = null;
+          continue; // Retry with fresh browser
+        }
+
+        // Non-retryable error or exhausted retries - log and throw
+        console.error('[ScreenshotService] Failed to capture screenshot:', error);
+
+        // Log error to PostHog (use captureException to flush immediately)
+        try {
+          const posthog = getPostHogErrorTracker();
+          await posthog.captureException(lastError, {
+            projectId: context?.projectId,
+            userId: context?.userId,
+            screenshotUrl: url,
+            component: 'ScreenshotService',
+            retryAttempt: attempt,
+            isConnectionError,
+          });
+        } catch (posthogError) {
+          console.warn('[ScreenshotService] Failed to log error to PostHog:', posthogError);
+        }
+
+        throw lastError;
       }
     }
+
+    // This should never be reached, but TypeScript needs it
+    throw lastError || new Error('Screenshot capture failed after retries');
   }
 }

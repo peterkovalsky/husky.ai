@@ -591,4 +591,67 @@ export class S3StorageService implements IStorageService {
       console.warn(`[S3StorageService] Warning: Failed to delete thumbnail ${key}:`, error instanceof Error ? error.message : 'Unknown error');
     }
   }
+
+  /**
+   * Download a file from S3 as a Buffer
+   * @param key The S3 key of the file
+   * @param bucket Optional bucket name (defaults to main bucket)
+   * @returns The file contents as a Buffer
+   */
+  async downloadFile(key: string, bucket?: string): Promise<Buffer> {
+    const targetBucket = bucket || this.bucketName;
+
+    try {
+      const command = new GetObjectCommand({
+        Bucket: targetBucket,
+        Key: key,
+      });
+
+      const response = await this.s3Client.send(command);
+
+      if (!response.Body) {
+        throw new Error('Empty response body');
+      }
+
+      // Convert the stream to a Buffer
+      const chunks: Uint8Array[] = [];
+      const stream = response.Body as NodeJS.ReadableStream;
+
+      for await (const chunk of stream) {
+        chunks.push(chunk as Uint8Array);
+      }
+
+      const buffer = Buffer.concat(chunks);
+      console.log(`[S3StorageService] Downloaded file: ${key} (${buffer.length} bytes) from bucket ${targetBucket}`);
+
+      return buffer;
+    } catch (error) {
+      throw new Error(`Failed to download file ${key}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Upload a Buffer to S3
+   * @param key The S3 key to upload to
+   * @param buffer The Buffer to upload
+   * @param contentType The MIME type of the content
+   * @param bucket Optional bucket name (defaults to main bucket)
+   */
+  async uploadBuffer(key: string, buffer: Buffer, contentType: string, bucket?: string): Promise<void> {
+    const targetBucket = bucket || this.bucketName;
+
+    try {
+      const command = new PutObjectCommand({
+        Bucket: targetBucket,
+        Key: key,
+        Body: buffer,
+        ContentType: contentType,
+      });
+
+      await this.s3Client.send(command);
+      console.log(`[S3StorageService] Uploaded buffer: ${key} (${buffer.length} bytes) to bucket ${targetBucket}`);
+    } catch (error) {
+      throw new Error(`Failed to upload buffer to ${key}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
 }

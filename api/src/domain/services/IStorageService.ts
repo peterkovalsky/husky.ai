@@ -25,4 +25,6 @@ export interface IStorageService {
   uploadThumbnail(projectId: string, version: number, buffer: Buffer): Promise<string>;
   getThumbnailPresignedUrl(thumbnailKey: string, expiresIn?: number): Promise<string>;
   deleteThumbnail(projectId: string, version: number): Promise<void>;
+  downloadFile(key: string, bucket?: string): Promise<Buffer>;
+  uploadBuffer(key: string, buffer: Buffer, contentType: string, bucket?: string): Promise<void>;
 }

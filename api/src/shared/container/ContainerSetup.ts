@@ -238,7 +238,9 @@ export function setupContainer(): DIContainer {
     container.get<IProjectRepository>('projectRepository'),
     container.get<IWorkspaceRepository>('workspaceRepository'),
     container.get<IBuildRepository>('buildRepository'),
-    container.get<IChatMessageRepository>('chatMessageRepository')
+    container.get<IChatMessageRepository>('chatMessageRepository'),
+    container.get<IMediaRepository>('mediaRepository'),
+    container.get<IStorageService>('storageService')
   ));
 
   container.registerFactory<UpdateProjectUseCase>('updateProjectUseCase', () => new UpdateProjectUseCase(

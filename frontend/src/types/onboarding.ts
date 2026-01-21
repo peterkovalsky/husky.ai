@@ -1,4 +1,5 @@
 import type { ClarificationQuestion, ClarificationAnswer } from './clarification';
+import type { ChatMessageMedia } from '../services/api';
 
 /**
  * Onboarding phases for the project setup flow
@@ -75,6 +76,7 @@ export interface OnboardingChatMessage {
   timestamp: Date;
   status?: 'sending' | 'processing' | 'completed' | 'failed';
   metadata?: OnboardingMessageMetadata;
+  mediaUrls?: ChatMessageMedia[];
 }
 
 /**

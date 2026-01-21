@@ -252,6 +252,14 @@ export interface ChatMessageMetadata {
   [key: string]: unknown;
 }
 
+export interface ChatMessageMedia {
+  id: string;
+  thumbnailUrl: string;  // Presigned URL to thumbnail (256x256)
+  fullUrl: string;       // Presigned URL to original file (for lightbox)
+  type: 'image' | 'video' | 'doc';
+  mimeType: string;
+}
+
 export interface ChatMessage {
   id: string;
   projectId: string;
@@ -264,6 +272,7 @@ export interface ChatMessage {
   conversationRound: number;
   messageOrder: number;
   mediaIds?: string[];
+  mediaUrls?: ChatMessageMedia[];
   inspoId?: string;
   questionId?: string;
   parentMessageId?: string;
