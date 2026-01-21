@@ -6,7 +6,7 @@ import { Button, Spinner } from '@heroui/react'
 import { PromptInput } from './PromptInput'
 import { useMediaUpload } from '../hooks/useMediaUpload'
 import { Sparkles, Layout, BarChart3, Palette, FileText, AlertTriangle } from 'lucide-react'
-import type { ProjectPageLocationState } from '../types/onboarding'
+import type { ProjectPageLocationState, MediaPreviewInfo } from '../types/onboarding'
 
 export const NewProjectPage = () => {
   const [prompt, setPrompt] = useState('')
@@ -90,9 +90,20 @@ export const NewProjectPage = () => {
       console.log('[NewProjectPage] Project created:', project.id)
 
       // Step 3: Navigate to project page with onboarding state
+      // Build media previews for immediate display in chat
+      const mediaPreviews: MediaPreviewInfo[] = attachedImages
+        .filter(img => img.uploadStatus === 'ready' && img.mediaId)
+        .map(img => ({
+          id: img.id,
+          mediaId: img.mediaId!,
+          preview: img.preview,  // Blob URL
+          mimeType: img.file.type,
+        }))
+
       const locationState: ProjectPageLocationState = {
         initialPrompt: prompt.trim(),
         mediaIds: mediaIds,
+        mediaPreviews: mediaPreviews.length > 0 ? mediaPreviews : undefined,
         startOnboarding: true,
       }
 

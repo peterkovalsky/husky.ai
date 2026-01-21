@@ -38,11 +38,22 @@ export interface OnboardingData {
 }
 
 /**
+ * Media preview info passed from NewProjectPage to ProjectPage
+ */
+export interface MediaPreviewInfo {
+  id: string;
+  mediaId: string;
+  preview: string;  // Blob URL for immediate display
+  mimeType: string;
+}
+
+/**
  * Router state passed from NewProjectPage to ProjectPage
  */
 export interface ProjectPageLocationState {
   initialPrompt?: string;
   mediaIds?: string[];
+  mediaPreviews?: MediaPreviewInfo[];  // For displaying attached images immediately
   startOnboarding?: boolean;
 }
 

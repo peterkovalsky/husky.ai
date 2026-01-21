@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ApiService, type InspoItem, type JobStatus, type ChatMessageInput } from '../services/api';
+import { ApiService, type InspoItem, type JobStatus, type ChatMessageInput, type ChatMessageMedia } from '../services/api';
 import type { ClarificationQuestion, ClarificationAnswer, AnalyzePromptResponse } from '../types/clarification';
 import type {
   OnboardingPhase,
@@ -7,6 +7,7 @@ import type {
   OnboardingChatMessage,
   PersistedOnboardingState,
   SelectedInspoItem,
+  MediaPreviewInfo,
 } from '../types/onboarding';
 
 // Message type mapping from frontend to backend
@@ -29,12 +30,16 @@ function convertToChatMessageInput(
     msg.type === 'user' || msg.type === 'user-answer' || msg.type === 'inspo-selection' ? 'user' :
     msg.type === 'ai-question' ? 'assistant' : 'system';
 
+  // Extract mediaIds from mediaUrls for backend storage
+  const mediaIds = msg.mediaUrls?.map(media => media.id);
+
   return {
     type,
     source: 'ONBOARDING',
     content: msg.content,
     role,
     messageOrder: index,
+    mediaIds: mediaIds && mediaIds.length > 0 ? mediaIds : undefined,
     inspoId: msg.type === 'inspo-selection' ? selectedInspoId ?? undefined : undefined,
     questionId: msg.metadata?.questionId,
     isSkipped: msg.metadata?.isSkipped,
@@ -62,7 +67,7 @@ interface UseOnboardingReturn {
   buildJustFailed: boolean;
 
   // Actions
-  startOnboarding: (prompt: string, mediaIds: string[], analysisData?: AnalyzePromptResponse) => Promise<void>;
+  startOnboarding: (prompt: string, mediaIds: string[], mediaPreviews?: MediaPreviewInfo[], analysisData?: AnalyzePromptResponse) => Promise<void>;
   handleInspoSelect: (inspoId: string, item: InspoItem) => void;
   handleInspoSkip: () => void;
   handleQuestionAnswer: (answer: ClarificationAnswer) => void;
@@ -96,7 +101,8 @@ export function useOnboarding(projectId: string | undefined): UseOnboardingRetur
   const addMessage = useCallback((
     type: OnboardingChatMessage['type'],
     content: string,
-    metadata?: OnboardingChatMessage['metadata']
+    metadata?: OnboardingChatMessage['metadata'],
+    mediaUrls?: ChatMessageMedia[]
   ) => {
     const msg: OnboardingChatMessage = {
       id: createMessageId(),
@@ -105,6 +111,7 @@ export function useOnboarding(projectId: string | undefined): UseOnboardingRetur
       timestamp: new Date(),
       status: 'completed',
       metadata,
+      mediaUrls,
     };
     setMessages(prev => [...prev, msg]);
     return msg;
@@ -223,10 +230,31 @@ export function useOnboarding(projectId: string | undefined): UseOnboardingRetur
   // Get current question based on index
   const currentQuestion = data?.clarificationQuestions[data.currentQuestionIndex] ?? null;
 
+  // Helper to convert media previews to ChatMessageMedia format
+  const convertToMediaUrls = (mediaPreviews?: MediaPreviewInfo[]): ChatMessageMedia[] | undefined => {
+    if (!mediaPreviews || mediaPreviews.length === 0) return undefined;
+
+    return mediaPreviews.map(preview => {
+      const mimeType = preview.mimeType.toLowerCase();
+      let type: 'image' | 'video' | 'doc' = 'doc';
+      if (mimeType.startsWith('image/')) type = 'image';
+      else if (mimeType.startsWith('video/')) type = 'video';
+
+      return {
+        id: preview.mediaId,
+        thumbnailUrl: preview.preview,  // Blob URL for immediate display
+        fullUrl: preview.preview,       // Use same blob URL for lightbox
+        type,
+        mimeType: preview.mimeType,
+      };
+    });
+  };
+
   // Start the onboarding flow
   const startOnboarding = useCallback(async (
     prompt: string,
     mediaIds: string[],
+    mediaPreviews?: MediaPreviewInfo[],
     analysisData?: AnalyzePromptResponse
   ) => {
     if (!projectId) {
@@ -239,8 +267,11 @@ export function useOnboarding(projectId: string | undefined): UseOnboardingRetur
     lastActionRef.current = 'analyze';
 
     try {
-      // Add user's initial prompt to chat
-      addMessage('user', prompt);
+      // Convert media previews to ChatMessageMedia format for immediate display
+      const mediaUrls = convertToMediaUrls(mediaPreviews);
+
+      // Add user's initial prompt to chat with media attachments
+      addMessage('user', prompt, undefined, mediaUrls);
 
       // If analysis data is already provided (from NewProjectPage), use it
       let analysis: AnalyzePromptResponse;

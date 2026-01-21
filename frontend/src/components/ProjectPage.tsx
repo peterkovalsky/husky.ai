@@ -221,8 +221,12 @@ export const ProjectPage = () => {
   useEffect(() => {
     if (locationState?.startOnboarding && locationState.initialPrompt && project_id) {
       console.log('[ProjectPage] Starting onboarding from router state')
-      // Start the onboarding flow
-      startOnboarding(locationState.initialPrompt, locationState.mediaIds || [])
+      // Start the onboarding flow with media previews for immediate display
+      startOnboarding(
+        locationState.initialPrompt,
+        locationState.mediaIds || [],
+        locationState.mediaPreviews
+      )
 
       // Clear the location state to prevent re-triggering on refresh
       navigate(location.pathname, { replace: true, state: null })
