@@ -56,19 +56,35 @@ export class CloudTasksQueueService implements IQueueService {
       }
     }
 
-    const task = {
-      httpRequest: {
-        httpMethod: 'POST' as const,
-        url: taskEndpoint,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: Buffer.from(JSON.stringify(message)).toString('base64'),
-        oidcToken: {
-          serviceAccountEmail: this.serviceAccountEmail,
-          audience: this.workerUrl,
-        },
+    // Build HTTP request - skip OIDC for HTTP URLs (local dev only)
+    const isHttps = this.workerUrl.startsWith('https://');
+
+    // Block HTTP URLs in production - security check
+    if (!isHttps && process.env.NODE_ENV === 'production') {
+      throw new Error('WORKER_URL must use HTTPS in production');
+    }
+
+    const httpRequest: Record<string, unknown> = {
+      httpMethod: 'POST' as const,
+      url: taskEndpoint,
+      headers: {
+        'Content-Type': 'application/json',
       },
+      body: Buffer.from(JSON.stringify(message)).toString('base64'),
+    };
+
+    // Only add OIDC token for HTTPS URLs (required by Cloud Tasks)
+    if (isHttps) {
+      httpRequest.oidcToken = {
+        serviceAccountEmail: this.serviceAccountEmail,
+        audience: this.workerUrl,
+      };
+    } else {
+      console.log('[CloudTasks] Skipping OIDC token for HTTP URL (local dev)');
+    }
+
+    const task = {
+      httpRequest,
       dispatchDeadline: {
         seconds: dispatchDeadlineSeconds,
       },

@@ -198,3 +198,5 @@ temp/
 projects/
 
 .DS_Store
+# GCP service account key for local dev
+.gcp-local-dev-key.json
