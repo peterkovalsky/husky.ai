@@ -39,6 +39,7 @@ import { GeminiProvider } from '../../infrastructure/ai/GeminiProvider';
 import { AIService } from '../../infrastructure/ai/AIService';
 import { S3StorageService } from '../../infrastructure/storage/S3StorageService';
 import { SQSQueueService } from '../../infrastructure/queue/SQSQueueService';
+import { CloudTasksQueueService } from '../../infrastructure/queue/CloudTasksQueueService';
 import { SupabaseAuthService } from '../../infrastructure/auth/SupabaseAuthService';
 import { SubdomainService } from '../../infrastructure/subdomain/SubdomainService';
 import { CloudFrontService } from '../../infrastructure/cdn/CloudFrontService';
@@ -179,7 +180,18 @@ export function setupContainer(): DIContainer {
   });
   
   container.registerFactory<IStorageService>('storageService', () => new S3StorageService());
-  container.registerFactory<IQueueService>('queueService', () => new SQSQueueService());
+
+  // Queue provider selection based on QUEUE_PROVIDER env var
+  // Default to 'cloudtasks' for GCP Cloud Run deployment
+  container.registerFactory<IQueueService>('queueService', () => {
+    const queueProvider = process.env.QUEUE_PROVIDER || 'cloudtasks';
+    if (queueProvider === 'sqs') {
+      console.log('[Container] Using SQS queue provider');
+      return new SQSQueueService();
+    }
+    console.log('[Container] Using Cloud Tasks queue provider');
+    return new CloudTasksQueueService();
+  });
 
   container.registerFactory<SupabaseAuthService>('authService', () => new SupabaseAuthService());
 
