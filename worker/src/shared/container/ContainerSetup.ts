@@ -36,6 +36,10 @@ import { GeminiProvider } from '../../infrastructure/ai/GeminiProvider';
 import { AIService } from '../../infrastructure/ai/AIService';
 import { S3StorageService } from '../../infrastructure/storage/S3StorageService';
 import { SQSQueueService } from '../../infrastructure/queue/SQSQueueService';
+import { CloudTasksQueueService } from '../../infrastructure/queue/CloudTasksQueueService';
+
+// Presentation Layer
+import { TaskController } from '../../presentation/controllers/TaskController';
 import { BuildService } from '../../infrastructure/build/BuildService';
 import { ProjectEnvironmentService } from '../../infrastructure/build/ProjectEnvironmentService';
 import { R2PublishedAppsService } from '../../infrastructure/storage/R2PublishedAppsService';
@@ -137,7 +141,18 @@ export function setupContainer(): DIContainer {
 
   // Register Infrastructure Services
   container.registerFactory<IStorageService>('storageService', () => new S3StorageService());
-  container.registerFactory<IQueueService>('queueService', () => new SQSQueueService());
+
+  // Queue provider selection based on QUEUE_PROVIDER env var
+  // Default to 'cloudtasks' for GCP Cloud Run deployment
+  container.registerFactory<IQueueService>('queueService', () => {
+    const queueProvider = process.env.QUEUE_PROVIDER || 'cloudtasks';
+    if (queueProvider === 'sqs') {
+      console.log('[Worker Container] Using SQS queue provider');
+      return new SQSQueueService();
+    }
+    console.log('[Worker Container] Using Cloud Tasks queue provider');
+    return new CloudTasksQueueService();
+  });
 
   container.registerFactory<IBuildService>('buildService', () => {
     const buildRepository = container.get<IBuildRepository>('buildRepository');
@@ -233,6 +248,18 @@ export function setupContainer(): DIContainer {
     container.get<IScreenshotService>('screenshotService'),
     container.get<IStorageService>('storageService'),
     container.get<IBuildRepository>('buildRepository')
+  ));
+
+  // Register TaskController for Cloud Tasks HTTP endpoint
+  container.registerFactory<TaskController>('taskController', () => new TaskController(
+    container.get<ProcessJobUseCase>('processJobUseCase'),
+    container.get<DeleteProjectUseCase>('deleteProjectUseCase'),
+    container.get<ProcessMediaDeletionUseCase>('processMediaDeletionUseCase'),
+    container.get<ProcessPublishJobUseCase>('processPublishJobUseCase'),
+    container.get<ProcessUnpublishJobUseCase>('processUnpublishJobUseCase'),
+    container.get<ProvisionHostnameUseCase>('provisionHostnameUseCase'),
+    container.get<ProcessScreenshotUseCase>('processScreenshotUseCase'),
+    container.get<ILogger>('logger')
   ));
 
   return container;
