@@ -32,6 +32,7 @@ export interface PublishStatusDto {
   currentVersion: number;
   error?: string;
   subdomain?: string;
+  publishDomain: string; // The domain used for publishing (e.g., 'huskystudio.app')
   sslStatus?: string; // Cloudflare SSL status (pending, active, failed)
   hostnameStatus?: HostnameStatus; // Hostname provisioning status (NONE, PROVISIONING, READY, FAILED)
   hostnameError?: string; // Hostname provisioning error message
@@ -171,6 +172,7 @@ export class GetPublishStatusUseCase {
       currentVersion: project.currentVersion,
       error: errorMessage,
       subdomain: project.subdomain,
+      publishDomain,
       sslStatus: cloudflareHostnameStatus ?? undefined,
       hostnameStatus: hostnameStatus,
       hostnameError: hostnameError ?? undefined,

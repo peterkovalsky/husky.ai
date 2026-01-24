@@ -54,10 +54,10 @@ jobs:
             --region ${{ env.REGION }} \
             --execution-environment gen2 \
             --no-cpu-throttling \
-            --cpu 4 \
-            --memory 8Gi \
+            --cpu 2 \
+            --memory 4Gi \
             --min-instances 0 \
-            --max-instances 3 \
+            --max-instances 2 \
             --concurrency 1 \
             --port 3334 \
             --timeout 900 \
