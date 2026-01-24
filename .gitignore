@@ -198,5 +198,6 @@ temp/
 projects/
 
 .DS_Store
-# GCP service account key for local dev
+# GCP service account keys
 .gcp-local-dev-key.json
+.gcp-claude-code-prod.json

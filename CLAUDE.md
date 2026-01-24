@@ -378,6 +378,28 @@ Generated apps are stored in project directories:
 
 ## Environment Setup
 
+### GCP CLI Authentication
+**Use the service account for gcloud CLI operations**
+
+A dedicated service account `claude-code-dev@husky-ai-prod.iam.gserviceaccount.com` is configured for Claude Code to use when running gcloud commands.
+
+**Activate the service account:**
+```bash
+gcloud auth activate-service-account --key-file=/Users/peter/git/HuskyStudio/husky.ai/husky.ai/.gcp-claude-code-prod.json
+```
+
+**Permissions granted:**
+| Role | Purpose |
+|------|---------|
+| `roles/run.developer` | Deploy Cloud Run services |
+| `roles/secretmanager.admin` | Create/manage secrets |
+| `roles/artifactregistry.writer` | Push Docker images |
+| `roles/cloudtasks.admin` | Manage Cloud Tasks queues |
+| `roles/iam.serviceAccountUser` | Act as service accounts for deployments |
+| `roles/logging.viewer` | View logs for debugging |
+
+**Key file location:** `.gcp-claude-code-prod.json` (gitignored)
+
 ### Required Environment Variables (API)
 All variables are required for startup:
 - `SUPABASE_URL` & `SUPABASE_SERVICE_ROLE_KEY` - Database access
@@ -562,3 +584,35 @@ This principle prevents bugs like:
 - Updating wrong database records
 - Accessing wrong user data
 - Unpredictable behavior in production
+
+### Environment Variables
+**CRITICAL: Never use inline fallback values for environment variables**
+
+Environment variables should be validated at startup, not with inline fallbacks that mask configuration issues.
+
+- ✅ DO: Validate required env vars at app startup and fail immediately if missing
+- ✅ DO: Use a central config module that throws on missing required values
+- ❌ DON'T: Use inline fallbacks like `process.env.VAR || 'default'` or `import.meta.env.VAR || 'fallback'`
+- ❌ DON'T: Hardcode fallback values that could silently use wrong configuration
+
+**Example - BAD:**
+```typescript
+// BAD: Silent fallback masks missing configuration
+const domain = import.meta.env.VITE_PUBLISH_DOMAIN || 'huskystudio.ai';
+const apiUrl = process.env.API_URL || 'http://localhost:3333';
+```
+
+**Example - GOOD:**
+```typescript
+// GOOD: Validate at startup in config module
+const domain = import.meta.env.VITE_PUBLISH_DOMAIN;
+if (!domain) {
+  throw new Error('VITE_PUBLISH_DOMAIN environment variable is required');
+}
+
+// Or use a validated config object
+import { config } from '@/config';
+const domain = config.publishDomain; // Already validated at startup
+```
+
+**Exception:** Fallbacks are acceptable only for truly optional features (e.g., analytics, feature flags) where the app should still function without them.

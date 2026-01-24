@@ -128,10 +128,11 @@ jobs:
             --image ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/api:${{ github.sha }} \
             --region ${{ env.REGION }} \
             --execution-environment gen2 \
-            --cpu 2 \
-            --memory 2Gi \
-            --min-instances 1 \
-            --max-instances 10 \
+            --cpu 1 \
+            --memory 512Mi \
+            --min-instances 0 \
+            --max-instances 3 \
+            --cpu-boost \
             --port 3333 \
             --timeout 60 \
             --concurrency 80 \

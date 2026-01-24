@@ -1,0 +1,50 @@
+name: Deploy Frontend (Prod)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/deploy-frontend-prod.yml'
+
+env:
+  PROJECT_ID: husky-ai-prod
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build
+        working-directory: frontend
+        env:
+          VITE_SUPABASE_URL: ${{ vars.PROD_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.PROD_SUPABASE_ANON_KEY }}
+          VITE_API_BASE_URL: ${{ vars.PROD_API_BASE_URL }}
+          VITE_PUBLIC_POSTHOG_KEY: ${{ vars.PROD_POSTHOG_KEY }}
+          VITE_PUBLIC_POSTHOG_HOST: ${{ vars.PROD_POSTHOG_HOST }}
+        run: npm run build
+
+      - name: Deploy to Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.PROD_FIREBASE_SERVICE_ACCOUNT }}
+          projectId: ${{ env.PROJECT_ID }}
+          channelId: live
+          entryPoint: frontend

@@ -127,7 +127,7 @@ export const PublishDialog = ({ isOpen, onOpenChange, projectId, onSuccess }: Pu
                   </div>
                   <div className="flex items-center gap-2">
                     <Code size="sm" className="text-xs bg-husky-50 text-husky-700">
-                      https://{publishStatus.subdomain}.{import.meta.env.VITE_PUBLISH_DOMAIN || 'huskystudio.ai'}
+                      https://{publishStatus.subdomain}.{publishStatus.publishDomain}
                     </Code>
                   </div>
                 </CardBody>
