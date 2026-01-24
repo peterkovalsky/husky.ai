@@ -199,6 +199,7 @@ export interface PublishStatusResponse {
   currentVersion: number;
   error?: string;
   subdomain?: string;
+  publishDomain: string;
   customDomain?: CustomDomainInfo;
 }
 
