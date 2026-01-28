@@ -1,0 +1,16 @@
+name = "husky-preview-worker"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[[r2_buckets]]
+binding = "PREVIEW_BUCKET"
+bucket_name = "dev-husky-app-previews"
+
+[vars]
+# Allowed origins for iframe embedding (comma-separated)
+# Dev: localhost for development, app domain for staging
+ALLOWED_ORIGINS = "https://app.huskystudio.app,https://dev.huskystudio.app,http://localhost:5173"
+
+[[routes]]
+pattern = "preview-dev.huskystudio.app"
+custom_domain = true

@@ -245,8 +245,18 @@ export class BuildService implements IBuildService {
           : "package.json has changed";
         console.log(`Installing dependencies (${reason})...`);
 
+        // Delete stale package-lock.json when package.json changed to avoid conflicts
+        // with new dependencies that aren't in the old lock file
+        if (packageJsonChanged) {
+          const lockFilePath = path.join(appDirectory, 'package-lock.json');
+          if (fs.existsSync(lockFilePath)) {
+            console.log("Deleting stale package-lock.json (package.json changed)");
+            fs.unlinkSync(lockFilePath);
+          }
+        }
+
         const installStartTime = Date.now();
-        const installCommand = "npm install --silent --no-audit --no-fund";
+        const installCommand = "npm install --loglevel=warn --no-audit --no-fund";
 
         console.log(`Running: ${installCommand}`);
 
@@ -327,6 +337,12 @@ export class BuildService implements IBuildService {
       };
     } catch (error: any) {
       console.error("Build process error:", error);
+      if (error.stdout) {
+        console.error("[BUILD] stdout:", error.stdout);
+      }
+      if (error.stderr) {
+        console.error("[BUILD] stderr:", error.stderr);
+      }
 
       return {
         success: false,

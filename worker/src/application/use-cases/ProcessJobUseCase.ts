@@ -20,6 +20,7 @@ import { FilePrepStep } from '../build-steps/steps/FilePrepStep';
 import { PreviewBuildStep } from '../build-steps/steps/PreviewBuildStep';
 import { AutoFixStep } from '../build-steps/steps/AutoFixStep';
 import { PreviewUploadStep } from '../build-steps/steps/PreviewUploadStep';
+import { SourceArchiveStep } from '../build-steps/steps/SourceArchiveStep';
 import { ProductionBuildStep } from '../build-steps/steps/ProductionBuildStep';
 import { ProductionUploadStep } from '../build-steps/steps/ProductionUploadStep';
 import { FinalizationStep } from '../build-steps/steps/FinalizationStep';
@@ -128,6 +129,10 @@ export class ProcessJobUseCase {
       this.projectRepository,
       this.storageService
     );
+    const sourceArchiveStep = new SourceArchiveStep(
+      this.buildRepository,
+      this.storageService
+    );
     // Screenshot is now handled asynchronously via SQS queue
     const productionBuildStep = new ProductionBuildStep(
       this.buildRepository,
@@ -214,13 +219,16 @@ export class ProcessJobUseCase {
       // Step 6: Preview Upload
       await this.executeStep(context, previewUploadStep);
 
-      // Step 7: Production Build
+      // Step 7: Source Archive (user already sees READY after preview upload)
+      await this.executeStep(context, sourceArchiveStep);
+
+      // Step 8: Production Build
       await this.executeStep(context, productionBuildStep);
 
-      // Step 8: Production Upload
+      // Step 9: Production Upload
       await this.executeStep(context, productionUploadStep);
 
-      // Step 9: Finalization
+      // Step 10: Finalization
       await this.executeStep(context, finalizationStep);
 
       // Queue async screenshot generation (non-blocking)

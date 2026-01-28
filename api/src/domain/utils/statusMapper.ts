@@ -20,6 +20,7 @@ export function mapBuildStatusToFrontend(status: BuildStatus): FrontendBuildStat
     case BuildStepStatus.UPLOADING_PREVIEW:
       return FrontendBuildStatus.BUILDING;
 
+    case BuildStepStatus.ARCHIVING_SOURCE:
     case BuildStepStatus.CAPTURING_SCREENSHOT:
     case BuildStepStatus.BUILDING_PRODUCTION:
     case BuildStepStatus.UPLOADING_PRODUCTION:

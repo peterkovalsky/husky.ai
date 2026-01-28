@@ -37,7 +37,7 @@ import { AnthropicProvider } from '../../infrastructure/ai/AnthropicProvider';
 import { OpenAIProvider } from '../../infrastructure/ai/OpenAIProvider';
 import { GeminiProvider } from '../../infrastructure/ai/GeminiProvider';
 import { AIService } from '../../infrastructure/ai/AIService';
-import { S3StorageService } from '../../infrastructure/storage/S3StorageService';
+import { R2StorageService } from '../../infrastructure/storage/R2StorageService';
 import { SQSQueueService } from '../../infrastructure/queue/SQSQueueService';
 import { CloudTasksQueueService } from '../../infrastructure/queue/CloudTasksQueueService';
 import { SupabaseAuthService } from '../../infrastructure/auth/SupabaseAuthService';
@@ -179,7 +179,7 @@ export function setupContainer(): DIContainer {
     return new AIService(providers, buildRepository, aiLogRepository);
   });
   
-  container.registerFactory<IStorageService>('storageService', () => new S3StorageService());
+  container.registerFactory<IStorageService>('storageService', () => new R2StorageService());
 
   // Queue provider selection based on QUEUE_PROVIDER env var
   // Default to 'cloudtasks' for GCP Cloud Run deployment

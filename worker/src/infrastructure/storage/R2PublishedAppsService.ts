@@ -43,15 +43,15 @@ export class R2PublishedAppsService {
   }
 
   /**
-   * Copy production build from S3 projects bucket to R2
-   * @param s3Client - S3 client to read from S3
-   * @param s3ProjectsBucket - S3 projects bucket name
+   * Copy production build from R2 projects bucket to R2 published apps bucket
+   * @param r2Client - R2/S3 client to read from source bucket
+   * @param r2ProjectsBucket - R2 projects bucket name
    * @param projectId - Project ID
    * @param version - Version number to copy
    */
-  async copyProductionBuildFromS3(
-    s3Client: S3Client,
-    s3ProjectsBucket: string,
+  async copyProductionBuildFromR2(
+    r2Client: S3Client,
+    r2ProjectsBucket: string,
     projectId: string,
     version: number
   ): Promise<void> {
@@ -59,45 +59,45 @@ export class R2PublishedAppsService {
     const destPath = `${projectId}/web/`;
 
     console.log(
-      `[R2PublishedAppsService] Copying from S3 ${s3ProjectsBucket}/${sourcePath} to R2 ${this.bucketName}/${destPath}`
+      `[R2PublishedAppsService] Copying from R2 ${r2ProjectsBucket}/${sourcePath} to R2 ${this.bucketName}/${destPath}`
     );
 
     // First, delete existing files in R2 (for republish scenario)
     await this.deleteFolder(destPath);
 
-    // List all files in S3 source
+    // List all files in R2 source bucket
     const listCommand = new ListObjectsV2Command({
-      Bucket: s3ProjectsBucket,
+      Bucket: r2ProjectsBucket,
       Prefix: sourcePath,
     });
 
-    const listResult = await s3Client.send(listCommand);
+    const listResult = await r2Client.send(listCommand);
 
     if (!listResult.Contents || listResult.Contents.length === 0) {
       throw new Error(
-        `No production build found at S3 ${s3ProjectsBucket}/${sourcePath}`
+        `No production build found at R2 ${r2ProjectsBucket}/${sourcePath}`
       );
     }
 
-    // Copy each file from S3 to R2
+    // Copy each file from R2 projects bucket to R2 published apps bucket
     const copyPromises = listResult.Contents.map(async (object) => {
       if (!object.Key) return;
 
-      // Get file from S3
+      // Get file from R2 projects bucket
       const getCommand = new GetObjectCommand({
-        Bucket: s3ProjectsBucket,
+        Bucket: r2ProjectsBucket,
         Key: object.Key,
       });
 
-      const s3Object = await s3Client.send(getCommand);
-      const fileContent = await this.streamToBuffer(s3Object.Body as any);
+      const r2Object = await r2Client.send(getCommand);
+      const fileContent = await this.streamToBuffer(r2Object.Body as any);
 
       // Determine destination key (remove version path)
       // Example: project-id/web/v1/production-build/index.html → project-id/web/index.html
       const fileName = object.Key.replace(sourcePath, '');
       const destKey = `${destPath}${fileName}`;
 
-      // Upload to R2
+      // Upload to R2 published apps bucket
       await this.uploadFile(destKey, fileContent, object.Key);
 
       console.log(`[R2PublishedAppsService] Copied ${object.Key} to R2 ${destKey}`);

@@ -39,6 +39,7 @@ export class GetPromptStatusUseCase {
     // These statuses map to READY on the frontend
     let previewUrl = null;
     const previewReadyStatuses = [
+      BuildStepStatus.ARCHIVING_SOURCE,
       BuildStepStatus.CAPTURING_SCREENSHOT,
       BuildStepStatus.BUILDING_PRODUCTION,
       BuildStepStatus.UPLOADING_PRODUCTION,

@@ -7,7 +7,7 @@ import { CloudflareKVService } from '../../infrastructure/storage/CloudflareKVSe
 import { IDNSVerificationService } from '../../infrastructure/dns/DNSVerificationService';
 
 export class ProcessPublishJobUseCase {
-  private s3Client: S3Client;
+  private r2Client: S3Client;
   private projectsBucketName: string;
   private publishDomain: string;
 
@@ -18,23 +18,28 @@ export class ProcessPublishJobUseCase {
     private cloudflareKVService: CloudflareKVService,
     private dnsVerificationService: IDNSVerificationService
   ) {
-    const region = process.env.AWS_REGION;
-    const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
-    const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
+    const endpoint = process.env.CLOUDFLARE_R2_ENDPOINT;
+    const accessKeyId = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID;
+    const secretAccessKey = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
 
-    this.projectsBucketName = process.env.S3_PROJECTS_BUCKET_NAME!;
+    this.projectsBucketName = process.env.CLOUDFLARE_R2_PROJECTS_BUCKET!;
     this.publishDomain = process.env.PUBLISH_DOMAIN || 'huskystudio.ai';
 
     if (!this.projectsBucketName) {
-      throw new Error('Missing S3 projects bucket configuration');
+      throw new Error('Missing R2 projects bucket configuration (CLOUDFLARE_R2_PROJECTS_BUCKET)');
     }
 
-    // S3 client for reading production builds from S3
-    this.s3Client = new S3Client({
-      region,
+    if (!endpoint || !accessKeyId || !secretAccessKey) {
+      throw new Error('Missing R2 credentials configuration');
+    }
+
+    // R2 client for reading production builds from R2 projects bucket
+    this.r2Client = new S3Client({
+      region: 'auto', // R2 requires 'auto' as the region
+      endpoint,
       credentials: {
-        accessKeyId: accessKeyId!,
-        secretAccessKey: secretAccessKey!,
+        accessKeyId,
+        secretAccessKey,
       },
     });
   }
@@ -57,10 +62,10 @@ export class ProcessPublishJobUseCase {
         throw new Error('No successful builds available for publishing');
       }
 
-      // Step 1: Copy production build from S3 to R2
-      console.log(`[ProcessPublishJobUseCase] Copying production build to R2`);
-      await this.r2PublishedAppsService.copyProductionBuildFromS3(
-        this.s3Client,
+      // Step 1: Copy production build from R2 projects bucket to R2 published apps bucket
+      console.log(`[ProcessPublishJobUseCase] Copying production build to R2 published apps bucket`);
+      await this.r2PublishedAppsService.copyProductionBuildFromR2(
+        this.r2Client,
         this.projectsBucketName,
         projectId,
         project.currentVersion

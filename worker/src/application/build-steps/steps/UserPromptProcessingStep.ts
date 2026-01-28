@@ -61,10 +61,11 @@ export class UserPromptProcessingStep implements IBuildStep {
           console.log(`[${this.stepName}] Checking image: ${media.s3Key}`);
 
           // Check and resize image if needed (max dimension: 7500px)
-          const s3ProjectsBucket = process.env.S3_PROJECTS_BUCKET_NAME!;
+          // Use R2 projects bucket (with fallback to legacy S3 for backwards compatibility)
+          const projectsBucket = process.env.CLOUDFLARE_R2_PROJECTS_BUCKET || process.env.S3_PROJECTS_BUCKET_NAME!;
           const result = await this.imageProcessingService.checkAndResizeImage(
             media.s3Key,
-            s3ProjectsBucket,
+            projectsBucket,
             7500 // Safe margin below Anthropic's 8000px limit
           );
 

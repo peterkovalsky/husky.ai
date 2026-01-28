@@ -13,11 +13,13 @@ import { IPublicMediaStorageService } from '../../domain/services/IPublicMediaSt
  *
  * Used for storing user-uploaded images that need to be accessible publicly
  * for AI code generation (the AI references these URLs in generated React code)
+ *
+ * All storage is now on R2 - both source (projects bucket) and destination (public media bucket)
  */
 export class R2PublicMediaService implements IPublicMediaStorageService {
   private r2Client: S3Client;
-  private s3Client: S3Client;
   private bucketName: string;
+  private projectsBucketName: string;
   private publicBaseUrl: string;
 
   constructor() {
@@ -26,12 +28,8 @@ export class R2PublicMediaService implements IPublicMediaStorageService {
     const r2AccessKeyId = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID;
     const r2SecretAccessKey = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
     this.bucketName = process.env.CLOUDFLARE_R2_PUBLIC_MEDIA_BUCKET!;
+    this.projectsBucketName = process.env.CLOUDFLARE_R2_PROJECTS_BUCKET!;
     this.publicBaseUrl = process.env.R2_PUBLIC_MEDIA_BASE_URL!;
-
-    // S3 Configuration (for reading source files)
-    const awsRegion = process.env.AWS_REGION;
-    const awsAccessKeyId = process.env.AWS_ACCESS_KEY_ID;
-    const awsSecretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
 
     if (!r2Endpoint || !r2AccessKeyId || !r2SecretAccessKey || !this.bucketName || !this.publicBaseUrl) {
       throw new Error(
@@ -39,13 +37,14 @@ export class R2PublicMediaService implements IPublicMediaStorageService {
       );
     }
 
-    if (!awsRegion || !awsAccessKeyId || !awsSecretAccessKey) {
+    if (!this.projectsBucketName) {
       throw new Error(
-        `Missing AWS S3 configuration: region=${!!awsRegion}, accessKeyId=${!!awsAccessKeyId}, secretAccessKey=${!!awsSecretAccessKey}`
+        `Missing R2 projects bucket configuration (CLOUDFLARE_R2_PROJECTS_BUCKET)`
       );
     }
 
     // R2 is S3-compatible - use AWS S3 SDK
+    // Single client for all R2 operations (both source and destination buckets)
     this.r2Client = new S3Client({
       region: 'auto', // R2 uses 'auto' as the region
       endpoint: r2Endpoint,
@@ -55,46 +54,41 @@ export class R2PublicMediaService implements IPublicMediaStorageService {
       },
     });
 
-    // S3 client for reading source files
-    this.s3Client = new S3Client({
-      region: awsRegion,
-      credentials: {
-        accessKeyId: awsAccessKeyId,
-        secretAccessKey: awsSecretAccessKey,
-      },
-    });
-
     console.log(
-      `[R2PublicMediaService] Initialized with bucket: ${this.bucketName}, baseUrl: ${this.publicBaseUrl}`
+      `[R2PublicMediaService] Initialized with public media bucket: ${this.bucketName}, projects bucket: ${this.projectsBucketName}, baseUrl: ${this.publicBaseUrl}`
     );
   }
 
   /**
-   * Copy a file from S3 to R2 public media bucket
+   * Copy a file from R2 projects bucket to R2 public media bucket
+   * Note: R2 doesn't support CopyObject across buckets, so we download and re-upload
    */
   async copyFromS3ToR2(
     sourceKey: string,
     sourceBucket: string,
     projectId: string
   ): Promise<{ publicKey: string; publicUrl: string }> {
+    // Resolve the source bucket - map legacy S3 bucket names to R2
+    const resolvedSourceBucket = this.resolveSourceBucket(sourceBucket);
+
     console.log(
-      `[R2PublicMediaService] Copying from S3 ${sourceBucket}/${sourceKey} to R2 ${this.bucketName}`
+      `[R2PublicMediaService] Copying from R2 ${resolvedSourceBucket}/${sourceKey} to R2 ${this.bucketName}`
     );
 
-    // Get file from S3
+    // Get file from R2 source bucket
     const getCommand = new GetObjectCommand({
-      Bucket: sourceBucket,
+      Bucket: resolvedSourceBucket,
       Key: sourceKey,
     });
 
-    const s3Object = await this.s3Client.send(getCommand);
-    const fileContent = await this.streamToBuffer(s3Object.Body as NodeJS.ReadableStream);
+    const r2Object = await this.r2Client.send(getCommand);
+    const fileContent = await this.streamToBuffer(r2Object.Body as NodeJS.ReadableStream);
 
     // Generate destination key: projectId/filename
     const fileName = path.basename(sourceKey);
     const destKey = `${projectId}/${fileName}`;
 
-    // Upload to R2
+    // Upload to R2 public media bucket
     const contentType = this.getContentType(sourceKey);
     const putCommand = new PutObjectCommand({
       Bucket: this.bucketName,
@@ -112,6 +106,27 @@ export class R2PublicMediaService implements IPublicMediaStorageService {
       publicKey: destKey,
       publicUrl,
     };
+  }
+
+  /**
+   * Resolve source bucket - maps legacy S3 bucket names to R2 bucket names
+   */
+  private resolveSourceBucket(bucket: string): string {
+    // Map legacy S3 bucket names to R2 bucket names
+    const legacyProjectsBucket = process.env.S3_PROJECTS_BUCKET_NAME;
+
+    if (bucket === legacyProjectsBucket) {
+      return this.projectsBucketName;
+    }
+
+    // If it's already an R2 bucket name, use it directly
+    if (bucket === this.projectsBucketName || bucket === this.bucketName) {
+      return bucket;
+    }
+
+    // Default to projects bucket for unknown bucket names
+    console.warn(`[R2PublicMediaService] Unknown source bucket: ${bucket}, defaulting to projects bucket`);
+    return this.projectsBucketName;
   }
 
   /**
