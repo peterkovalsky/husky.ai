@@ -255,6 +255,10 @@ export class R2StorageService implements IStorageService {
   }
 
   private async getBucketWebsiteUrl(projectId: string): Promise<string> {
+    return this.getPreviewUrl(projectId);
+  }
+
+  getPreviewUrl(projectId: string): string {
     return `${this.previewBaseUrl}/projects/${projectId}/`;
   }
 

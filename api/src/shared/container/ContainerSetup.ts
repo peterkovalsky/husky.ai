@@ -20,8 +20,6 @@ import { IStorageService } from '../../domain/services/IStorageService';
 import { IPublicMediaStorageService } from '../../domain/services/IPublicMediaStorageService';
 import { IQueueService } from '../../domain/services/IQueueService';
 import { ISubdomainService } from '../../domain/services/ISubdomainService';
-import { ICloudFrontService } from '../../domain/services/ICloudFrontService';
-import { IRoute53Service } from '../../domain/services/IRoute53Service';
 import { IStripeService } from '../../domain/services/IStripeService';
 
 // Infrastructure Implementations
@@ -38,12 +36,9 @@ import { OpenAIProvider } from '../../infrastructure/ai/OpenAIProvider';
 import { GeminiProvider } from '../../infrastructure/ai/GeminiProvider';
 import { AIService } from '../../infrastructure/ai/AIService';
 import { R2StorageService } from '../../infrastructure/storage/R2StorageService';
-import { SQSQueueService } from '../../infrastructure/queue/SQSQueueService';
 import { CloudTasksQueueService } from '../../infrastructure/queue/CloudTasksQueueService';
 import { SupabaseAuthService } from '../../infrastructure/auth/SupabaseAuthService';
 import { SubdomainService } from '../../infrastructure/subdomain/SubdomainService';
-import { CloudFrontService } from '../../infrastructure/cdn/CloudFrontService';
-import { Route53Service } from '../../infrastructure/dns/Route53Service';
 import { R2PublishedAppsService } from '../../infrastructure/storage/R2PublishedAppsService';
 import { R2PublicMediaService } from '../../infrastructure/storage/R2PublicMediaService';
 import { CloudflareSaaSService } from '../../infrastructure/cdn/CloudflareSaaSService';
@@ -181,17 +176,8 @@ export function setupContainer(): DIContainer {
   
   container.registerFactory<IStorageService>('storageService', () => new R2StorageService());
 
-  // Queue provider selection based on QUEUE_PROVIDER env var
-  // Default to 'cloudtasks' for GCP Cloud Run deployment
-  container.registerFactory<IQueueService>('queueService', () => {
-    const queueProvider = process.env.QUEUE_PROVIDER || 'cloudtasks';
-    if (queueProvider === 'sqs') {
-      console.log('[Container] Using SQS queue provider');
-      return new SQSQueueService();
-    }
-    console.log('[Container] Using Cloud Tasks queue provider');
-    return new CloudTasksQueueService();
-  });
+  // Queue service using Cloud Tasks for GCP Cloud Run deployment
+  container.registerFactory<IQueueService>('queueService', () => new CloudTasksQueueService());
 
   container.registerFactory<SupabaseAuthService>('authService', () => new SupabaseAuthService());
 
@@ -203,10 +189,6 @@ export function setupContainer(): DIContainer {
   container.registerFactory<CloudflareSaaSService>('cloudflareSaaSService', () => new CloudflareSaaSService());
   container.registerFactory<CloudflareKVService>('cloudflareKVService', () => new CloudflareKVService());
   container.registerFactory<IDNSVerificationService>('dnsVerificationService', () => new DNSVerificationService());
-
-  // Keep AWS services for backward compatibility (not used for new publishes)
-  container.registerFactory<ICloudFrontService>('cloudFrontService', () => new CloudFrontService());
-  container.registerFactory<IRoute53Service>('route53Service', () => new Route53Service());
 
   // Stripe payment service
   container.registerFactory<IStripeService>('stripeService', () => new StripeService());
@@ -223,7 +205,8 @@ export function setupContainer(): DIContainer {
 
   container.registerFactory<GetPromptStatusUseCase>('getPromptStatusUseCase', () => new GetPromptStatusUseCase(
     container.get<IProjectRepository>('projectRepository'),
-    container.get<IBuildRepository>('buildRepository')
+    container.get<IBuildRepository>('buildRepository'),
+    container.get<IStorageService>('storageService')
   ));
 
   container.registerFactory<AnalyzePromptUseCase>('analyzePromptUseCase', () => new AnalyzePromptUseCase(

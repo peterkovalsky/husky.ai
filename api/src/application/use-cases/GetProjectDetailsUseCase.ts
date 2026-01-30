@@ -58,12 +58,18 @@ export class GetProjectDetailsUseCase {
     // Enrich chat messages with media URLs
     const enrichedChatMessages = await this.enrichChatMessagesWithMedia(chatMessages);
 
+    // Construct previewUrl on-the-fly instead of reading from DB
+    // Only show preview URL if project has at least one successful build
+    const previewUrl = latestBuild && latestBuild.version > 0
+      ? this.storageService.getPreviewUrl(project.id)
+      : undefined;
+
     return {
       project: {
         id: project.id,
         name: project.name,
         workspaceId: project.workspaceId,
-        previewUrl: project.previewUrl,
+        previewUrl,
         createdAt: project.createdAt,
         modifiedAt: project.modifiedAt
       },
@@ -74,7 +80,7 @@ export class GetProjectDetailsUseCase {
       stats: {
         totalPrompts: builds.length,  // Now builds count as prompts
         totalBuilds: builds.length,
-        totalPreviews: project.previewUrl ? 1 : 0,
+        totalPreviews: previewUrl ? 1 : 0,
         currentVersion: latestBuild?.version || 0
       },
       recentPrompts: recentBuilds.map(build => ({
@@ -90,9 +96,9 @@ export class GetProjectDetailsUseCase {
         createdAt: build.createdAt,
         metrics: build.metrics
       })),
-      previews: project.previewUrl ? [{
+      previews: previewUrl ? [{
         id: project.id,
-        previewUrl: project.previewUrl,
+        previewUrl: previewUrl,
         createdAt: project.createdAt,
         promptId: undefined
       }] : [],

@@ -208,6 +208,44 @@ import { Alert, Card, CardBody, Code } from '@heroui/react'
 </div>
 ```
 
+### Design Consistency Standards
+**CRITICAL: Always follow existing design patterns when implementing or updating UI**
+
+**Exception:** If the user explicitly requests a change in design direction (e.g., "make it more minimal", "use a dark theme", "redesign this section"), then deviate from existing patterns as requested.
+
+Before implementing or modifying any UI section or element:
+1. **Study existing patterns** - Read related components to understand the current design language
+2. **Match styling conventions** - Use the same spacing, colors, typography, and layout patterns
+3. **Maintain visual hierarchy** - Follow established heading sizes, padding, and margin patterns
+4. **Reuse existing components** - Check if similar UI patterns exist elsewhere and reuse them
+
+**When updating existing UI:**
+- ✅ DO: Read the entire file/component first to understand the design context
+- ✅ DO: Match the existing color scheme, spacing, and typography
+- ✅ DO: Use the same Tailwind classes for similar elements (e.g., if cards use `rounded-xl`, use that)
+- ✅ DO: Follow the same responsive breakpoints (e.g., `md:grid-cols-2 lg:grid-cols-3`)
+- ✅ DO: Maintain consistent icon sizes, button variants, and interactive states
+- ❌ DON'T: Introduce new design patterns without checking existing ones
+- ❌ DON'T: Use different spacing/sizing for similar elements
+- ❌ DON'T: Mix design styles (e.g., some cards with shadows, others without)
+
+**Example - Before implementing a new feature card:**
+```typescript
+// FIRST: Check how existing feature cards are styled
+// Look at: colors, padding, border-radius, shadows, hover states, icon sizes
+
+// THEN: Match the existing pattern
+<Card className="bg-white/10 backdrop-blur-sm border-white/20"> // Match existing card style
+  <CardBody className="p-6"> // Match existing padding
+    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500"> // Match icon container style
+      <Icon className="w-6 h-6" /> // Match icon size
+    </div>
+    <h3 className="text-xl font-semibold mt-4"> // Match heading style
+    <p className="text-gray-400 mt-2"> // Match description style
+  </CardBody>
+</Card>
+```
+
 ### Component Reusability Standards
 **CRITICAL: Always create reusable components and extract data to constants**
 

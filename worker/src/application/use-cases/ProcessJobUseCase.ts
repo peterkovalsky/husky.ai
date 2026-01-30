@@ -232,7 +232,7 @@ export class ProcessJobUseCase {
       await this.executeStep(context, finalizationStep);
 
       // Queue async screenshot generation (non-blocking)
-      await this.queueScreenshotGeneration(context, project);
+      await this.queueScreenshotGeneration(context);
 
       console.log(`\n========================================`);
       console.log(`Build completed successfully!`);
@@ -305,19 +305,22 @@ export class ProcessJobUseCase {
    * Queue async screenshot generation via SQS
    * Screenshot is non-blocking - build is already complete when this runs
    */
-  private async queueScreenshotGeneration(context: BuildStepContext, project: any): Promise<void> {
-    if (!project.previewUrl || !context.version) {
-      console.log(`[ProcessJobUseCase] Skipping screenshot queue - no preview URL or version`);
+  private async queueScreenshotGeneration(context: BuildStepContext): Promise<void> {
+    if (!context.version) {
+      console.log(`[ProcessJobUseCase] Skipping screenshot queue - no version`);
       return;
     }
 
     try {
+      // Construct preview URL on-the-fly (not from DB)
+      const previewUrl = this.storageService.getPreviewUrl(context.projectId);
+
       const screenshotMessage: GenerateScreenshotMessage = {
         action: 'GENERATE_SCREENSHOT',
         buildId: context.buildId,
         projectId: context.projectId,
         version: context.version,
-        previewUrl: project.previewUrl,
+        previewUrl,
         userId: context.userId,
         timestamp: new Date().toISOString(),
       };

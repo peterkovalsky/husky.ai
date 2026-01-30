@@ -57,11 +57,7 @@ export class PreviewUploadStep implements IBuildStep {
 
       console.log(`[${this.stepName}] Preview bucket upload completed in ${metrics.s3UploadTimeMs}ms`);
 
-      // Update project preview URL
-      if (uploadResult.previewUrl) {
-        await this.projectRepository.updatePreviewUrl(context.projectId, uploadResult.previewUrl);
-        console.log(`[${this.stepName}] Updated project preview URL: ${uploadResult.previewUrl}`);
-      }
+      // Note: previewUrl is now constructed on-the-fly in the API, not stored in DB
 
       const duration = Date.now() - startTime;
       console.log(`[${this.stepName}] Completed in ${duration}ms`);

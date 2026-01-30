@@ -35,7 +35,6 @@ import { OpenAIProvider } from '../../infrastructure/ai/OpenAIProvider';
 import { GeminiProvider } from '../../infrastructure/ai/GeminiProvider';
 import { AIService } from '../../infrastructure/ai/AIService';
 import { R2StorageService } from '../../infrastructure/storage/R2StorageService';
-import { SQSQueueService } from '../../infrastructure/queue/SQSQueueService';
 import { CloudTasksQueueService } from '../../infrastructure/queue/CloudTasksQueueService';
 
 // Presentation Layer
@@ -142,17 +141,8 @@ export function setupContainer(): DIContainer {
   // Register Infrastructure Services
   container.registerFactory<IStorageService>('storageService', () => new R2StorageService());
 
-  // Queue provider selection based on QUEUE_PROVIDER env var
-  // Default to 'cloudtasks' for GCP Cloud Run deployment
-  container.registerFactory<IQueueService>('queueService', () => {
-    const queueProvider = process.env.QUEUE_PROVIDER || 'cloudtasks';
-    if (queueProvider === 'sqs') {
-      console.log('[Worker Container] Using SQS queue provider');
-      return new SQSQueueService();
-    }
-    console.log('[Worker Container] Using Cloud Tasks queue provider');
-    return new CloudTasksQueueService();
-  });
+  // Queue service using Cloud Tasks for GCP Cloud Run deployment
+  container.registerFactory<IQueueService>('queueService', () => new CloudTasksQueueService());
 
   container.registerFactory<IBuildService>('buildService', () => {
     const buildRepository = container.get<IBuildRepository>('buildRepository');
