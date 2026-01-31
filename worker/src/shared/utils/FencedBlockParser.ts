@@ -23,7 +23,6 @@ export class FencedBlockParser {
    * These are managed by the build system
    */
   private static readonly PROTECTED_FILES = new Set([
-    'src/main.tsx',
     'src/vite-env.d.ts',
     'vite.config.ts',
     'tsconfig.json',

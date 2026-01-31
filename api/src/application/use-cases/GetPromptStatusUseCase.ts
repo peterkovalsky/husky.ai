@@ -1,5 +1,6 @@
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
 import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
+import { IStorageService } from '../../domain/services/IStorageService';
 import { mapBuildStatusToFrontend } from '../../domain/utils/statusMapper';
 import { BuildStepStatus } from '../build-steps/IBuildStep';
 
@@ -17,7 +18,8 @@ export interface GetPromptStatusResponse {
 export class GetPromptStatusUseCase {
   constructor(
     private projectRepository: IProjectRepository,
-    private buildRepository: IBuildRepository
+    private buildRepository: IBuildRepository,
+    private storageService: IStorageService
   ) {}
 
   async execute(buildId: string): Promise<GetPromptStatusResponse> {
@@ -39,6 +41,7 @@ export class GetPromptStatusUseCase {
     // These statuses map to READY on the frontend
     let previewUrl = null;
     const previewReadyStatuses = [
+      BuildStepStatus.ARCHIVING_SOURCE,
       BuildStepStatus.CAPTURING_SCREENSHOT,
       BuildStepStatus.BUILDING_PRODUCTION,
       BuildStepStatus.UPLOADING_PRODUCTION,
@@ -47,8 +50,8 @@ export class GetPromptStatusUseCase {
     ];
 
     if (previewReadyStatuses.includes(build.status)) {
-      const project = await this.projectRepository.findById(build.projectId);
-      previewUrl = project?.previewUrl || null;
+      // Construct previewUrl on-the-fly instead of reading from DB
+      previewUrl = this.storageService.getPreviewUrl(build.projectId);
     }
 
     return {

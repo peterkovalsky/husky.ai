@@ -4,23 +4,23 @@ import { getPostHogErrorTracker } from './infrastructure/monitoring/PostHogError
 
 // Validate critical services are properly configured
 try {
-  // Test AWS services initialization
+  // Test storage and queue services initialization
   container.get('storageService');
   container.get('queueService');
-  logger.info('AWS services (S3, SQS) initialized successfully');
+  logger.info('Storage (R2) and queue services initialized successfully');
 } catch (error) {
-  logger.error('Failed to initialize AWS services. Please check your environment variables:', {
+  logger.error('Failed to initialize storage/queue services. Please check your environment variables:', {
     error: error instanceof Error ? error.message : 'Unknown error',
     requiredVars: [
-      'AWS_ACCESS_KEY_ID',
-      'AWS_SECRET_ACCESS_KEY',
-      'AWS_REGION',
-      'S3_BUCKET_NAME',
-      'S3_PROJECTS_BUCKET_NAME',
-      'SQS_QUEUE_URL'
+      'CLOUDFLARE_R2_ACCESS_KEY_ID',
+      'CLOUDFLARE_R2_SECRET_ACCESS_KEY',
+      'CLOUDFLARE_R2_ENDPOINT',
+      'CLOUDFLARE_R2_PREVIEW_BUCKET',
+      'CLOUDFLARE_R2_PROJECTS_BUCKET',
+      'CLOUDFLARE_R2_PUBLIC_MEDIA_BUCKET'
     ]
   });
-  logger.error('Copy .env.example to .env and configure your AWS credentials');
+  logger.error('Copy .env.example to .env and configure your R2 credentials');
   process.exit(1);
 }
 

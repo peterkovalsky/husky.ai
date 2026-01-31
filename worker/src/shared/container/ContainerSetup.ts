@@ -34,8 +34,7 @@ import { AnthropicProvider } from '../../infrastructure/ai/AnthropicProvider';
 import { OpenAIProvider } from '../../infrastructure/ai/OpenAIProvider';
 import { GeminiProvider } from '../../infrastructure/ai/GeminiProvider';
 import { AIService } from '../../infrastructure/ai/AIService';
-import { S3StorageService } from '../../infrastructure/storage/S3StorageService';
-import { SQSQueueService } from '../../infrastructure/queue/SQSQueueService';
+import { R2StorageService } from '../../infrastructure/storage/R2StorageService';
 import { CloudTasksQueueService } from '../../infrastructure/queue/CloudTasksQueueService';
 
 // Presentation Layer
@@ -140,19 +139,10 @@ export function setupContainer(): DIContainer {
   });
 
   // Register Infrastructure Services
-  container.registerFactory<IStorageService>('storageService', () => new S3StorageService());
+  container.registerFactory<IStorageService>('storageService', () => new R2StorageService());
 
-  // Queue provider selection based on QUEUE_PROVIDER env var
-  // Default to 'cloudtasks' for GCP Cloud Run deployment
-  container.registerFactory<IQueueService>('queueService', () => {
-    const queueProvider = process.env.QUEUE_PROVIDER || 'cloudtasks';
-    if (queueProvider === 'sqs') {
-      console.log('[Worker Container] Using SQS queue provider');
-      return new SQSQueueService();
-    }
-    console.log('[Worker Container] Using Cloud Tasks queue provider');
-    return new CloudTasksQueueService();
-  });
+  // Queue service using Cloud Tasks for GCP Cloud Run deployment
+  container.registerFactory<IQueueService>('queueService', () => new CloudTasksQueueService());
 
   container.registerFactory<IBuildService>('buildService', () => {
     const buildRepository = container.get<IBuildRepository>('buildRepository');
@@ -168,18 +158,20 @@ export function setupContainer(): DIContainer {
   container.registerFactory<CloudflareKVService>('cloudflareKVService', () => new CloudflareKVService());
   container.registerFactory<IDNSVerificationService>('dnsVerificationService', () => new DNSVerificationService());
 
-  // Image processing service
+  // Image processing service (uses R2-compatible S3 client)
   container.registerFactory<IImageProcessingService>('imageProcessingService', () => {
     const { S3Client } = require('@aws-sdk/client-s3');
-    const s3Client = new S3Client({
-      region: process.env.AWS_REGION,
+    // Use R2 configuration instead of AWS S3
+    const r2Client = new S3Client({
+      region: 'auto', // R2 requires 'auto' as the region
+      endpoint: process.env.CLOUDFLARE_R2_ENDPOINT,
       credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+        accessKeyId: process.env.CLOUDFLARE_R2_ACCESS_KEY_ID,
+        secretAccessKey: process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY,
       },
     });
     const logger = container.get<ILogger>('logger');
-    return new ImageProcessingService(s3Client, logger);
+    return new ImageProcessingService(r2Client, logger);
   });
 
   // Screenshot service for capturing project thumbnails

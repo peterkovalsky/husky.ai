@@ -115,6 +115,14 @@ export class ScreenshotService implements IScreenshotService {
           'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         );
 
+        // Set screenshot secret header to bypass iframe-only check on preview Worker
+        const screenshotSecret = process.env.PREVIEW_SCREENSHOT_SECRET;
+        if (screenshotSecret) {
+          await page.setExtraHTTPHeaders({
+            'X-Screenshot-Key': screenshotSecret,
+          });
+        }
+
         // Block only analytics/tracking to speed up loading
         await page.setRequestInterception(true);
         page.on('request', (request) => {

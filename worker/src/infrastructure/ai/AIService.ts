@@ -225,8 +225,7 @@ export class AIService implements IAIService {
       'tsconfig.node.json': '// [TypeScript config]',
       'postcss.config.js': '// [PostCSS config]',
       'src/vite-env.d.ts': '/// <reference types="vite/client" />',
-      'src/main.tsx': '// [App entry point with router - do not modify]'
-      // Note: index.html kept with full content - users add analytics, meta tags
+      // Note: index.html and src/main.tsx kept with full content - users may customize
     };
 
     const compacted: Record<string, string> = {};

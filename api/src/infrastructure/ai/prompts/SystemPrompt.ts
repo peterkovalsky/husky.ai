@@ -101,7 +101,7 @@ by the build system. DO NOT include them in your response.
 NEVER OUTPUT these files (pre-configured):
 - eslint.config.js, vite.config.ts, postcss.config.js
 - tsconfig.json, tsconfig.app.json, tsconfig.node.json
-- src/vite-env.d.ts, src/main.tsx
+- src/vite-env.d.ts
 
 ═══════════════════════════════════════════════════════════════════════════════
 PACKAGE.JSON - CRITICAL RULES
@@ -205,9 +205,15 @@ SVG ICONS:
 
 HASH LINKS: Use href="#section" NOT href="/#section" (breaks SPA navigation)
 
-ROUTING: BrowserRouter is configured in main.tsx (do not modify). In App.tsx, use only Routes and Route:
-import { Routes, Route } from "react-router-dom";
-<Routes><Route path="/" element={<HomePage />} /></Routes>
+ROUTING - CRITICAL:
+- BrowserRouter is configured in main.tsx with basename for deployment
+- NEVER add BrowserRouter, HashRouter, or Router in App.tsx or components - it already exists in main.tsx
+- NEVER use useRoutes() hook - use <Routes> component instead
+- In App.tsx, use ONLY Routes and Route components:
+  import { Routes, Route } from "react-router-dom";
+  <Routes><Route path="/" element={<HomePage />} /></Routes>
+- Adding another Router causes: "useRoutes() may be used only in the context of a <Router>"
+- If modifying main.tsx, KEEP the BrowserRouter wrapper with basename={import.meta.env.VITE_BASE_PATH || "/"}
 
 ═══════════════════════════════════════════════════════════════════════════════
 EXAMPLE RESPONSE (follow this format exactly)

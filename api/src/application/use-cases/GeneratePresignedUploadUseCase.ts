@@ -50,42 +50,43 @@ export class GeneratePresignedUploadUseCase {
     // Extract file extension
     const ext = path.extname(dto.fileName) || this.getExtensionFromMimeType(dto.mimeType);
 
-    // Generate unique S3 key
+    // Generate unique storage key
     // When projectId is provided: {projectId}/media/{uuid}.{ext}
     // When no projectId (new project flow): uploads/{userId}/media/{uuid}.{ext}
     const mediaUuid = uuidv4();
-    const s3Key = dto.projectId
+    const storageKey = dto.projectId
       ? `${dto.projectId}/media/${mediaUuid}${ext}`
       : `uploads/${userId}/media/${mediaUuid}${ext}`;
 
-    // Get projects bucket name
-    const s3Bucket = process.env.S3_PROJECTS_BUCKET_NAME!;
+    // Get R2 projects bucket name (with fallback to legacy S3 bucket for backwards compatibility)
+    const storageBucket = process.env.CLOUDFLARE_R2_PROJECTS_BUCKET || process.env.S3_PROJECTS_BUCKET_NAME!;
 
     // Determine media type based on MIME type
     const mediaType = this.getMediaTypeFromMimeType(dto.mimeType);
 
     // Create media record in database
+    // Note: Database fields are still named s3Key/s3Bucket for backwards compatibility
     const media = await this.mediaRepository.create({
       userId,
       type: mediaType,
       mimeType: dto.mimeType,
-      s3Key,
-      s3Bucket,
+      s3Key: storageKey,
+      s3Bucket: storageBucket,
       fileSize: dto.fileSize,
     });
 
     // Generate presigned upload URL (expires in 15 minutes)
     const uploadUrl = await this.storageService.generatePresignedUploadUrl(
-      s3Key,
+      storageKey,
       dto.mimeType,
       900, // 15 minutes
-      s3Bucket
+      storageBucket
     );
 
     return {
       mediaId: media.id,
       uploadUrl,
-      s3Key,
+      s3Key: storageKey, // Return as s3Key for API backwards compatibility
     };
   }
 

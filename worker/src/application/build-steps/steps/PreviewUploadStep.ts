@@ -5,15 +5,13 @@ import { IProjectRepository } from '../../../domain/repositories/IProjectReposit
 import { IStorageService } from '../../../domain/services/IStorageService';
 
 /**
- * PreviewUploadStep: Uploads preview build and source code to S3
+ * PreviewUploadStep: Uploads preview build to preview bucket
  *
  * Responsibilities:
  * - Update step_status to UPLOADING_PREVIEW
  * - Upload preview build to preview bucket
  * - Update project preview URL (if not already set)
- * - Upload source code to projects bucket (version/source/)
- * - Upload preview build to projects bucket (version/preview/)
- * - Track upload times for each operation
+ * - Track upload time
  */
 export class PreviewUploadStep implements IBuildStep {
   readonly stepName = 'Preview Upload';
@@ -41,14 +39,9 @@ export class PreviewUploadStep implements IBuildStep {
         throw new Error('App directory not found in context');
       }
 
-      // Get version from context
-      if (!context.version) {
-        throw new Error('Build version not set in context');
-      }
-
       const metrics: Record<string, number> = {};
 
-      // 1. Upload preview build to preview bucket
+      // Upload preview build to preview bucket
       console.log(`[${this.stepName}] Uploading to preview bucket...`);
       const previewUploadStartTime = Date.now();
       const uploadResult = await this.storageService.uploadReactApp(
@@ -64,56 +57,7 @@ export class PreviewUploadStep implements IBuildStep {
 
       console.log(`[${this.stepName}] Preview bucket upload completed in ${metrics.s3UploadTimeMs}ms`);
 
-      // Update project preview URL (only if not already set)
-      if (uploadResult.previewUrl) {
-        const project = await this.projectRepository.findById(context.projectId);
-        if (project && !project.previewUrl) {
-          await this.projectRepository.updatePreviewUrl(context.projectId, uploadResult.previewUrl);
-          console.log(`[${this.stepName}] Updated project preview URL: ${uploadResult.previewUrl}`);
-        }
-      }
-
-      // 2. Upload source code to projects bucket
-      try {
-        console.log(`[${this.stepName}] Uploading source code to projects bucket (v${context.version})...`);
-        const sourceUploadStartTime = Date.now();
-        const sourceUploadResult = await this.storageService.uploadSourceCode(
-          appDirectory,
-          context.projectId,
-          context.version
-        );
-
-        if (sourceUploadResult.success) {
-          metrics.versionSourceUploadTimeMs = Date.now() - sourceUploadStartTime;
-          console.log(`[${this.stepName}] Source code uploaded in ${metrics.versionSourceUploadTimeMs}ms. Files: ${sourceUploadResult.uploadedFiles?.length || 0}`);
-        } else {
-          console.warn(`[${this.stepName}] Failed to upload source code: ${sourceUploadResult.error}`);
-        }
-      } catch (error) {
-        console.warn(`[${this.stepName}] Error uploading source code:`, error);
-        // Continue with other uploads even if this fails
-      }
-
-      // 3. Upload preview build to projects bucket
-      try {
-        console.log(`[${this.stepName}] Uploading preview build to projects bucket (v${context.version})...`);
-        const versionPreviewStartTime = Date.now();
-        const versionPreviewResult = await this.storageService.uploadPreviewVersion(
-          appDirectory,
-          context.projectId,
-          context.version
-        );
-
-        if (versionPreviewResult.success) {
-          metrics.versionPreviewUploadTimeMs = Date.now() - versionPreviewStartTime;
-          console.log(`[${this.stepName}] Preview build uploaded in ${metrics.versionPreviewUploadTimeMs}ms. Files: ${versionPreviewResult.uploadedFiles?.length || 0}`);
-        } else {
-          console.warn(`[${this.stepName}] Failed to upload preview build: ${versionPreviewResult.error}`);
-        }
-      } catch (error) {
-        console.warn(`[${this.stepName}] Error uploading preview build:`, error);
-        // Continue even if this fails
-      }
+      // Note: previewUrl is now constructed on-the-fly in the API, not stored in DB
 
       const duration = Date.now() - startTime;
       console.log(`[${this.stepName}] Completed in ${duration}ms`);

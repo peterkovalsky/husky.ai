@@ -1,0 +1,20 @@
+-- Add ARCHIVING_SOURCE to the builds status check constraint
+ALTER TABLE builds DROP CONSTRAINT IF EXISTS builds_status_check;
+
+ALTER TABLE builds ADD CONSTRAINT builds_status_check CHECK (
+  status IN (
+    'INITIALIZING',
+    'PROCESSING_PROMPT',
+    'GENERATING_CODE',
+    'PREPARING_FILES',
+    'BUILDING_PREVIEW',
+    'UPLOADING_PREVIEW',
+    'ARCHIVING_SOURCE',
+    'CAPTURING_SCREENSHOT',
+    'BUILDING_PRODUCTION',
+    'UPLOADING_PRODUCTION',
+    'FINALIZING',
+    'COMPLETED',
+    'FAILED'
+  )
+);

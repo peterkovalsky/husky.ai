@@ -53,6 +53,11 @@ export default defineConfig({
     include: ['react', 'react-dom', 'react-router-dom'],
   },
 
+  // Ensure single instance of React and Router (prevents context issues)
+  resolve: {
+    dedupe: ['react', 'react-dom', 'react-router-dom'],
+  },
+
   esbuild: {
     logOverride: { 'this-is-undefined-in-esm': 'silent' },
     // Remove console logs and debugger statements for smaller bundles

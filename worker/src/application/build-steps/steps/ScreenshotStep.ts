@@ -37,16 +37,6 @@ export class ScreenshotStep implements IBuildStep {
       // Update status
       await this.buildRepository.updateStatus(buildId, this.stepStatus);
 
-      // Get preview URL - we need to construct it from the project
-      const project = await this.projectRepository.findById(context.projectId);
-      if (!project?.previewUrl) {
-        console.warn(`[${this.stepName}] No preview URL found for project, skipping screenshot`);
-        return {
-          success: true,
-          metrics: { screenshotSkipped: 1 }
-        };
-      }
-
       // Get version from context
       if (!context.version) {
         console.warn(`[${this.stepName}] No version in context, skipping screenshot`);
@@ -56,14 +46,17 @@ export class ScreenshotStep implements IBuildStep {
         };
       }
 
+      // Construct preview URL on-the-fly (not from DB)
+      const previewUrl = this.storageService.getPreviewUrl(context.projectId);
+
       const metrics: Record<string, number> = {};
 
       // Capture screenshot
-      console.log(`[${this.stepName}] Capturing screenshot of ${project.previewUrl}...`);
+      console.log(`[${this.stepName}] Capturing screenshot of ${previewUrl}...`);
       const captureStartTime = Date.now();
 
       try {
-        const screenshotBuffer = await this.screenshotService.captureScreenshot(project.previewUrl, {
+        const screenshotBuffer = await this.screenshotService.captureScreenshot(previewUrl, {
           projectId: context.projectId,
           userId: context.userId,
         });

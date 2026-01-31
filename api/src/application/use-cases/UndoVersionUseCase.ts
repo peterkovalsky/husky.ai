@@ -49,8 +49,11 @@ export class UndoVersionUseCase {
     console.log(`[UndoVersionUseCase] Deleted thumbnail for version ${latestBuild.version}`);
 
     // Copy previous version preview-build to preview bucket
-    const previewUrl = await this.storageService.copyVersionToPreview(projectId, previousBuild.version);
+    await this.storageService.copyVersionToPreview(projectId, previousBuild.version);
     console.log(`[UndoVersionUseCase] Restored version ${previousBuild.version} to preview`);
+
+    // Construct previewUrl on-the-fly (not from DB)
+    const previewUrl = this.storageService.getPreviewUrl(projectId);
 
     // Update project's currentVersion
     // Note: Thumbnail URL is constructed on-the-fly from projectId and currentVersion, so updating

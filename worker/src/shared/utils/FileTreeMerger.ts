@@ -14,7 +14,6 @@ const PROTECTED_FILES = [
   'tsconfig.node.json',
   'postcss.config.js',
   'src/vite-env.d.ts',
-  'src/main.tsx'
 ];
 
 export class FileTreeMerger {

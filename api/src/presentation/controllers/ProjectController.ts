@@ -35,18 +35,19 @@ export class ProjectController {
         // Only generate thumbnail URL for projects with at least one successful build
         if (project.currentVersion && project.currentVersion > 0) {
           try {
-            // Construct S3 key from projectId and currentVersion
-            const s3Key = `${project.id}/thumbnails/v${project.currentVersion}.png`;
+            // Construct storage key from projectId and currentVersion
+            const storageKey = `${project.id}/thumbnails/v${project.currentVersion}.png`;
 
-            // Check if the thumbnail exists in S3
-            const exists = await this.storageService.verifyFileExists(s3Key, process.env.S3_PROJECTS_BUCKET_NAME);
+            // Check if the thumbnail exists in R2/storage
+            const projectsBucket = process.env.CLOUDFLARE_R2_PROJECTS_BUCKET || process.env.S3_PROJECTS_BUCKET_NAME;
+            const exists = await this.storageService.verifyFileExists(storageKey, projectsBucket);
             if (!exists) {
               console.log(`[ProjectController] Thumbnail not found for project ${project.id} version ${project.currentVersion}`);
               return { ...project, thumbnailUrl: null };
             }
 
             const presignedUrl = await this.storageService.getThumbnailPresignedUrl(
-              s3Key,
+              storageKey,
               3600 // 1 hour expiry
             );
             return { ...project, thumbnailUrl: presignedUrl };

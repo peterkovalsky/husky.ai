@@ -59,8 +59,11 @@ export enum BuildStepStatus {
   /** Running preview build with project base path */
   BUILDING_PREVIEW = 'BUILDING_PREVIEW',
 
-  /** Uploading preview + source + version files */
+  /** Uploading preview build to preview bucket */
   UPLOADING_PREVIEW = 'UPLOADING_PREVIEW',
+
+  /** Archiving source code and build artifacts to projects bucket */
+  ARCHIVING_SOURCE = 'ARCHIVING_SOURCE',
 
   /** Capturing screenshot of the preview */
   CAPTURING_SCREENSHOT = 'CAPTURING_SCREENSHOT',
