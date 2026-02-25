@@ -1,6 +1,6 @@
 import { useRef, useEffect } from 'react'
 import { Button, Textarea } from '@heroui/react'
-import { ArrowUp, ImageIcon, Loader2 } from 'lucide-react'
+import { ArrowUp, ImageIcon, Loader2, PenTool } from 'lucide-react'
 import { ImagePreview, type AttachedImage } from './ImagePreview'
 
 export type { AttachedImage }
@@ -23,6 +23,8 @@ interface PromptInputProps {
   loadingStatus?: 'QUEUED' | 'PROCESSING' | 'BUILDING' | null
   autoFocus?: boolean
   showLoadingOverlay?: boolean // When false, just disables without showing internal loading UI
+  onAnnotate?: () => void
+  onPreviewFile?: (file: AttachedImage) => void
 }
 
 export const PromptInput = ({
@@ -43,6 +45,8 @@ export const PromptInput = ({
   loadingStatus = null,
   autoFocus = false,
   showLoadingOverlay = true,
+  onAnnotate,
+  onPreviewFile,
 }: PromptInputProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -93,7 +97,7 @@ export const PromptInput = ({
       {attachedFiles.length > 0 && (
         <div className="mb-4 grid grid-cols-3 gap-3">
           {attachedFiles.map((file) => (
-            <ImagePreview key={file.id} file={file} onRemove={onRemoveFile} />
+            <ImagePreview key={file.id} file={file} onRemove={onRemoveFile} onPreview={onPreviewFile} />
           ))}
         </div>
       )}
@@ -174,6 +178,19 @@ export const PromptInput = ({
               >
                 <ImageIcon className="h-5 w-5 opacity-70" />
               </Button>
+              {onAnnotate && (
+                <Button
+                  size="sm"
+                  variant="light"
+                  isIconOnly
+                  onPress={onAnnotate}
+                  isDisabled={isDisabled || isSubmitting}
+                  title="Annotate preview"
+                  type="button"
+                >
+                  <PenTool className="h-5 w-5 opacity-70" />
+                </Button>
+              )}
               <span className="text-xs text-default-400">⌘ + Enter for new line</span>
             </div>
 

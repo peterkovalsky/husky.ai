@@ -43,6 +43,7 @@ interface ChatWidgetProps {
   onboardingPhase?: OnboardingPhase;
   onboardingMessages?: OnboardingChatMessage[];
   buildJustCompleted?: boolean;
+  onAnnotate?: () => void;
 }
 
 export const ChatWidget = ({
@@ -54,6 +55,7 @@ export const ChatWidget = ({
   onboardingPhase = 'NONE',
   onboardingMessages = [],
   buildJustCompleted = false,
+  onAnnotate,
 }: ChatWidgetProps = {}) => {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [conversationHistory, setConversationHistory] = useState<ChatMessage[]>([])
@@ -101,6 +103,24 @@ export const ChatWidget = ({
     onError: (message) => addSystemMessage(message, 'error'),
     maxFiles: 1,
   })
+
+  // Listen for annotation completion event from ProjectPage
+  useEffect(() => {
+    const handleAnnotationComplete = (event: CustomEvent) => {
+      const file = event.detail?.file as File | undefined
+      if (file) {
+        // Create a FileList-like object from the annotation file
+        const dt = new DataTransfer()
+        dt.items.add(file)
+        handleFileSelect(dt.files)
+      }
+    }
+
+    window.addEventListener('annotationComplete', handleAnnotationComplete as EventListener)
+    return () => {
+      window.removeEventListener('annotationComplete', handleAnnotationComplete as EventListener)
+    }
+  }, [handleFileSelect])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -792,6 +812,11 @@ export const ChatWidget = ({
             onDrop={handleDrop}
             isDragging={isDragging}
             loadingStatus={currentLoadingStatus}
+            onAnnotate={onAnnotate}
+            onPreviewFile={(file) => {
+              const type = file.file.type.startsWith('video/') ? 'video' : 'image' as const
+              setLightboxMedia({ url: file.preview, type })
+            }}
           />
         </div>
       </div>

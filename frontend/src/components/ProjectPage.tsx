@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { ApiService, type JobStatus, type ProjectDetails } from '../services/api'
 import { useProject } from '../contexts/ProjectContext'
@@ -6,6 +6,7 @@ import { ChatWidget } from './ChatWidget'
 import { NewProjectStarter } from './NewProjectStarter'
 import InspirationGallery from './InspirationGallery'
 import OnboardingQuestionPanel from './OnboardingQuestionPanel'
+import { AnnotationOverlay } from './annotation/AnnotationOverlay'
 import { Button, Spinner, Card, CardHeader, CardBody } from '@heroui/react'
 import { Code2, ArrowLeft, Loader2, AlertCircle } from 'lucide-react'
 import { useLocalStorage } from '../hooks/useLocalStorage'
@@ -103,6 +104,9 @@ export const ProjectPage = () => {
 
   // Counter to force reload - increment to trigger re-fetch
   const [reloadCounter, setReloadCounter] = useState(0)
+
+  // Annotation state
+  const [isAnnotating, setIsAnnotating] = useState(false)
 
   // Rotating build status message (for PROCESSING and BUILDING phases)
   const isBuildInProgress = onboardingPhase === 'BUILDING' &&
@@ -360,6 +364,21 @@ export const ProjectPage = () => {
     }
   }, [projectDetails])
 
+  // Annotation handlers (must be before early returns to satisfy rules-of-hooks)
+  const handleAnnotate = useCallback(() => {
+    setIsAnnotating(true)
+  }, [])
+
+  const handleAnnotationComplete = useCallback((blob: Blob) => {
+    setIsAnnotating(false)
+    const file = new File([blob], 'annotation.png', { type: 'image/png' })
+    window.dispatchEvent(new CustomEvent('annotationComplete', { detail: { file } }))
+  }, [])
+
+  const handleAnnotationCancel = useCallback(() => {
+    setIsAnnotating(false)
+  }, [])
+
   if (error) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -490,6 +509,7 @@ export const ProjectPage = () => {
             onboardingPhase={onboardingPhase}
             onboardingMessages={onboardingMessages}
             buildJustCompleted={buildJustCompleted}
+            onAnnotate={hasReadyPreview ? handleAnnotate : undefined}
           />
         </div>
       )}
@@ -649,6 +669,15 @@ export const ProjectPage = () => {
                 }
               }}
             />
+
+            {/* Annotation overlay - positioned over the iframe */}
+            {isAnnotating && (
+              <AnnotationOverlay
+                iframeRef={iframeRef}
+                onComplete={handleAnnotationComplete}
+                onCancel={handleAnnotationCancel}
+              />
+            )}
           </>
         )}
 
