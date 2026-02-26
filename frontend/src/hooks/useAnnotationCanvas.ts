@@ -15,8 +15,8 @@ export const useAnnotationCanvas = ({
 }: UseAnnotationCanvasOptions) => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [tool, setTool] = useState<AnnotationTool>('pen')
-  const [color, setColor] = useState(DEFAULT_COLOR)
-  const [strokeWidth, setStrokeWidth] = useState(DEFAULT_WIDTH)
+  const [color] = useState(DEFAULT_COLOR)
+  const [strokeWidth] = useState(DEFAULT_WIDTH)
   const [strokes, setStrokes] = useState<Stroke[]>([])
   const [redoStack, setRedoStack] = useState<Stroke[]>([])
   const [isDrawing, setIsDrawing] = useState(false)
@@ -246,7 +246,8 @@ function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
     case 'rectangle':
       drawRectangle(ctx, points[0], points[points.length - 1])
       break
-    case 'circle': // Legacy support for any saved strokes
+    default:
+      // Legacy tools (e.g. circle) - draw as ellipse
       drawEllipse(ctx, points[0], points[points.length - 1])
       break
   }
