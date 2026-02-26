@@ -19,6 +19,7 @@ import { CodeGenerationStep } from '../build-steps/steps/CodeGenerationStep';
 import { FilePrepStep } from '../build-steps/steps/FilePrepStep';
 import { PreviewBuildStep } from '../build-steps/steps/PreviewBuildStep';
 import { AutoFixStep } from '../build-steps/steps/AutoFixStep';
+import { PreviewScriptInjectionStep } from '../build-steps/steps/PreviewScriptInjectionStep';
 import { PreviewUploadStep } from '../build-steps/steps/PreviewUploadStep';
 import { SourceArchiveStep } from '../build-steps/steps/SourceArchiveStep';
 import { ProductionBuildStep } from '../build-steps/steps/ProductionBuildStep';
@@ -124,6 +125,9 @@ export class ProcessJobUseCase {
       this.buildRepository,
       this.aiService
     );
+    const previewScriptInjectionStep = new PreviewScriptInjectionStep(
+      this.buildRepository
+    );
     const previewUploadStep = new PreviewUploadStep(
       this.buildRepository,
       this.projectRepository,
@@ -215,6 +219,9 @@ export class ProcessJobUseCase {
           }
         }
       }
+
+      // Step 5b: Inject screenshot helper into preview build
+      await this.executeStep(context, previewScriptInjectionStep);
 
       // Step 6: Preview Upload
       await this.executeStep(context, previewUploadStep);

@@ -12,15 +12,19 @@ export interface AttachedImage {
 interface ImagePreviewProps {
   file: AttachedImage
   onRemove: (fileId: string) => void
+  onPreview?: (file: AttachedImage) => void
 }
 
-export const ImagePreview = ({ file, onRemove }: ImagePreviewProps) => {
+export const ImagePreview = ({ file, onRemove, onPreview }: ImagePreviewProps) => {
   const isImage = file.file.type.startsWith('image/')
   const isVideo = file.file.type.startsWith('video/')
 
   return (
     <div className="relative w-14 h-14 group">
-      <div className="relative w-full h-full rounded-2xl overflow-hidden bg-content2 border-2 border-divider">
+      <div
+        className={`relative w-full h-full rounded-2xl overflow-hidden bg-content2 border-2 border-divider${onPreview ? ' cursor-pointer' : ''}`}
+        onClick={() => onPreview?.(file)}
+      >
         {isImage ? (
           <img
             src={file.preview}
