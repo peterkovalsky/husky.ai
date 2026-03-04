@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useCallback } from 'react'
 import { Button, Textarea } from '@heroui/react'
 import { ArrowUp, ImageIcon, Loader2, PenTool } from 'lucide-react'
 import { ImagePreview, type AttachedImage } from './ImagePreview'
@@ -61,6 +61,27 @@ export const PromptInput = ({
   const handleFileButtonClick = () => {
     fileInputRef.current?.click()
   }
+
+  const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    if (isDisabled || isSubmitting || attachedFiles.length > 0) return
+
+    const items = e.clipboardData?.items
+    if (!items) return
+
+    for (const item of items) {
+      if (item.kind === 'file' && ALLOWED_IMAGE_TYPES.includes(item.type)) {
+        e.preventDefault()
+        const file = item.getAsFile()
+        if (!file) continue
+        const dt = new DataTransfer()
+        dt.items.add(file)
+        onFileSelect(dt.files)
+        return
+      }
+    }
+  }, [isDisabled, isSubmitting, attachedFiles.length, onFileSelect])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     // Command+Enter or Ctrl+Enter creates a new line
@@ -148,6 +169,7 @@ export const PromptInput = ({
               value={value}
               onValueChange={onChange}
               onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
               placeholder={placeholder}
               isDisabled={isDisabled || isSubmitting}
               autoFocus={autoFocus}
