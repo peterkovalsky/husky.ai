@@ -18,6 +18,21 @@ export interface IPublicMediaStorageService {
   ): Promise<{ publicKey: string; publicUrl: string }>;
 
   /**
+   * Upload a buffer directly to R2 public media bucket
+   * @param buffer - The file content as a Buffer
+   * @param projectId - The project ID (used to organize files)
+   * @param filename - The destination filename (e.g., "generated-abc123.png")
+   * @param contentType - The MIME content type (e.g., "image/png")
+   * @returns The public key and public URL of the uploaded file
+   */
+  uploadBuffer(
+    buffer: Buffer,
+    projectId: string,
+    filename: string,
+    contentType: string
+  ): Promise<{ publicKey: string; publicUrl: string }>;
+
+  /**
    * Delete a file from the R2 public media bucket
    * @param key - The key of the file to delete
    */

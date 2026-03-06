@@ -36,6 +36,11 @@ export interface AppConfig {
     anthropicApiKey?: string;
     openaiApiKey?: string;
     geminiApiKey?: string;
+    imageGeneration: {
+      model: string;
+      maxImagesPerBuild: number;
+      concurrency: number;
+    };
   };
 }
 
@@ -78,6 +83,11 @@ export function loadAppConfig(): AppConfig {
       anthropicApiKey: process.env.ANTHROPIC_API_KEY,
       openaiApiKey: process.env.OPENAI_API_KEY,
       geminiApiKey: process.env.GEMINI_API_KEY,
+      imageGeneration: {
+        model: process.env.AI_IMAGE_GEN_MODEL || 'gemini-2.5-flash-image',
+        maxImagesPerBuild: parseInt(process.env.AI_IMAGE_GEN_MAX_IMAGES || '8', 10),
+        concurrency: parseInt(process.env.AI_IMAGE_GEN_CONCURRENCY || '4', 10),
+      },
     }
   };
 }

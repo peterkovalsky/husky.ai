@@ -53,6 +53,9 @@ export enum BuildStepStatus {
   /** AI generation + environment prep (parallel, but only track AI) */
   GENERATING_CODE = 'GENERATING_CODE',
 
+  /** Generating AI images from markers in code */
+  GENERATING_IMAGES = 'GENERATING_IMAGES',
+
   /** Merging files, cleanup, saving to disk */
   PREPARING_FILES = 'PREPARING_FILES',
 

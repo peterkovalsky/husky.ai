@@ -1,0 +1,10 @@
+-- Add GENERATING_IMAGES to the builds status check constraint
+-- Required for the new ImageGenerationStep in the build pipeline
+
+ALTER TABLE builds DROP CONSTRAINT builds_status_check;
+ALTER TABLE builds ADD CONSTRAINT builds_status_check CHECK (status::text = ANY (ARRAY[
+  'INITIALIZING', 'PROCESSING_PROMPT', 'GENERATING_CODE', 'GENERATING_IMAGES',
+  'PREPARING_FILES', 'BUILDING_PREVIEW', 'UPLOADING_PREVIEW',
+  'ARCHIVING_SOURCE', 'CAPTURING_SCREENSHOT', 'BUILDING_PRODUCTION',
+  'UPLOADING_PRODUCTION', 'FINALIZING', 'COMPLETED', 'FAILED'
+]::text[]));
