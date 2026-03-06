@@ -8,6 +8,7 @@ import { IBuildService } from '../../domain/services/IBuildService';
 import { IStorageService } from '../../domain/services/IStorageService';
 import { IPublicMediaStorageService } from '../../domain/services/IPublicMediaStorageService';
 import { IImageProcessingService } from '../../domain/services/IImageProcessingService';
+import { IImageGenerationService } from '../../domain/services/IImageGenerationService';
 import { JobMessage, IQueueService, GenerateScreenshotMessage } from '../../domain/services/IQueueService';
 import { ProjectStatus } from '../../domain/entities/Project';
 import { PrepareProjectEnvironmentUseCase } from './PrepareProjectEnvironmentUseCase';
@@ -25,6 +26,7 @@ import { SourceArchiveStep } from '../build-steps/steps/SourceArchiveStep';
 import { ProductionBuildStep } from '../build-steps/steps/ProductionBuildStep';
 import { ProductionUploadStep } from '../build-steps/steps/ProductionUploadStep';
 import { FinalizationStep } from '../build-steps/steps/FinalizationStep';
+import { ImageGenerationStep } from '../build-steps/steps/ImageGenerationStep';
 import { loadAppConfig } from '../../shared/config/AppConfig';
 
 /**
@@ -56,7 +58,8 @@ export class ProcessJobUseCase {
     private imageProcessingService: IImageProcessingService,
     private queueService: IQueueService,
     private inspoRepository: IInspoRepository,
-    private publicMediaStorageService: IPublicMediaStorageService
+    private publicMediaStorageService: IPublicMediaStorageService,
+    private imageGenerationService?: IImageGenerationService
   ) {}
 
   async execute(jobMessage: JobMessage): Promise<void> {
@@ -152,6 +155,8 @@ export class ProcessJobUseCase {
       this.workspaceRepository
     );
 
+    const config = loadAppConfig();
+
     // Execute build steps sequentially
     try {
       // Step 1: Initialization
@@ -163,11 +168,23 @@ export class ProcessJobUseCase {
       // Step 3: Code Generation
       await this.executeStep(context, codeGenStep);
 
+      // Step 3.5: Generate AI images (if markers present in code)
+      if (this.imageGenerationService) {
+        const imageGenStep = new ImageGenerationStep(
+          this.buildRepository,
+          this.imageGenerationService,
+          this.publicMediaStorageService,
+          config.ai.imageGeneration.maxImagesPerBuild,
+          config.ai.imageGeneration.concurrency,
+          config.ai.imageGeneration.model
+        );
+        await this.executeStep(context, imageGenStep);
+      }
+
       // Step 4: File Preparation
       await this.executeStep(context, filePrepStep);
 
       // Step 5: Preview Build (with auto-fix retry loop)
-      const config = loadAppConfig();
       const maxAttempts = config.ai.autofixMaxAttempts;
       let attempt = 0;
       let lastError: Error | null = null;

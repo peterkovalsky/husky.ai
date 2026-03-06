@@ -21,6 +21,7 @@ import { IQueueService } from '../../domain/services/IQueueService';
 import { IBuildService } from '../../domain/services/IBuildService';
 import { IProjectEnvironmentService } from '../../domain/services/IProjectEnvironmentService';
 import { IImageProcessingService } from '../../domain/services/IImageProcessingService';
+import { IImageGenerationService } from '../../domain/services/IImageGenerationService';
 
 // Infrastructure Implementations
 import { SupabaseWorkspaceRepository } from '../../infrastructure/database/SupabaseWorkspaceRepository';
@@ -47,6 +48,7 @@ import { CloudflareSaaSService } from '../../infrastructure/cdn/CloudflareSaaSSe
 import { CloudflareKVService } from '../../infrastructure/storage/CloudflareKVService';
 import { DNSVerificationService, IDNSVerificationService } from '../../infrastructure/dns/DNSVerificationService';
 import { ImageProcessingService } from '../../infrastructure/services/ImageProcessingService';
+import { GeminiImageGenerationService } from '../../infrastructure/ai/GeminiImageGenerationService';
 import { ScreenshotService, IScreenshotService } from '../../infrastructure/screenshot/ScreenshotService';
 
 // Application Use Cases - Worker only needs job processing use cases
@@ -177,6 +179,14 @@ export function setupContainer(): DIContainer {
   // Screenshot service for capturing project thumbnails
   container.registerFactory<IScreenshotService>('screenshotService', () => new ScreenshotService());
 
+  // Image generation service (Gemini-based, optional - only if API key present)
+  if (config.ai.geminiApiKey) {
+    container.registerFactory<IImageGenerationService>('imageGenerationService', () =>
+      new GeminiImageGenerationService(config.ai.geminiApiKey)
+    );
+    console.log(`[Worker Container] Registered Gemini image generation service`);
+  }
+
   // Register Job Processing Use Cases
   container.registerFactory<PrepareProjectEnvironmentUseCase>('prepareProjectEnvironmentUseCase', () => new PrepareProjectEnvironmentUseCase(
     container.get<IProjectEnvironmentService>('projectEnvironmentService')
@@ -194,7 +204,8 @@ export function setupContainer(): DIContainer {
     container.get<IImageProcessingService>('imageProcessingService'),
     container.get<IQueueService>('queueService'),
     container.get<IInspoRepository>('inspoRepository'),
-    container.get<IPublicMediaStorageService>('r2PublicMediaService')
+    container.get<IPublicMediaStorageService>('r2PublicMediaService'),
+    config.ai.geminiApiKey ? container.get<IImageGenerationService>('imageGenerationService') : undefined
   ));
 
   container.registerFactory<DeleteProjectUseCase>('deleteProjectUseCase', () => new DeleteProjectUseCase(

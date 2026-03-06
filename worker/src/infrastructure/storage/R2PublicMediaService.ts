@@ -130,6 +130,37 @@ export class R2PublicMediaService implements IPublicMediaStorageService {
   }
 
   /**
+   * Upload a buffer directly to R2 public media bucket
+   */
+  async uploadBuffer(
+    buffer: Buffer,
+    projectId: string,
+    filename: string,
+    contentType: string
+  ): Promise<{ publicKey: string; publicUrl: string }> {
+    const destKey = `${projectId}/${filename}`;
+
+    console.log(`[R2PublicMediaService] Uploading buffer to R2: ${destKey} (${buffer.length} bytes, ${contentType})`);
+
+    const putCommand = new PutObjectCommand({
+      Bucket: this.bucketName,
+      Key: destKey,
+      Body: buffer,
+      ContentType: contentType,
+    });
+
+    await this.r2Client.send(putCommand);
+
+    const publicUrl = this.getPublicUrl(destKey);
+    console.log(`[R2PublicMediaService] Uploaded to R2: ${publicUrl}`);
+
+    return {
+      publicKey: destKey,
+      publicUrl,
+    };
+  }
+
+  /**
    * Delete a file from R2 public media bucket
    */
   async deleteFile(key: string): Promise<void> {

@@ -129,23 +129,61 @@ export class PreviewScriptInjectionStep implements IBuildStep {
     }
   });
 
+  function findScrollPosition() {
+    // Check window scroll first (body/document scrolling)
+    var winScrollX = window.scrollX || window.pageXOffset || 0;
+    var winScrollY = window.scrollY || window.pageYOffset || 0;
+    if (winScrollY > 0 || winScrollX > 0) {
+      console.log('[HuskyScreenshot] Using window scroll:', winScrollX, winScrollY);
+      return { scrollX: winScrollX, scrollY: winScrollY };
+    }
+
+    // Fallback: find scrollable container (React apps often use a div with overflow-auto)
+    var candidates = [
+      document.documentElement,
+      document.body,
+      document.getElementById('root')
+    ];
+    // Also check direct children of #root (common pattern: <div class="h-screen overflow-auto">)
+    var root = document.getElementById('root');
+    if (root) {
+      for (var i = 0; i < root.children.length; i++) {
+        candidates.push(root.children[i]);
+      }
+    }
+
+    for (var j = 0; j < candidates.length; j++) {
+      var el = candidates[j];
+      if (el && el.scrollTop > 0) {
+        console.log('[HuskyScreenshot] Using container scroll from:', el.tagName + (el.className ? '.' + el.className.split(' ')[0] : ''), el.scrollLeft, el.scrollTop);
+        return { scrollX: el.scrollLeft || 0, scrollY: el.scrollTop };
+      }
+    }
+
+    console.log('[HuskyScreenshot] No scroll detected');
+    return { scrollX: 0, scrollY: 0 };
+  }
+
   function captureAndSend(source, origin) {
     console.log('[HuskyScreenshot] html2canvas-pro loaded, capturing viewport...');
     var scale = window.devicePixelRatio || 1;
-    var scrollX = window.scrollX || window.pageXOffset || 0;
-    var scrollY = window.scrollY || window.pageYOffset || 0;
+    var scroll = findScrollPosition();
+    var scrollX = scroll.scrollX;
+    var scrollY = scroll.scrollY;
     var width = window.innerWidth;
     var height = window.innerHeight;
+
+    console.log('[HuskyScreenshot] Capture params: scroll=(' + scrollX + ',' + scrollY + '), viewport=(' + width + 'x' + height + '), scale=' + scale);
 
     html2canvas(document.body, {
       x: scrollX,
       y: scrollY,
       width: width,
       height: height,
-      scrollX: scrollX,
-      scrollY: scrollY,
-      windowWidth: width,
-      windowHeight: height,
+      scrollX: 0,
+      scrollY: 0,
+      windowWidth: document.documentElement.scrollWidth || width,
+      windowHeight: document.documentElement.scrollHeight || height,
       scale: scale,
       proxy: '/_proxy',
       logging: false,
