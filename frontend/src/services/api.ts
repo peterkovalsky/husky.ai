@@ -4,13 +4,15 @@ import { errorTracking } from './errorTracking';
 export interface JobStatus {
   jobId: string;
   promptId?: string;
-  status: 'QUEUED' | 'PROCESSING' | 'BUILDING' | 'READY' | 'COMPLETED' | 'FAILED';
+  status: 'QUEUED' | 'PROCESSING' | 'BUILDING' | 'READY' | 'COMPLETED' | 'FAILED' | 'NEEDS_RESPONSE';
   createdAt: string;
   updatedAt: string;
   previewUrl?: string;
   errorMessage?: string;
   projectId?: string;
   prompt?: string;
+  aiSummary?: string;
+  aiQuestion?: string;
 }
 
 export interface PromptResponse {
@@ -531,7 +533,7 @@ export class ApiService {
         onUpdate(status);
 
         // Stop polling if job is in final state
-        if (status.status === 'READY' || status.status === 'COMPLETED' || status.status === 'FAILED' || status.errorMessage) {
+        if (status.status === 'READY' || status.status === 'COMPLETED' || status.status === 'FAILED' || status.status === 'NEEDS_RESPONSE' || status.errorMessage) {
           stopPolling();
         }
       } catch (error) {

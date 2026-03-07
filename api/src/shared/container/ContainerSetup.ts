@@ -206,7 +206,8 @@ export function setupContainer(): DIContainer {
   container.registerFactory<GetPromptStatusUseCase>('getPromptStatusUseCase', () => new GetPromptStatusUseCase(
     container.get<IProjectRepository>('projectRepository'),
     container.get<IBuildRepository>('buildRepository'),
-    container.get<IStorageService>('storageService')
+    container.get<IStorageService>('storageService'),
+    container.get<IChatMessageRepository>('chatMessageRepository')
   ));
 
   container.registerFactory<AnalyzePromptUseCase>('analyzePromptUseCase', () => new AnalyzePromptUseCase(

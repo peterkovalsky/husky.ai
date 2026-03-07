@@ -10,6 +10,8 @@ import { IPublicMediaStorageService } from '../../domain/services/IPublicMediaSt
 import { IImageProcessingService } from '../../domain/services/IImageProcessingService';
 import { IImageGenerationService } from '../../domain/services/IImageGenerationService';
 import { JobMessage, IQueueService, GenerateScreenshotMessage } from '../../domain/services/IQueueService';
+import { IChatMessageRepository } from '../../domain/repositories/IChatMessageRepository';
+import { ChatMessageType, ChatMessageSource } from '../../domain/entities/ChatMessage';
 import { ProjectStatus } from '../../domain/entities/Project';
 import { PrepareProjectEnvironmentUseCase } from './PrepareProjectEnvironmentUseCase';
 import { BuildStepContext } from '../build-steps/BuildStepContext';
@@ -59,6 +61,7 @@ export class ProcessJobUseCase {
     private queueService: IQueueService,
     private inspoRepository: IInspoRepository,
     private publicMediaStorageService: IPublicMediaStorageService,
+    private chatMessageRepository: IChatMessageRepository,
     private imageGenerationService?: IImageGenerationService
   ) {}
 
@@ -168,6 +171,58 @@ export class ProcessJobUseCase {
 
       // Step 3: Code Generation
       await this.executeStep(context, codeGenStep);
+
+      // Step 3a: Handle AI question (short-circuit) or summary
+      const aiQuestion = context.getStepData<string>('aiQuestion');
+      if (aiQuestion) {
+        // Save AI question as chat message BEFORE status update (prevents race condition)
+        const latestMessages = await this.chatMessageRepository.findByProjectId(build.projectId);
+        const maxRound = latestMessages.reduce((max, m) => Math.max(max, m.conversationRound), 0);
+
+        await this.chatMessageRepository.create({
+          projectId: build.projectId,
+          buildId: build.id,
+          userId: build.userId,
+          type: ChatMessageType.AI_QUESTION,
+          source: ChatMessageSource.ITERATION,
+          content: aiQuestion,
+          role: 'assistant',
+          conversationRound: maxRound + 1,
+          messageOrder: 0,
+          status: 'completed',
+        });
+
+        // Update build status to NEEDS_RESPONSE
+        await this.buildRepository.updateStatus(context.buildId, BuildStepStatus.NEEDS_RESPONSE);
+
+        console.log(`\n========================================`);
+        console.log(`Build ${buildId} needs user response (AI asked clarifying questions)`);
+        console.log(`========================================\n`);
+        return; // Exit cleanly - credits NOT consumed
+      }
+
+      const aiSummary = context.getStepData<string>('aiSummary');
+      if (aiSummary) {
+        // Save AI summary as chat message
+        const latestMessages = await this.chatMessageRepository.findByProjectId(build.projectId);
+        const maxRound = latestMessages.reduce((max, m) => Math.max(max, m.conversationRound), 0);
+
+        await this.chatMessageRepository.create({
+          projectId: build.projectId,
+          buildId: build.id,
+          userId: build.userId,
+          type: ChatMessageType.AI_SUMMARY,
+          source: ChatMessageSource.ITERATION,
+          content: aiSummary,
+          role: 'assistant',
+          conversationRound: maxRound,
+          messageOrder: 99, // After user prompt in the same round
+          status: 'completed',
+        });
+
+        // Also store on build record for fast polling access
+        await this.buildRepository.update(context.buildId, { aiSummary });
+      }
 
       // Step 3.5: Generate AI images (if markers present in code)
       if (this.imageGenerationService) {
@@ -309,6 +364,28 @@ export class ProcessJobUseCase {
       console.log(`Build ${context.buildId} marked as FAILED`);
     } catch (updateError) {
       console.error(`Failed to update build status:`, updateError);
+    }
+
+    // Save error as chat message so it persists in conversation history
+    try {
+      const latestMessages = await this.chatMessageRepository.findByProjectId(context.projectId);
+      const maxRound = latestMessages.reduce((max, m) => Math.max(max, m.conversationRound), 0);
+
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await this.chatMessageRepository.create({
+        projectId: context.projectId,
+        buildId: context.buildId,
+        userId: context.userId,
+        type: ChatMessageType.SYSTEM_ERROR,
+        source: ChatMessageSource.ITERATION,
+        content: `Build failed: ${errorMessage}`,
+        role: 'system',
+        conversationRound: maxRound,
+        messageOrder: 99,
+        status: 'failed',
+      });
+    } catch (chatError) {
+      console.error(`[ProcessJobUseCase] Failed to save error chat message:`, chatError);
     }
 
     // Update project status to FAILED if it's currently NEW (no successful builds yet)

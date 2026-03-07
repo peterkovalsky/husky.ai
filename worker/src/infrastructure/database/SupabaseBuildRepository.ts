@@ -174,6 +174,7 @@ export class SupabaseBuildRepository implements IBuildRepository {
     if (updates.autoFixAttempted !== undefined) dbUpdates.auto_fix_attempted = updates.autoFixAttempted;
     if (updates.autoFixSuccessful !== undefined) dbUpdates.auto_fix_successful = updates.autoFixSuccessful;
     if (updates.autoFixAttemptCount !== undefined) dbUpdates.auto_fix_attempt_count = updates.autoFixAttemptCount;
+    if (updates.aiSummary !== undefined) dbUpdates.ai_summary = updates.aiSummary;
 
     const { error } = await this.supabase
       .from('builds')
@@ -294,6 +295,7 @@ export class SupabaseBuildRepository implements IBuildRepository {
       autoFixAttempted: data.auto_fix_attempted,
       autoFixSuccessful: data.auto_fix_successful,
       autoFixAttemptCount: data.auto_fix_attempt_count,
+      aiSummary: data.ai_summary || undefined,
       createdAt: new Date(data.created_at),
       modifiedAt: new Date(data.modified_at)
     };

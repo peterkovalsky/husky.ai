@@ -6,6 +6,8 @@ export interface AIResponse {
     inputTokens: number;
     outputTokens: number;
   };
+  aiSummary?: string;
+  aiQuestion?: string;
 }
 
 export interface IAIService {

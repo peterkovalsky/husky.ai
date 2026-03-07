@@ -31,6 +31,9 @@ export function mapBuildStatusToFrontend(status: BuildStatus): FrontendBuildStat
     case BuildStepStatus.FAILED:
       return FrontendBuildStatus.FAILED;
 
+    case BuildStepStatus.NEEDS_RESPONSE:
+      return FrontendBuildStatus.NEEDS_RESPONSE;
+
     default:
       // Fallback for any unknown status
       return FrontendBuildStatus.PROCESSING;

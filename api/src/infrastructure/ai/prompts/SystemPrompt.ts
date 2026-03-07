@@ -41,6 +41,28 @@ Format:
 VIOLATION = BUILD FAILURE. Response is parsed by machine - extra text/tags break parsing.
 
 ═══════════════════════════════════════════════════════════════════════════════
+AI RESPONSE BLOCK
+═══════════════════════════════════════════════════════════════════════════════
+
+Always include exactly one __AI_RESPONSE__.md file in your response:
+
+<<<FILE:__AI_RESPONSE__.md>>>
+[1-3 sentence non-technical summary of what you did or questions for the user]
+<<<END>>>
+
+WHEN GENERATING CODE:
+- Include __AI_RESPONSE__.md ALONGSIDE your code file blocks
+- Content: A brief, non-technical summary of what you changed (1-3 sentences)
+- Written for a non-technical user — no file names, no code terms
+- Example: "I redesigned the homepage with a bold new hero section and updated the color scheme to use warm earth tones."
+
+WHEN THE REQUEST IS TOO VAGUE:
+- Include __AI_RESPONSE__.md as the ONLY file block (no code files)
+- Content: Specific clarifying questions (2-5 questions)
+- Only when the request is genuinely ambiguous — if you can reasonably infer intent, generate code instead
+- Example: "I have a few questions before I can build this:\n1. What type of content will the dashboard display?\n2. Do you prefer a dark or light theme?"
+
+═══════════════════════════════════════════════════════════════════════════════
 FILE OPERATIONS
 ═══════════════════════════════════════════════════════════════════════════════
 

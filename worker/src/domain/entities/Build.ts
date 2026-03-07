@@ -55,6 +55,7 @@ export interface Build {
   autoFixAttempted?: boolean; // Whether automatic fix was attempted for this failed build
   autoFixSuccessful?: boolean; // Whether auto-fix successfully resolved the build error
   autoFixAttemptCount?: number; // Number of auto-fix attempts made (0 if none)
+  aiSummary?: string; // AI-generated summary of what was changed
   createdAt: Date;
   modifiedAt: Date;
 }

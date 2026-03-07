@@ -43,5 +43,8 @@ export enum BuildStepStatus {
   COMPLETED = 'COMPLETED',
 
   /** Build failed at any step */
-  FAILED = 'FAILED'
+  FAILED = 'FAILED',
+
+  /** AI needs clarification from the user before proceeding */
+  NEEDS_RESPONSE = 'NEEDS_RESPONSE'
 }

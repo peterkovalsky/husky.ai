@@ -205,6 +205,7 @@ export function setupContainer(): DIContainer {
     container.get<IQueueService>('queueService'),
     container.get<IInspoRepository>('inspoRepository'),
     container.get<IPublicMediaStorageService>('r2PublicMediaService'),
+    container.get<IChatMessageRepository>('chatMessageRepository'),
     config.ai.geminiApiKey ? container.get<IImageGenerationService>('imageGenerationService') : undefined
   ));
 
