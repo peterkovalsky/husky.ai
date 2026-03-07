@@ -36,7 +36,7 @@ export const NewProjectPage = () => {
   } = useMediaUpload({
     projectId: undefined,
     onError: (message) => setError(message),
-    maxFiles: 1,
+    maxFiles: 5,
   })
 
   // Set initial prompt from auth flow if provided

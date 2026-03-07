@@ -25,6 +25,7 @@ export class SupabaseBuildRepository implements IBuildRepository {
         status: request.status || BuildStepStatus.INITIALIZING,
         metrics: request.metrics || {},
         media_ids: request.mediaIds || [],
+        annotation_media_ids: request.annotationMediaIds || [],
         inspo_id: request.inspoId || null
       })
       .select()
@@ -168,6 +169,7 @@ export class SupabaseBuildRepository implements IBuildRepository {
     if (updates.status !== undefined) dbUpdates.status = updates.status;
     if (updates.metrics !== undefined) dbUpdates.metrics = updates.metrics;
     if (updates.mediaIds !== undefined) dbUpdates.media_ids = updates.mediaIds;
+    if (updates.annotationMediaIds !== undefined) dbUpdates.annotation_media_ids = updates.annotationMediaIds;
     if (updates.inspoId !== undefined) dbUpdates.inspo_id = updates.inspoId;
     if (updates.errorMessage !== undefined) dbUpdates.error_message = updates.errorMessage;
     if (updates.errorOutput !== undefined) dbUpdates.error_output = updates.errorOutput;
@@ -287,6 +289,7 @@ export class SupabaseBuildRepository implements IBuildRepository {
       status: data.status,
       metrics: data.metrics || {},
       mediaIds: data.media_ids || [],
+      annotationMediaIds: data.annotation_media_ids || [],
       inspoId: data.inspo_id || undefined,
       errorMessage: data.error_message,
       errorOutput: data.error_output,

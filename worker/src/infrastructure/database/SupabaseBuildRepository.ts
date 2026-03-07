@@ -287,6 +287,7 @@ export class SupabaseBuildRepository implements IBuildRepository {
       status: data.status,
       metrics: data.metrics || {},
       mediaIds: data.media_ids || [],
+      annotationMediaIds: data.annotation_media_ids || [],
       inspoId: data.inspo_id || undefined,
       errorMessage: data.error_message,
       errorOutput: data.error_output,

@@ -53,7 +53,7 @@ export const NewProjectStarter = ({ projectId, onBuildComplete }: NewProjectStar
   } = useMediaUpload({
     projectId,
     onError: (message) => setError(message),
-    maxFiles: 1,
+    maxFiles: 5,
   })
 
   const handleSubmit = async (e: React.FormEvent) => {

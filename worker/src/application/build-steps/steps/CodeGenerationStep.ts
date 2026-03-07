@@ -114,6 +114,37 @@ export class CodeGenerationStep implements IBuildStep {
         }
       }
 
+      // 3c. Separate annotation URLs from regular media URLs
+      let annotationUrls: string[] = [];
+      let regularMediaUrls = publicMediaUrls;
+
+      if (context.annotationMediaIds && context.annotationMediaIds.length > 0 && context.mediaIds && context.mediaIds.length > 0) {
+        const annotationIdSet = new Set(context.annotationMediaIds);
+        const medias = await this.mediaRepository.findByIds(context.mediaIds);
+
+        annotationUrls = [];
+        regularMediaUrls = [];
+
+        // Map each public URL back to its media ID to determine if it's an annotation
+        for (let i = 0; i < medias.length; i++) {
+          const publicUrl = publicMediaUrls[build?.inspoId ? i + 1 : i]; // Offset by 1 if inspo image was prepended
+          if (publicUrl) {
+            if (annotationIdSet.has(medias[i].id)) {
+              annotationUrls.push(publicUrl);
+            } else {
+              regularMediaUrls.push(publicUrl);
+            }
+          }
+        }
+
+        // Re-add inspo URL if present (it's always a regular URL)
+        if (build?.inspoId && publicMediaUrls.length > 0) {
+          regularMediaUrls = [publicMediaUrls[0], ...regularMediaUrls];
+        }
+
+        console.log(`[${this.stepName}] Annotation URLs: ${annotationUrls.length}, Regular media URLs: ${regularMediaUrls.length}`);
+      }
+
       // 4. Determine which AI model to use
       const config = loadAppConfig();
       const hasSuccessfulBuilds = await this.buildRepository.findLatestSuccessfulByProjectId(context.projectId);
@@ -137,13 +168,22 @@ export class CodeGenerationStep implements IBuildStep {
         throw new Error(`User prompt not found in context for build ${context.buildId}`);
       }
 
+      let enhancedPrompt = prompt;
+      if (annotationUrls.length > 0) {
+        enhancedPrompt = `${prompt}
+
+ANNOTATED SCREENSHOT OF CURRENT APP:
+The user has drawn annotations (arrows, circles, highlights, text labels) on a screenshot of their current app to indicate specific areas they want changed. The annotated screenshot${annotationUrls.length > 1 ? 's are' : ' is'} included in the attached images. Pay close attention to the annotations - they show exactly what the user wants modified.`;
+      }
+
       console.log(`[${this.stepName}] [PARALLEL] Running AI generation...`);
       const aiStartTime = Date.now();
       const aiResponse = await this.aiService.generateResponse(
-        prompt,
+        enhancedPrompt,
         context.buildId,
         selectedModel,
-        publicMediaUrls
+        regularMediaUrls,
+        annotationUrls.length > 0 ? annotationUrls : undefined
       );
       const aiGenerationTimeMs = Date.now() - aiStartTime;
       console.log(`[${this.stepName}] [PARALLEL] AI generation completed in ${aiGenerationTimeMs}ms (Model: ${aiResponse.model})`);

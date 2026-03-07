@@ -7,6 +7,7 @@ export interface AttachedImage {
   uploadStatus: 'pending' | 'uploading' | 'ready' | 'failed'
   mediaId?: string
   error?: string
+  isAnnotation?: boolean
 }
 
 interface ImagePreviewProps {

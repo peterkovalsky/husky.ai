@@ -38,7 +38,7 @@ export const useMediaUpload = ({ projectId, onError, maxFiles = 1 }: UseMediaUpl
     return null
   }
 
-  const uploadFile = async (file: File) => {
+  const uploadFile = async (file: File, isAnnotation: boolean = false) => {
     const fileId = Date.now().toString()
     const preview = URL.createObjectURL(file)
 
@@ -47,7 +47,8 @@ export const useMediaUpload = ({ projectId, onError, maxFiles = 1 }: UseMediaUpl
       id: fileId,
       file,
       preview,
-      uploadStatus: 'uploading'
+      uploadStatus: 'uploading',
+      isAnnotation
     }
     setAttachedImages(prev => [...prev, newImage])
 
@@ -90,28 +91,32 @@ export const useMediaUpload = ({ projectId, onError, maxFiles = 1 }: UseMediaUpl
     }
   }
 
-  const handleFileSelect = async (files: FileList | null) => {
+  const handleFileSelect = async (files: FileList | null, options?: { isAnnotation?: boolean }) => {
     if (!files || files.length === 0) return
 
-    // Limit to maxFiles per request
-    if (files.length > maxFiles) {
-      onError?.(`Only ${maxFiles} file${maxFiles > 1 ? 's' : ''} can be uploaded per request`)
+    const remainingSlots = maxFiles - attachedImages.length
+    if (remainingSlots <= 0) {
+      onError?.(`Maximum ${maxFiles} file${maxFiles > 1 ? 's' : ''} allowed`)
       return
     }
 
-    // Check if there are already attached files
-    if (attachedImages.length > 0) {
-      onError?.('Please remove the existing file before uploading a new one')
-      return
+    // Limit files to remaining slots
+    const filesToUpload = Array.from(files).slice(0, remainingSlots)
+    if (files.length > remainingSlots) {
+      onError?.(`Only ${remainingSlots} more file${remainingSlots > 1 ? 's' : ''} can be added (max ${maxFiles})`)
     }
 
-    const file = files[0]
-    const error = validateFile(file)
-    if (error) {
-      onError?.(error)
-      return
+    // Validate all files first
+    for (const file of filesToUpload) {
+      const error = validateFile(file)
+      if (error) {
+        onError?.(error)
+        return
+      }
     }
-    await uploadFile(file)
+
+    // Upload all valid files
+    await Promise.all(filesToUpload.map(file => uploadFile(file, options?.isAnnotation ?? false)))
   }
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -167,6 +172,12 @@ export const useMediaUpload = ({ projectId, onError, maxFiles = 1 }: UseMediaUpl
       .map(img => img.mediaId!)
   }
 
+  const getAnnotationMediaIds = (): string[] => {
+    return attachedImages
+      .filter(img => img.uploadStatus === 'ready' && img.mediaId && img.isAnnotation)
+      .map(img => img.mediaId!)
+  }
+
   const clearFiles = (revokeUrls: boolean = true) => {
     if (revokeUrls) {
       attachedImages.forEach(img => URL.revokeObjectURL(img.preview))
@@ -198,6 +209,7 @@ export const useMediaUpload = ({ projectId, onError, maxFiles = 1 }: UseMediaUpl
     handleDrop,
     removeFile,
     getMediaIds,
+    getAnnotationMediaIds,
     clearFiles,
     hasUploadingFiles,
     hasFailedFiles,

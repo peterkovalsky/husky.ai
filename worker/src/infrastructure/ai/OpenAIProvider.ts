@@ -154,9 +154,13 @@ IMPORTANT: When the request mentions uploaded images or videos, use the EXACT UR
 
     const content: Array<{ type: string; text?: string; image_url?: { url: string }; input_video?: { url: string } }> = [];
 
-    // Add media first if provided
-    if (request.mediaUrls && request.mediaUrls.length > 0) {
-      request.mediaUrls.forEach(url => {
+    // Add media first if provided (both regular and annotation as visual attachments)
+    const allVisualUrls = [
+      ...(request.mediaUrls || []),
+      ...(request.annotationMediaUrls || [])
+    ];
+    if (allVisualUrls.length > 0) {
+      allVisualUrls.forEach(url => {
         const isVideo = this.isVideoUrl(url);
         if (isVideo) {
           content.push({

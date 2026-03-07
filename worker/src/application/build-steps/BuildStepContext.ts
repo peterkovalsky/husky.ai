@@ -15,6 +15,7 @@ export class BuildStepContext {
   fileTree?: FileTree;
   version?: number;
   mediaIds?: string[];
+  annotationMediaIds?: string[];
   userPrompt?: string;
 
   // Performance metrics (accumulated across steps)

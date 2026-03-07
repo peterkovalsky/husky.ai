@@ -95,13 +95,14 @@ export const ChatWidget = ({
     handleDrop,
     removeFile,
     getMediaIds,
+    getAnnotationMediaIds,
     clearFiles,
     hasUploadingFiles,
     hasFailedFiles,
   } = useMediaUpload({
     projectId: activeProjectId,
     onError: (message) => addSystemMessage(message, 'error'),
-    maxFiles: 1,
+    maxFiles: 5,
   })
 
   // Listen for annotation completion event from ProjectPage
@@ -112,7 +113,7 @@ export const ChatWidget = ({
         // Create a FileList-like object from the annotation file
         const dt = new DataTransfer()
         dt.items.add(file)
-        handleFileSelect(dt.files)
+        handleFileSelect(dt.files, { isAnnotation: true })
       }
     }
 
@@ -291,6 +292,7 @@ export const ChatWidget = ({
 
     // Get mediaIds from ready images
     const mediaIds = getMediaIds()
+    const annotationMediaIds = getAnnotationMediaIds()
 
     // Create media URLs from attached images for immediate display
     const localMediaUrls: ChatMessageMedia[] = attachedImages
@@ -318,6 +320,7 @@ export const ChatWidget = ({
 
     setMessages(prev => [...prev, userMessage])
     setCurrentPrompt('')
+    clearFiles(false)
     setIsSubmitting(true)
 
     try {
@@ -325,7 +328,13 @@ export const ChatWidget = ({
       const response = await ApiService.submitPrompt(
         userMessage.content,
         activeProjectId,
-        mediaIds.length > 0 ? mediaIds : undefined
+        mediaIds.length > 0 ? mediaIds : undefined,
+        undefined, // clarificationAnswers
+        undefined, // analysisId
+        undefined, // skippedClarification
+        undefined, // inspoId
+        undefined, // chatMessages
+        annotationMediaIds.length > 0 ? annotationMediaIds : undefined
       )
       console.log('[ChatWidget] Submit response:', response)
 
@@ -415,9 +424,6 @@ export const ChatWidget = ({
 
       pollCleanupRef.current = cleanup
 
-      // Clear attached images after successful submission
-      // Don't revoke URLs - they're used by the chat message until page refresh
-      clearFiles(false)
     } catch (error) {
       updateMessageStatus(messageId, 'failed')
       addSystemMessage(`❌ Failed to submit: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error')
