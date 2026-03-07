@@ -64,7 +64,7 @@ export interface Project {
 export interface Prompt {
   id: string;
   prompt: string;
-  status: 'QUEUED' | 'PROCESSING' | 'BUILDING' | 'READY' | 'COMPLETED' | 'FAILED';
+  status: 'QUEUED' | 'PROCESSING' | 'BUILDING' | 'READY' | 'COMPLETED' | 'FAILED' | 'NEEDS_RESPONSE';
   projectId: string;
   userId: string;
   createdAt: string;
@@ -124,7 +124,7 @@ export interface ProjectDetails {
   recentPrompts: {
     id: string;
     prompt: string;
-    status: 'QUEUED' | 'PROCESSING' | 'BUILDING' | 'READY' | 'COMPLETED' | 'FAILED';
+    status: 'QUEUED' | 'PROCESSING' | 'BUILDING' | 'READY' | 'COMPLETED' | 'FAILED' | 'NEEDS_RESPONSE';
     createdAt: string;
     modifiedAt: string;
   }[];

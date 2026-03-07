@@ -1,7 +1,7 @@
 import { Clock, Cpu, Hammer, Check, CheckCircle, XCircle, Loader2 } from 'lucide-react'
 
 interface LoadingSpinnerProps {
-  status?: 'QUEUED' | 'PROCESSING' | 'BUILDING' | 'READY' | 'COMPLETED' | 'FAILED';
+  status?: 'QUEUED' | 'PROCESSING' | 'BUILDING' | 'READY' | 'COMPLETED' | 'FAILED' | 'NEEDS_RESPONSE';
 }
 
 export function LoadingSpinner({ status = 'QUEUED' }: LoadingSpinnerProps) {
