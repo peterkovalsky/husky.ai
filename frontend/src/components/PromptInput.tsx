@@ -13,6 +13,7 @@ interface PromptInputProps {
   onFileSelect: (files: FileList | null) => void
   onRemoveFile: (fileId: string) => void
   attachedFiles?: AttachedImage[]
+  maxFiles?: number
   isSubmitting?: boolean
   isDisabled?: boolean
   placeholder?: string
@@ -35,6 +36,7 @@ export const PromptInput = ({
   onFileSelect,
   onRemoveFile,
   attachedFiles = [],
+  maxFiles = 5,
   isSubmitting = false,
   isDisabled = false,
   placeholder = 'Type your message...',
@@ -65,23 +67,23 @@ export const PromptInput = ({
   const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 
   const handlePaste = useCallback((e: React.ClipboardEvent) => {
-    if (isDisabled || isSubmitting || attachedFiles.length > 0) return
+    if (isDisabled || isSubmitting || attachedFiles.length >= maxFiles) return
 
     const items = e.clipboardData?.items
     if (!items) return
 
+    const dt = new DataTransfer()
     for (const item of items) {
       if (item.kind === 'file' && ALLOWED_IMAGE_TYPES.includes(item.type)) {
-        e.preventDefault()
         const file = item.getAsFile()
-        if (!file) continue
-        const dt = new DataTransfer()
-        dt.items.add(file)
-        onFileSelect(dt.files)
-        return
+        if (file) dt.items.add(file)
       }
     }
-  }, [isDisabled, isSubmitting, attachedFiles.length, onFileSelect])
+    if (dt.files.length > 0) {
+      e.preventDefault()
+      onFileSelect(dt.files)
+    }
+  }, [isDisabled, isSubmitting, attachedFiles.length, maxFiles, onFileSelect])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     // Command+Enter or Ctrl+Enter creates a new line
@@ -116,7 +118,7 @@ export const PromptInput = ({
     >
       {/* File Previews Grid */}
       {attachedFiles.length > 0 && (
-        <div className="mb-4 grid grid-cols-3 gap-3">
+        <div className="mb-4 flex gap-3">
           {attachedFiles.map((file) => (
             <ImagePreview key={file.id} file={file} onRemove={onRemoveFile} onPreview={onPreviewFile} />
           ))}
@@ -140,7 +142,12 @@ export const PromptInput = ({
           ref={fileInputRef}
           type="file"
           accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime,application/pdf"
-          onChange={(e) => onFileSelect(e.target.files)}
+          multiple
+          onChange={(e) => {
+            onFileSelect(e.target.files)
+            // Reset input so the same file can be re-selected
+            e.target.value = ''
+          }}
           className="hidden"
         />
 
@@ -194,7 +201,7 @@ export const PromptInput = ({
                 variant="light"
                 isIconOnly
                 onPress={handleFileButtonClick}
-                isDisabled={isDisabled || attachedFiles.length > 0 || isSubmitting}
+                isDisabled={isDisabled || attachedFiles.length >= maxFiles || isSubmitting}
                 title="Attach file (image, video, or PDF)"
                 type="button"
               >
@@ -221,7 +228,7 @@ export const PromptInput = ({
               type="submit"
               isIconOnly
               color="primary"
-              isDisabled={!value.trim() || isSubmitting || isDisabled}
+              isDisabled={!value.trim() || isSubmitting || isDisabled || attachedFiles.some(f => f.uploadStatus === 'uploading')}
               className="rounded-full"
               size="sm"
             >

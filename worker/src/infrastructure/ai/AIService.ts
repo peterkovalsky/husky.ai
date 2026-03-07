@@ -80,7 +80,8 @@ export class AIService implements IAIService {
     prompt: string,
     buildId: string,
     model: string,
-    mediaUrls?: string[]
+    mediaUrls?: string[],
+    annotationMediaUrls?: string[]
   ): Promise<AIResponse> {
     // Get build from database to access project info
     const build = await this.buildRepository.findById(buildId);
@@ -105,6 +106,7 @@ export class AIService implements IAIService {
           buildId,
           build,
           mediaUrls,
+          annotationMediaUrls,
           currentModel !== model // isFallback
         );
         return response;
@@ -139,6 +141,7 @@ export class AIService implements IAIService {
     buildId: string,
     build: { userId: string },
     mediaUrls?: string[],
+    annotationMediaUrls?: string[],
     isFallback: boolean = false
   ): Promise<AIResponse> {
     // Select provider based on model
@@ -152,6 +155,7 @@ export class AIService implements IAIService {
       systemPrompt: getSystemPrompt(),
       fileTreeContent: FileTreeFormatter.formatForPrompt(this.compactForPrompt(this.currentFileTree)),
       mediaUrls,
+      annotationMediaUrls,
       model,
       userId: build.userId,
       promptId: buildId, // Use buildId as promptId for AI logging

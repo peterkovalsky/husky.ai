@@ -94,6 +94,7 @@ export class ProcessJobUseCase {
 
     // Set initial data from build record
     context.mediaIds = build.mediaIds;
+    context.annotationMediaIds = build.annotationMediaIds;
     context.userPrompt = build.userPrompt;
     context.setStepData('userPrompt', build.userPrompt);
     context.setStepData('jobStartTime', Date.now());

@@ -59,7 +59,7 @@ export class GeminiProvider extends BaseAIProvider {
         });
         preCountedInputTokens = countResponse.totalTokens || 0;
         // Add rough estimate for images (258 tokens per image is Gemini's default)
-        const imageCount = request.mediaUrls?.length || 0;
+        const imageCount = (request.mediaUrls?.length || 0) + (request.annotationMediaUrls?.length || 0);
         if (imageCount > 0) {
           preCountedInputTokens += imageCount * 258;
         }
@@ -84,7 +84,7 @@ export class GeminiProvider extends BaseAIProvider {
             thinkingLevel: thinkingLevel
           },
           // Use high resolution for images when present
-          ...(request.mediaUrls && request.mediaUrls.length > 0 && {
+          ...((request.mediaUrls?.length || request.annotationMediaUrls?.length) && {
             mediaResolution: MediaResolution.MEDIA_RESOLUTION_HIGH
           })
         }
@@ -163,8 +163,13 @@ export class GeminiProvider extends BaseAIProvider {
     const contentParts: Array<{ text: string } | { fileData: { mimeType: string; fileUri: string } }> = [];
 
     // Add images first if provided (Gemini expects images before text)
-    if (request.mediaUrls && request.mediaUrls.length > 0) {
-      for (const url of request.mediaUrls) {
+    // Include both regular media and annotation screenshots as visual attachments
+    const allVisualUrls = [
+      ...(request.mediaUrls || []),
+      ...(request.annotationMediaUrls || [])
+    ];
+    if (allVisualUrls.length > 0) {
+      for (const url of allVisualUrls) {
         contentParts.push({
           fileData: {
             mimeType: this.getMimeTypeFromUrl(url),

@@ -13,7 +13,7 @@ export class PromptController {
 
   createPrompt = async (req: AuthRequest, res: Response) => {
     try {
-      const { prompt, projectId, mediaIds, clarificationAnswers, analysisId, skippedClarification, inspoId, chatMessages } = req.body;
+      const { prompt, projectId, mediaIds, annotationMediaIds, clarificationAnswers, analysisId, skippedClarification, inspoId, chatMessages } = req.body;
 
       console.log('[PromptController] Creating prompt - projectId:', projectId, 'prompt:', prompt?.substring(0, 50), 'mediaIds:', mediaIds);
       if (clarificationAnswers) {
@@ -34,7 +34,7 @@ export class PromptController {
       }
 
       const result = await this.createPromptUseCase.execute(
-        { prompt, projectId, mediaIds, clarificationAnswers, analysisId, skippedClarification, inspoId, chatMessages },
+        { prompt, projectId, mediaIds, annotationMediaIds, clarificationAnswers, analysisId, skippedClarification, inspoId, chatMessages },
         req.user
       );
 

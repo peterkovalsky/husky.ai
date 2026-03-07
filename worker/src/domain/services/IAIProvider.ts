@@ -9,8 +9,10 @@ export interface AIGenerationRequest {
   systemPrompt: string;
   /** Current file tree content formatted for the prompt */
   fileTreeContent: string;
-  /** Optional media URLs to include */
+  /** Optional media URLs to include (usable in generated code) */
   mediaUrls?: string[];
+  /** Optional annotation screenshot URLs (visual reference only, NOT for use in generated code) */
+  annotationMediaUrls?: string[];
   /** Model ID to use */
   model: string;
   /** User ID for logging */

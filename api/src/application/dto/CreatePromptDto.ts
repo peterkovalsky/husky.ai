@@ -23,6 +23,7 @@ export interface CreatePromptDto {
   prompt: string;
   projectId?: string;
   mediaIds?: string[];
+  annotationMediaIds?: string[];
   // Clarification fields (optional)
   clarificationAnswers?: ClarificationAnswer[];
   analysisId?: string;

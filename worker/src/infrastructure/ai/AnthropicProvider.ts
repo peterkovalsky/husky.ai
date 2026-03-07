@@ -119,15 +119,21 @@ ${request.mediaUrls.map((url, i) => `${i + 1}. ${url}`).join('\n')}
 IMPORTANT: When the request mentions uploaded images or videos, use the EXACT URLs listed above. DO NOT use stock photos or other URLs.`;
     }
 
-    // If no media, return just the text
-    if (!request.mediaUrls || request.mediaUrls.length === 0) {
+    // Combine all visual attachments: regular media + annotation screenshots
+    const allVisualUrls = [
+      ...(request.mediaUrls || []),
+      ...(request.annotationMediaUrls || [])
+    ];
+
+    // If no media at all, return just the text
+    if (allVisualUrls.length === 0) {
       return promptText;
     }
 
     // Build content array with media first, then text
     // Note: For URL sources, Anthropic auto-infers media_type - do not include it
     return [
-      ...request.mediaUrls.map(url => {
+      ...allVisualUrls.map(url => {
         const mediaType = this.getMediaTypeFromUrl(url);
         return {
           type: mediaType.type,

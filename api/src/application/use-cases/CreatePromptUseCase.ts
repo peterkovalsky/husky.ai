@@ -96,6 +96,7 @@ export class CreatePromptUseCase {
       userPrompt: enhancedPrompt,
       status: BuildStepStatus.INITIALIZING,
       mediaIds: dto.mediaIds || [],
+      annotationMediaIds: dto.annotationMediaIds || [],
       inspoId: dto.inspoId
     });
 
