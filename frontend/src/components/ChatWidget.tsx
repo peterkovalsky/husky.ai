@@ -18,11 +18,12 @@ const BACKEND_TYPE_TO_FRONTEND: Record<string, ChatMessage['type']> = {
   'SYSTEM_STATUS': 'system',
   'SYSTEM_ERROR': 'system',
   'BUILD_RESULT': 'system',
+  'AI_SUMMARY': 'ai-summary',
 }
 
 interface ChatMessage {
   id: string
-  type: 'user' | 'system' | 'ai-question' | 'user-answer' | 'inspo-selection'
+  type: 'user' | 'system' | 'ai-question' | 'ai-summary' | 'user-answer' | 'inspo-selection'
   content: string
   timestamp: Date
   status?: 'sending' | 'processing' | 'completed' | 'failed'
@@ -355,7 +356,6 @@ export const ChatWidget = ({
 
       updateMessageStatus(messageId, 'processing', jobIdToTrack)
 
-      addSystemMessage('🚀 Building your app update...')
       lastStatusRef.current = 'QUEUED'
       setCurrentLoadingStatus('QUEUED')
 
@@ -369,19 +369,50 @@ export const ChatWidget = ({
             setCurrentLoadingStatus(status.status)
           }
 
-          // Only show new status messages to avoid duplicates
+          // Track status transitions (loading indicator is handled by PromptInput)
           if (status.status !== lastStatusRef.current) {
-            if (status.status === 'PROCESSING') {
-              addSystemMessage('⚙️ Processing your changes...')
-            } else if (status.status === 'BUILDING') {
-              addSystemMessage('🔨 Building updated app...')
-            }
             lastStatusRef.current = status.status
+          }
+
+          if (status.status === 'NEEDS_RESPONSE' && status.aiQuestion) {
+            updateMessageStatus(messageId, 'completed')
+            setIsProcessing(false)
+            setCurrentLoadingStatus(null)
+
+            // Re-fetch conversation history to display the AI question
+            const fetchDetails = async () => {
+              try {
+                const details = await ApiService.getProjectDetails(activeProjectId!)
+                if (details.chatMessages && details.chatMessages.length > 0) {
+                  const historyMessages: ChatMessage[] = details.chatMessages.map((msg: APIChatMessage) => ({
+                    id: msg.id,
+                    type: BACKEND_TYPE_TO_FRONTEND[msg.type] || 'system',
+                    content: msg.content,
+                    timestamp: new Date(msg.createdAt),
+                    status: msg.status === 'completed' ? 'completed' : msg.status === 'failed' ? 'failed' : 'processing',
+                    metadata: {
+                      inspoThumbnail: msg.metadata?.inspoThumbnail,
+                      inspoName: msg.metadata?.inspoName,
+                      questionId: msg.questionId,
+                      isSkipped: msg.isSkipped,
+                    } as OnboardingMessageMetadata,
+                    mediaUrls: msg.mediaUrls,
+                  }))
+                  setConversationHistory(historyMessages)
+                }
+              } catch (err) {
+                console.error('Failed to refresh conversation history:', err)
+              }
+            }
+            fetchDetails()
+            return
           }
 
           if (status.status === 'READY' && status.previewUrl) {
             updateMessageStatus(messageId, 'completed')
-            addSystemMessage('✅ Your app has been updated! Preview refreshed.', 'success')
+            if (status.aiSummary) {
+              addSystemMessage(status.aiSummary)
+            }
             setIsProcessing(false)
             setCurrentLoadingStatus(null)
 
@@ -538,7 +569,7 @@ export const ChatWidget = ({
 
   // Render a single message based on its type
   const renderMessage = (message: ChatMessage | OnboardingChatMessage, showUndo?: boolean, onUndoClick?: () => void) => {
-    const isAiMessage = message.type === 'ai-question' || message.type === 'system'
+    const isAiMessage = message.type === 'ai-question' || message.type === 'ai-summary' || message.type === 'system'
     const isUserMessage = message.type === 'user' || message.type === 'user-answer'
     const isInspoSelection = message.type === 'inspo-selection'
 
@@ -751,10 +782,10 @@ export const ChatWidget = ({
                   return renderMessage(message, showUndoButton, () => setIsUndoModalOpen(true))
                 })}
 
-                {/* Display current session messages */}
-                {sessionUserMessages.map((message) => {
+                {/* Display current session messages in chronological order */}
+                {messages.map((message) => {
                   const isLastCompletedPrompt = message.id === lastCompletedId
-                  const showUndoButton = isLastCompletedPrompt && successfulBuildsCount >= 2 && !isProcessing && !isSubmitting
+                  const showUndoButton = message.type === 'user' && isLastCompletedPrompt && successfulBuildsCount >= 2 && !isProcessing && !isSubmitting
 
                   return renderMessage(message, showUndoButton, () => setIsUndoModalOpen(true))
                 })}

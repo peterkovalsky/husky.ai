@@ -7,6 +7,7 @@ export const ChatMessageType = {
   SYSTEM_STATUS: 'SYSTEM_STATUS',
   SYSTEM_ERROR: 'SYSTEM_ERROR',
   BUILD_RESULT: 'BUILD_RESULT',
+  AI_SUMMARY: 'AI_SUMMARY',
 } as const;
 export type ChatMessageType = typeof ChatMessageType[keyof typeof ChatMessageType];
 

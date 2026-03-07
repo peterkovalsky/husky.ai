@@ -70,8 +70,15 @@ export class CodeGenerationStep implements IBuildStep {
       // Get conversation context from previous builds (builds are now the source of truth)
       const previousBuilds = await this.buildRepository.findByProjectId(context.projectId);
       const conversation = previousBuilds
-        .filter((b) => b.id !== context.buildId && b.status === BuildStepStatus.COMPLETED) // Exclude current and failed builds
-        .map((b) => `User: ${b.userPrompt}`)
+        .filter((b) => b.id !== context.buildId && (b.status === BuildStepStatus.COMPLETED || b.status === BuildStepStatus.NEEDS_RESPONSE))
+        .map((b) => {
+          let entry = `User: ${b.userPrompt}`;
+          if (b.status === BuildStepStatus.NEEDS_RESPONSE && b.aiSummary) {
+            // aiSummary field is reused for question context in NEEDS_RESPONSE builds
+            entry += `\nAI: [Asked clarifying questions]`;
+          }
+          return entry;
+        })
         .join("\n\n");
 
       // 3. Upload media to public R2 bucket
@@ -187,6 +194,25 @@ The user has drawn annotations (arrows, circles, highlights, text labels) on a s
       );
       const aiGenerationTimeMs = Date.now() - aiStartTime;
       console.log(`[${this.stepName}] [PARALLEL] AI generation completed in ${aiGenerationTimeMs}ms (Model: ${aiResponse.model})`);
+
+      // 5b. Handle AI question (short-circuit) or summary
+      if (aiResponse.aiQuestion) {
+        context.setStepData('aiQuestion', aiResponse.aiQuestion);
+        console.log(`[${this.stepName}] AI returned clarifying questions - short-circuiting build`);
+
+        const duration = Date.now() - stepStartTime;
+        console.log(`[${this.stepName}] Completed (question mode) in ${duration}ms`);
+
+        return {
+          success: true,
+          metrics: { aiGenerationTimeMs }
+        };
+      }
+
+      if (aiResponse.aiSummary) {
+        context.setStepData('aiSummary', aiResponse.aiSummary);
+        console.log(`[${this.stepName}] AI summary: ${aiResponse.aiSummary.substring(0, 100)}...`);
+      }
 
       // 6. Parse and merge file tree
       console.log(`[${this.stepName}] Parsing AI response and merging file tree...`);

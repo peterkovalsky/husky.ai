@@ -169,7 +169,28 @@ export class AIService implements IAIService {
 
     // Process response and update file tree
     const responseData = JSON.parse(providerResponse.content);
-    if (responseData.changes) {
+
+    // Extract __AI_RESPONSE__.md if present
+    let aiSummary: string | undefined;
+    let aiQuestion: string | undefined;
+
+    if (responseData.changes && responseData.changes['__AI_RESPONSE__.md']) {
+      const aiResponseContent = responseData.changes['__AI_RESPONSE__.md'];
+      delete responseData.changes['__AI_RESPONSE__.md'];
+
+      // Determine mode: if other code files remain, it's a summary; if empty, it's a question
+      const hasCodeFiles = Object.keys(responseData.changes).length > 0;
+
+      if (hasCodeFiles) {
+        aiSummary = aiResponseContent;
+        console.log(`[AIService] Extracted AI summary: ${aiSummary?.substring(0, 100)}...`);
+      } else {
+        aiQuestion = aiResponseContent;
+        console.log(`[AIService] Extracted AI question (no code files): ${aiQuestion?.substring(0, 100)}...`);
+      }
+    }
+
+    if (responseData.changes && !aiQuestion) {
       this.currentFileTree = this.updateFileTree(responseData.changes);
       // Update response with merged file tree
       responseData.fileTree = this.currentFileTree;
@@ -183,7 +204,9 @@ export class AIService implements IAIService {
       content: JSON.stringify(responseData),
       rawContent: providerResponse.rawContent,
       model: providerResponse.model,
-      usage: providerResponse.usage
+      usage: providerResponse.usage,
+      aiSummary,
+      aiQuestion
     };
   }
 

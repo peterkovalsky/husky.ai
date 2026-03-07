@@ -1,8 +1,10 @@
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
 import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
+import { IChatMessageRepository } from '../../domain/repositories/IChatMessageRepository';
 import { IStorageService } from '../../domain/services/IStorageService';
 import { mapBuildStatusToFrontend } from '../../domain/utils/statusMapper';
 import { BuildStepStatus } from '../build-steps/IBuildStep';
+import { ChatMessageType } from '../../domain/entities/ChatMessage';
 
 export interface GetPromptStatusResponse {
   promptId: string;
@@ -13,13 +15,16 @@ export interface GetPromptStatusResponse {
   updatedAt: Date;
   previewUrl: string | null;
   prompt: string;
+  aiSummary?: string;
+  aiQuestion?: string;
 }
 
 export class GetPromptStatusUseCase {
   constructor(
     private projectRepository: IProjectRepository,
     private buildRepository: IBuildRepository,
-    private storageService: IStorageService
+    private storageService: IStorageService,
+    private chatMessageRepository: IChatMessageRepository
   ) {}
 
   async execute(buildId: string): Promise<GetPromptStatusResponse> {
@@ -54,6 +59,22 @@ export class GetPromptStatusUseCase {
       previewUrl = this.storageService.getPreviewUrl(build.projectId);
     }
 
+    // Include AI summary from build record (available on READY statuses)
+    let aiSummary: string | undefined;
+    if (previewReadyStatuses.includes(build.status) && build.aiSummary) {
+      aiSummary = build.aiSummary;
+    }
+
+    // Include AI question when build needs response
+    let aiQuestion: string | undefined;
+    if (build.status === BuildStepStatus.NEEDS_RESPONSE) {
+      const chatMessages = await this.chatMessageRepository.findByBuildId(buildId);
+      const questionMsg = chatMessages.find(m => m.type === ChatMessageType.AI_QUESTION);
+      if (questionMsg) {
+        aiQuestion = questionMsg.content;
+      }
+    }
+
     return {
       promptId: build.id,  // For backward compatibility
       jobId: build.id,
@@ -62,7 +83,9 @@ export class GetPromptStatusUseCase {
       createdAt: build.createdAt,
       updatedAt: build.modifiedAt,
       previewUrl,
-      prompt: build.userPrompt
+      prompt: build.userPrompt,
+      aiSummary,
+      aiQuestion
     };
   }
 }
