@@ -2,6 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Git Rules
+- **NEVER run `git push` unless the user explicitly asks to push.** Commits are fine, but pushing triggers deployments and must always be a deliberate user decision.
+
 ## Common Development Commands
 
 ### API (Backend) - `/api`
