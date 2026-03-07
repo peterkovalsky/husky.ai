@@ -72,6 +72,10 @@ export class ImageGenerationStep implements IBuildStep {
       // Replace markers in file tree
       this.replaceMarkers(fileTree, markerToUrl);
 
+      // Persist the updated file tree (with resolved URLs) to the database
+      // Without this, subsequent builds would see the markers again and regenerate images
+      await this.buildRepository.updateFileTree(context.buildId, fileTree);
+
       const duration = Date.now() - startTime;
       const generated = Object.values(markerToUrl).filter(url => !url.includes('placehold.co')).length;
       const fallbacks = markersToProcess.length - generated;
