@@ -106,6 +106,34 @@ export const ChatWidget = ({
     maxFiles: 5,
   })
 
+  // Convert API chat messages to frontend ChatMessage format
+  const mapApiMessages = (chatMessages: APIChatMessage[]): ChatMessage[] => {
+    return chatMessages.map((msg) => ({
+      id: msg.id,
+      type: BACKEND_TYPE_TO_FRONTEND[msg.type] || 'system',
+      content: msg.content,
+      timestamp: new Date(msg.createdAt),
+      status: msg.status === 'completed' ? 'completed' as const : msg.status === 'failed' ? 'failed' as const : 'processing' as const,
+      metadata: {
+        inspoThumbnail: msg.metadata?.inspoThumbnail,
+        inspoName: msg.metadata?.inspoName,
+        questionId: msg.questionId,
+        isSkipped: msg.isSkipped,
+      } as OnboardingMessageMetadata,
+      mediaUrls: msg.mediaUrls,
+    }))
+  }
+
+  // Re-fetch conversation history from DB and replace session messages
+  const refreshConversationHistory = async () => {
+    if (!activeProjectId) return
+    const details = await ApiService.getProjectDetails(activeProjectId)
+    if (details.chatMessages && details.chatMessages.length > 0) {
+      setConversationHistory(mapApiMessages(details.chatMessages))
+      setMessages([]) // Clear session messages since they're now in conversation history
+    }
+  }
+
   // Listen for annotation completion event from ProjectPage
   useEffect(() => {
     const handleAnnotationComplete = (event: CustomEvent) => {
@@ -187,23 +215,7 @@ export const ChatWidget = ({
 
         // Use chatMessages if available, otherwise fall back to prompts
         if (details.chatMessages && details.chatMessages.length > 0) {
-          // Convert API chat messages to frontend format
-          const historyMessages: ChatMessage[] = details.chatMessages.map((msg: APIChatMessage) => ({
-            id: msg.id,
-            type: BACKEND_TYPE_TO_FRONTEND[msg.type] || 'system',
-            content: msg.content,
-            timestamp: new Date(msg.createdAt),
-            status: msg.status === 'completed' ? 'completed' : msg.status === 'failed' ? 'failed' : 'processing',
-            metadata: {
-              inspoThumbnail: msg.metadata?.inspoThumbnail,
-              inspoName: msg.metadata?.inspoName,
-              questionId: msg.questionId,
-              isSkipped: msg.isSkipped,
-            } as OnboardingMessageMetadata,
-            mediaUrls: msg.mediaUrls,
-          }))
-
-          // Already sorted by conversation_round and message_order from backend
+          const historyMessages = mapApiMessages(details.chatMessages)
           setConversationHistory(historyMessages)
 
           // Find the last user prompt for undo modal
@@ -379,40 +391,14 @@ export const ChatWidget = ({
             setIsProcessing(false)
             setCurrentLoadingStatus(null)
 
-            // Re-fetch conversation history to display the AI question
-            const fetchDetails = async () => {
-              try {
-                const details = await ApiService.getProjectDetails(activeProjectId!)
-                if (details.chatMessages && details.chatMessages.length > 0) {
-                  const historyMessages: ChatMessage[] = details.chatMessages.map((msg: APIChatMessage) => ({
-                    id: msg.id,
-                    type: BACKEND_TYPE_TO_FRONTEND[msg.type] || 'system',
-                    content: msg.content,
-                    timestamp: new Date(msg.createdAt),
-                    status: msg.status === 'completed' ? 'completed' : msg.status === 'failed' ? 'failed' : 'processing',
-                    metadata: {
-                      inspoThumbnail: msg.metadata?.inspoThumbnail,
-                      inspoName: msg.metadata?.inspoName,
-                      questionId: msg.questionId,
-                      isSkipped: msg.isSkipped,
-                    } as OnboardingMessageMetadata,
-                    mediaUrls: msg.mediaUrls,
-                  }))
-                  setConversationHistory(historyMessages)
-                }
-              } catch (err) {
-                console.error('Failed to refresh conversation history:', err)
-              }
-            }
-            fetchDetails()
+            refreshConversationHistory().catch(err => {
+              console.error('Failed to refresh conversation history:', err)
+            })
             return
           }
 
           if (status.status === 'READY' && status.previewUrl) {
             updateMessageStatus(messageId, 'completed')
-            if (status.aiSummary) {
-              addSystemMessage(status.aiSummary)
-            }
             setIsProcessing(false)
             setCurrentLoadingStatus(null)
 
@@ -422,26 +408,36 @@ export const ChatWidget = ({
             // Update last prompt text for undo modal
             setLastPromptText(userMessage.content)
 
+            // Re-fetch conversation history to display persisted AI summary
+            refreshConversationHistory().catch(err => {
+              console.error('Failed to refresh conversation history after build:', err)
+            })
+
             // Cache-busting iframe reload
             setTimeout(() => {
               // Add timestamp to URL to force cache bypass
-              const cacheBustUrl = status.previewUrl?.includes('?') 
+              const cacheBustUrl = status.previewUrl?.includes('?')
                 ? `${status.previewUrl}&t=${Date.now()}`
                 : `${status.previewUrl}?t=${Date.now()}`
-              
+
               // Dispatch event with cache-busted URL
-              window.dispatchEvent(new CustomEvent('reloadPreview', { 
-                detail: { 
-                  previewUrl: cacheBustUrl, 
-                  forceReload: true 
-                } 
+              window.dispatchEvent(new CustomEvent('reloadPreview', {
+                detail: {
+                  previewUrl: cacheBustUrl,
+                  forceReload: true
+                }
               }))
             }, 500)
           } else if (status.status === 'FAILED' || status.errorMessage) {
             updateMessageStatus(messageId, 'failed')
-            addSystemMessage(`❌ Build failed: ${status.errorMessage || 'Unknown error'}`, 'error')
             setIsProcessing(false)
             setCurrentLoadingStatus(null)
+
+            // Re-fetch conversation history to display persisted error message
+            refreshConversationHistory().catch(() => {
+              // If re-fetch fails, fall back to ephemeral message
+              addSystemMessage(`Build failed: ${status.errorMessage || 'Unknown error'}`, 'error')
+            })
           }
         },
         (error) => {
