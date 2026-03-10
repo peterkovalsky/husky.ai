@@ -15,7 +15,7 @@
  * - Human readable
  */
 export class FencedBlockParser {
-  private static readonly FILE_PATTERN = /<<<FILE:(.+?)>>>\n([\s\S]*?)\n<<<END>>>/g;
+  private static readonly FILE_PATTERN = /<<<FILE:(.+?)>>>\n([\s\S]*?)\n?<<<END>>>/g;
   private static readonly DELETE_PATTERN = /<<<DELETE:(.+?)>>>/g;
 
   /**
