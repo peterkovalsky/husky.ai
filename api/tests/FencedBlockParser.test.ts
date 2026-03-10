@@ -387,5 +387,19 @@ content
       const result = FencedBlockParser.parse(input);
       expect(result['src\\components\\Button.tsx']).toBe('content');
     });
+
+    it('should handle <<<END>>> on same line as content (no trailing newline)', () => {
+      const input = `<<<FILE:__AI_RESPONSE__.md>>>
+Summary of changes.<<<END>>>
+
+<<<FILE:src/data/blog.ts>>>
+export const POSTS = [];
+<<<END>>>`;
+
+      const result = FencedBlockParser.parse(input);
+
+      expect(result['__AI_RESPONSE__.md']).toBe('Summary of changes.');
+      expect(result['src/data/blog.ts']).toBe('export const POSTS = [];');
+    });
   });
 });
