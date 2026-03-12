@@ -5,22 +5,24 @@ import { BuildStepContext } from '../BuildStepContext';
 import { IBuildRepository } from '../../../domain/repositories/IBuildRepository';
 
 /**
- * PreviewScriptInjectionStep: Injects screenshot helper into preview dist/index.html
+ * PreviewScriptInjectionStep: Injects helper scripts into preview dist/index.html
  *
  * Responsibilities:
  * - Read dist/index.html from the built preview
  * - Inject html2canvas CDN + postMessage listener script before </body>
+ * - Inject location tracking script that reports route/scroll to parent
  * - Write modified HTML back to disk
  *
  * This step runs AFTER PreviewBuildStep and BEFORE PreviewUploadStep.
- * The injected script enables the frontend to request screenshots from the
- * preview iframe via postMessage for the annotation feature.
+ * The injected scripts enable:
+ * 1. Screenshot capture for the annotation feature
+ * 2. Route/scroll tracking so the parent can restore position after rebuilds
  *
  * Security: The postMessage listener validates event.origin against known
  * frontend domains before responding.
  *
  * ProductionBuildStep later cleans dist/ and rebuilds from unmodified source,
- * so the injected script does NOT appear in production/published apps.
+ * so the injected scripts do NOT appear in production/published apps.
  */
 export class PreviewScriptInjectionStep implements IBuildStep {
   readonly stepName = 'Preview Script Injection';
@@ -34,7 +36,7 @@ export class PreviewScriptInjectionStep implements IBuildStep {
     const startTime = Date.now();
 
     try {
-      console.log(`[${this.stepName}] Injecting screenshot helper into preview build...`);
+      console.log(`[${this.stepName}] Injecting preview helper scripts...`);
 
       // Get app directory from previous step
       const appDirectory = context.getStepData<string>('appDirectory');
@@ -52,15 +54,17 @@ export class PreviewScriptInjectionStep implements IBuildStep {
 
       let html = fs.readFileSync(indexHtmlPath, 'utf-8');
 
-      // Build the injection script
-      const injectionScript = this.buildInjectionScript();
+      // Build the injection scripts
+      const screenshotScript = this.buildScreenshotScript();
+      const locationScript = this.buildLocationTrackingScript();
+      const injectionScripts = `${screenshotScript}\n${locationScript}`;
 
       // Inject before </body>
       if (html.includes('</body>')) {
-        html = html.replace('</body>', `${injectionScript}\n</body>`);
+        html = html.replace('</body>', `${injectionScripts}\n</body>`);
       } else {
         // Fallback: append at the end
-        html += `\n${injectionScript}`;
+        html += `\n${injectionScripts}`;
       }
 
       // Write back
@@ -90,7 +94,7 @@ export class PreviewScriptInjectionStep implements IBuildStep {
     }
   }
 
-  private buildInjectionScript(): string {
+  private buildScreenshotScript(): string {
     // Known frontend origins for postMessage validation
     const allowedOrigins = [
       'http://localhost:5173',
@@ -103,15 +107,25 @@ export class PreviewScriptInjectionStep implements IBuildStep {
     return `<script>
 (function() {
   var ALLOWED_ORIGINS = ${JSON.stringify(allowedOrigins)};
-  console.log('[HuskyScreenshot] Screenshot helper loaded. Listening for CAPTURE_SCREENSHOT from:', ALLOWED_ORIGINS);
+
+  function isAllowedOrigin(origin) {
+    if (ALLOWED_ORIGINS.indexOf(origin) !== -1) return true;
+    // Allow any localhost port for local development
+    if (origin.indexOf('http://localhost:') === 0) {
+      for (var i = 0; i < ALLOWED_ORIGINS.length; i++) {
+        if (ALLOWED_ORIGINS[i].indexOf('http://localhost:') === 0) return true;
+      }
+    }
+    return false;
+  }
 
   window.addEventListener('message', function(event) {
-    console.log('[HuskyScreenshot] Received postMessage:', event.data?.type, 'from origin:', event.origin);
-    if (ALLOWED_ORIGINS.indexOf(event.origin) === -1) {
+    // Check message type first to avoid noisy warnings for non-screenshot messages
+    if (!event.data || event.data.type !== 'CAPTURE_SCREENSHOT') return;
+    if (!isAllowedOrigin(event.origin)) {
       console.warn('[HuskyScreenshot] Origin not allowed:', event.origin);
       return;
     }
-    if (!event.data || event.data.type !== 'CAPTURE_SCREENSHOT') return;
     console.log('[HuskyScreenshot] Capture requested, loading html2canvas-pro...');
 
     if (typeof html2canvas === 'undefined') {
@@ -198,6 +212,106 @@ export class PreviewScriptInjectionStep implements IBuildStep {
       source.postMessage({ type: 'SCREENSHOT_RESULT', dataUrl: null, error: String(err) }, origin);
     });
   }
+})();
+</script>`;
+  }
+
+  private buildLocationTrackingScript(): string {
+    return `<script>
+(function() {
+  if (!window.parent || window.parent === window) return;
+
+  var lastPath = '';
+  var scrollTimer = null;
+
+  // Detect the app's base path from the initial URL (before React Router navigates).
+  // e.g. /projects/{uuid}/ → basePath = '/projects/{uuid}/'
+  var basePath = window.location.pathname;
+  if (basePath.charAt(basePath.length - 1) !== '/') basePath += '/';
+
+  function getCurrentPath() {
+    var fullPath = window.location.pathname;
+    // Strip base path to get app-relative route (e.g. '/about' instead of '/projects/{uuid}/about')
+    var appPath = fullPath;
+    if (fullPath.indexOf(basePath) === 0) {
+      appPath = '/' + fullPath.substring(basePath.length);
+    }
+    // Include hash but strip cache-busting query params
+    return appPath + window.location.hash;
+  }
+
+  function findScrollY() {
+    var winScroll = window.scrollY || window.pageYOffset || 0;
+    if (winScroll > 0) return winScroll;
+    var candidates = [document.documentElement, document.body, document.getElementById('root')];
+    var root = document.getElementById('root');
+    if (root) {
+      for (var i = 0; i < root.children.length; i++) candidates.push(root.children[i]);
+    }
+    for (var j = 0; j < candidates.length; j++) {
+      if (candidates[j] && candidates[j].scrollTop > 0) return candidates[j].scrollTop;
+    }
+    return 0;
+  }
+
+  function sendLocationUpdate() {
+    var path = getCurrentPath();
+    var scrollY = findScrollY();
+    console.log('[HuskyLocation] Sending update:', path, 'scrollY:', scrollY);
+    window.parent.postMessage({
+      type: 'HUSKY_LOCATION_UPDATE',
+      path: path,
+      scrollY: scrollY
+    }, '*');
+    lastPath = path;
+  }
+
+  // Monkey-patch pushState/replaceState to detect React Router navigations
+  var origPushState = history.pushState;
+  var origReplaceState = history.replaceState;
+  history.pushState = function() {
+    origPushState.apply(this, arguments);
+    sendLocationUpdate();
+  };
+  history.replaceState = function() {
+    origReplaceState.apply(this, arguments);
+    sendLocationUpdate();
+  };
+  window.addEventListener('popstate', function() { sendLocationUpdate(); });
+
+  // Throttled scroll reporting
+  window.addEventListener('scroll', function() {
+    clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(sendLocationUpdate, 200);
+  }, true);
+
+  // Listen for navigate command from parent
+  window.addEventListener('message', function(event) {
+    if (!event.data || event.data.type !== 'HUSKY_NAVIGATE') return;
+    var targetPath = event.data.path;
+    var targetScrollY = event.data.scrollY || 0;
+    console.log('[HuskyLocation] Navigate request:', targetPath, 'scrollY:', targetScrollY);
+    if (!targetPath || targetPath === '/' || targetPath === getCurrentPath()) {
+      // Just restore scroll if already on the right page
+      if (targetScrollY > 0) {
+        setTimeout(function() { window.scrollTo(0, targetScrollY); }, 100);
+      }
+      return;
+    }
+    // Prepend base path to get the full URL path for pushState
+    var fullPath = basePath + targetPath.replace(/^\\//, '');
+    console.log('[HuskyLocation] Navigating to:', fullPath);
+    // Navigate via pushState + popstate to trigger React Router
+    history.pushState({}, '', fullPath);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+    // Restore scroll after React Router renders
+    if (targetScrollY > 0) {
+      setTimeout(function() { window.scrollTo(0, targetScrollY); }, 200);
+    }
+  });
+
+  // Send initial location
+  sendLocationUpdate();
 })();
 </script>`;
   }

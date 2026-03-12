@@ -10,7 +10,11 @@ export default {
     const allowedOrigins = env.ALLOWED_ORIGINS.split(',').map((o) => o.trim());
 
     // Check the Origin header for cross-origin validation.
-    const origin = request.headers.get('Origin');
+    // For iframe navigation (GET), browsers send Referer instead of Origin,
+    // so fall back to extracting origin from Referer.
+    const originHeader = request.headers.get('Origin');
+    const referer = request.headers.get('Referer');
+    const origin = originHeader || (referer ? new URL(referer).origin : null);
     const selfOrigin = url.origin; // e.g. https://preview-dev.huskystudio.app
 
     // Allow when:
@@ -21,7 +25,9 @@ export default {
     const isAllowedOrigin =
       !origin ||
       origin === selfOrigin ||
-      allowedOrigins.some((allowed) => origin === allowed || allowed === '*');
+      allowedOrigins.some((allowed) => origin === allowed || allowed === '*') ||
+      // Allow any localhost port for local development
+      (origin.startsWith('http://localhost:') && allowedOrigins.some((a) => a.startsWith('http://localhost:')));
 
     if (!isAllowedOrigin) {
       return new Response('Forbidden: Invalid origin', { status: 403 });
@@ -74,12 +80,23 @@ export default {
     }
 
     // Build CSP frame-ancestors from allowed origins
-    const frameAncestors = allowedOrigins.join(' ');
+    // Replace specific localhost ports with a wildcard so any local dev port works
+    const frameAncestors = allowedOrigins
+      .filter((o) => !o.startsWith('http://localhost:'))
+      .concat('http://localhost:*')
+      .join(' ');
+
+    const contentType = getContentType(path);
+    // HTML files: always revalidate (ensures fresh CSP headers and latest build)
+    // Assets (JS/CSS/images): cache aggressively (filenames are hashed by Vite)
+    const cacheControl = contentType === 'text/html'
+      ? 'no-cache'
+      : 'public, max-age=31536000, immutable';
 
     return new Response(object.body, {
       headers: {
-        'Content-Type': getContentType(path),
-        'Cache-Control': 'public, max-age=3600',
+        'Content-Type': contentType,
+        'Cache-Control': cacheControl,
         // Only allow embedding from Husky app domains
         'Content-Security-Policy': `frame-ancestors ${frameAncestors}`,
         'X-Frame-Options': 'SAMEORIGIN', // Fallback for older browsers

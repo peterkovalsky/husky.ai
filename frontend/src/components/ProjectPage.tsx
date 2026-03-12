@@ -95,6 +95,8 @@ export const ProjectPage = () => {
   const [currentPreviewUrl, setCurrentPreviewUrl] = useState<string>('')
   // Track the current URL in a ref to avoid stale closures in onLoad/onError
   const currentPreviewUrlRef = useRef(currentPreviewUrl)
+  // Track the last known iframe route/scroll for restoring after rebuild
+  const lastIframeLocation = useRef<{ path: string; scrollY: number } | null>(null)
 
   // Sidebar state with localStorage persistence
   const [isSidebarLocked, setIsSidebarLocked] = useLocalStorage('husky_sidebar_locked', true)
@@ -120,6 +122,7 @@ export const ProjectPage = () => {
     setIframeLoaded(false)
     setCurrentPreviewUrl('')
     currentPreviewUrlRef.current = ''
+    lastIframeLocation.current = null
     setError(null)
   }, [project_id])
 
@@ -299,6 +302,21 @@ export const ProjectPage = () => {
       window.removeEventListener('reloadPreview', handleReloadPreview as EventListener)
     }
   }, []) // No dependencies - handler uses refs for current values
+
+  // Listen for location updates from the preview iframe
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (!event.data || event.data.type !== 'HUSKY_LOCATION_UPDATE') return
+      console.log('[ProjectPage] iframe location update:', event.data.path, 'scrollY:', event.data.scrollY)
+      lastIframeLocation.current = {
+        path: event.data.path,
+        scrollY: event.data.scrollY || 0,
+      }
+    }
+
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
+  }, [])
 
   // Note: Removed aggressive redirect logic that was causing users to be redirected
   // to home page after a build completed. The page now stays on ProjectPage and either:
@@ -660,6 +678,17 @@ export const ProjectPage = () => {
                 if (currentPreviewUrlRef.current) {
                   console.log('[ProjectPage] Setting iframeLoaded to true')
                   setIframeLoaded(true)
+
+                  // Restore previous route/scroll position after rebuild
+                  const saved = lastIframeLocation.current
+                  if (saved && saved.path && saved.path !== '/' && iframeRef.current?.contentWindow) {
+                    console.log('[ProjectPage] Restoring iframe location:', saved.path, 'scrollY:', saved.scrollY)
+                    iframeRef.current.contentWindow.postMessage({
+                      type: 'HUSKY_NAVIGATE',
+                      path: saved.path,
+                      scrollY: saved.scrollY,
+                    }, '*')
+                  }
                 }
               }}
               onError={() => {
