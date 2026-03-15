@@ -1,7 +1,8 @@
-import { GoogleGenAI, ThinkingLevel, MediaResolution } from "@google/genai";
+import { GoogleGenAI, ThinkingLevel, MediaResolution, createPartFromUri } from "@google/genai";
 import { BaseAIProvider } from './BaseAIProvider';
 import { AIGenerationRequest } from '../../domain/services/IAIProvider';
 import { IAILogRepository } from '../../domain/repositories/IAILogRepository';
+import type { Part } from "@google/genai";
 
 /**
  * Google Gemini API provider
@@ -40,8 +41,8 @@ export class GeminiProvider extends BaseAIProvider {
     _startTime: number
   ): Promise<{ rawContent: string; usage: { inputTokens: number; outputTokens: number } }> {
     try {
-      // Build content parts with images if provided
-      const contentParts = this.buildContentParts(request);
+      // Build content parts with images if provided (async for File API uploads)
+      const contentParts = await this.buildContentParts(request);
       const contents = [{ role: "user" as const, parts: contentParts }];
 
       // Pre-count input tokens before generation (required for thinking mode which doesn't return promptTokenCount)
@@ -157,10 +158,40 @@ export class GeminiProvider extends BaseAIProvider {
   }
 
   /**
-   * Build content parts array with images and text
+   * Upload a file to Gemini's File API from a public URL.
+   * Downloads the file and uploads it, returning a proper Gemini file URI.
    */
-  private buildContentParts(request: AIGenerationRequest): Array<{ text: string } | { fileData: { mimeType: string; fileUri: string } }> {
-    const contentParts: Array<{ text: string } | { fileData: { mimeType: string; fileUri: string } }> = [];
+  private async uploadToGeminiFileAPI(url: string): Promise<{ uri: string; mimeType: string }> {
+    const mimeType = this.getMimeTypeFromUrl(url);
+
+    // Download the file from the public URL
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to download media from ${url}: ${response.status} ${response.statusText}`);
+    }
+    const buffer = await response.arrayBuffer();
+    const blob = new Blob([buffer], { type: mimeType });
+
+    // Upload to Gemini File API
+    const file = await this.client.files.upload({
+      file: blob,
+      config: { mimeType },
+    });
+
+    if (!file.uri) {
+      throw new Error(`Gemini File API upload succeeded but returned no URI for ${url}`);
+    }
+
+    console.log(`[GeminiProvider] Uploaded to File API: ${url} -> ${file.uri}`);
+    return { uri: file.uri, mimeType: file.mimeType || mimeType };
+  }
+
+  /**
+   * Build content parts array with images and text.
+   * Images are uploaded via Gemini's File API for reliable access.
+   */
+  private async buildContentParts(request: AIGenerationRequest): Promise<Part[]> {
+    const contentParts: Part[] = [];
 
     // Add images first if provided (Gemini expects images before text)
     // Include both regular media and annotation screenshots as visual attachments
@@ -169,13 +200,12 @@ export class GeminiProvider extends BaseAIProvider {
       ...(request.annotationMediaUrls || [])
     ];
     if (allVisualUrls.length > 0) {
-      for (const url of allVisualUrls) {
-        contentParts.push({
-          fileData: {
-            mimeType: this.getMimeTypeFromUrl(url),
-            fileUri: url
-          }
-        });
+      // Upload all images to Gemini File API in parallel
+      const uploadResults = await Promise.all(
+        allVisualUrls.map(url => this.uploadToGeminiFileAPI(url))
+      );
+      for (const uploaded of uploadResults) {
+        contentParts.push(createPartFromUri(uploaded.uri, uploaded.mimeType));
       }
     }
 

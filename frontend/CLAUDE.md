@@ -54,7 +54,7 @@ Required in `.env`:
 ```
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
-VITE_API_BASE_URL=http://localhost:3333   # Optional, defaults to localhost:3333
+VITE_API_BASE_URL=                        # Optional, defaults to '' (relative URLs, proxied by Vite in dev)
 VITE_PUBLIC_POSTHOG_KEY=your-posthog-key  # Optional, analytics
 VITE_PUBLIC_POSTHOG_HOST=https://app.posthog.com  # Optional
 ```
