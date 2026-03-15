@@ -97,6 +97,8 @@ export const ProjectPage = () => {
   const currentPreviewUrlRef = useRef(currentPreviewUrl)
   // Track the last known iframe route/scroll for restoring after rebuild
   const lastIframeLocation = useRef<{ path: string; scrollY: number } | null>(null)
+  // Guard: don't let the new iframe's initial location update overwrite saved position
+  const isIframeReloading = useRef(false)
 
   // Sidebar state with localStorage persistence
   const [isSidebarLocked, setIsSidebarLocked] = useLocalStorage('husky_sidebar_locked', true)
@@ -288,6 +290,7 @@ export const ProjectPage = () => {
 
       // Reset iframe loaded state - this will show loading overlay again
       setIframeLoaded(false)
+      isIframeReloading.current = true
 
       // Force reload by updating src with new cache-busting timestamp
       if (iframeRef.current && (previewUrl || currentPreviewUrlRef.current)) {
@@ -307,6 +310,8 @@ export const ProjectPage = () => {
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (!event.data || event.data.type !== 'HUSKY_LOCATION_UPDATE') return
+      // Don't let the new iframe's initial "/" overwrite the saved position during reload
+      if (isIframeReloading.current) return
       console.log('[ProjectPage] iframe location update:', event.data.path, 'scrollY:', event.data.scrollY)
       lastIframeLocation.current = {
         path: event.data.path,
@@ -689,6 +694,8 @@ export const ProjectPage = () => {
                       scrollY: saved.scrollY,
                     }, '*')
                   }
+                  // Allow location tracking to resume now that restoration is done
+                  isIframeReloading.current = false
                 }
               }}
               onError={() => {
