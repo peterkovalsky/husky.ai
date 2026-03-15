@@ -223,6 +223,7 @@ export class PreviewScriptInjectionStep implements IBuildStep {
 
   var lastPath = '';
   var scrollTimer = null;
+  var isNavigating = false;
 
   // Detect the app's base path from the initial URL (before React Router navigates).
   // e.g. /projects/{uuid}/ → basePath = '/projects/{uuid}/'
@@ -255,6 +256,7 @@ export class PreviewScriptInjectionStep implements IBuildStep {
   }
 
   function sendLocationUpdate() {
+    if (isNavigating) return;
     var path = getCurrentPath();
     var scrollY = findScrollY();
     console.log('[HuskyLocation] Sending update:', path, 'scrollY:', scrollY);
@@ -301,9 +303,14 @@ export class PreviewScriptInjectionStep implements IBuildStep {
     // Prepend base path to get the full URL path for pushState
     var fullPath = basePath + targetPath.replace(/^\\//, '');
     console.log('[HuskyLocation] Navigating to:', fullPath);
+    // Suppress duplicate updates from monkey-patched pushState + popstate
+    isNavigating = true;
     // Navigate via pushState + popstate to trigger React Router
     history.pushState({}, '', fullPath);
     window.dispatchEvent(new PopStateEvent('popstate'));
+    isNavigating = false;
+    // Send a single update after navigation completes
+    sendLocationUpdate();
     // Restore scroll after React Router renders
     if (targetScrollY > 0) {
       setTimeout(function() { window.scrollTo(0, targetScrollY); }, 200);

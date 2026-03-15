@@ -361,6 +361,7 @@ export const ProjectPage = () => {
             setCurrentPreviewUrl(cacheBustedUrl)
             currentPreviewUrlRef.current = cacheBustedUrl
             setIframeLoaded(false)
+            isIframeReloading.current = true
 
             // Force iframe reload
             if (iframeRef.current) {
@@ -702,6 +703,7 @@ export const ProjectPage = () => {
                 console.log('[ProjectPage] iframe onError fired, currentPreviewUrlRef:', currentPreviewUrlRef.current)
                 if (currentPreviewUrlRef.current) {
                   setIframeLoaded(true)
+                  isIframeReloading.current = false
                 }
               }}
             />
