@@ -57,7 +57,8 @@ export class PreviewScriptInjectionStep implements IBuildStep {
       // Build the injection scripts
       const screenshotScript = this.buildScreenshotScript();
       const locationScript = this.buildLocationTrackingScript();
-      const injectionScripts = `${screenshotScript}\n${locationScript}`;
+      const pageContextScript = this.buildPageContextScript();
+      const injectionScripts = `${screenshotScript}\n${locationScript}\n${pageContextScript}`;
 
       // Inject before </body>
       if (html.includes('</body>')) {
@@ -319,6 +320,78 @@ export class PreviewScriptInjectionStep implements IBuildStep {
 
   // Send initial location
   sendLocationUpdate();
+})();
+</script>`;
+  }
+
+  private buildPageContextScript(): string {
+    return `<script>
+(function() {
+  if (!window.parent || window.parent === window) return;
+
+  var debounceTimer = null;
+
+  // Detect the app's base path from the initial URL
+  var basePath = window.location.pathname;
+  if (basePath.charAt(basePath.length - 1) !== '/') basePath += '/';
+
+  function getCurrentPath() {
+    var fullPath = window.location.pathname;
+    var appPath = fullPath;
+    if (fullPath.indexOf(basePath) === 0) {
+      appPath = '/' + fullPath.substring(basePath.length);
+    }
+    return appPath + window.location.hash;
+  }
+
+  function getPageContext() {
+    var sections = [];
+    var els = document.querySelectorAll('h1, h2, h3, section, [data-section]');
+    for (var i = 0; i < els.length && sections.length < 10; i++) {
+      var text = (els[i].textContent || '').trim();
+      if (text && text.length < 100) {
+        sections.push(text);
+      }
+    }
+    return {
+      type: 'husky:pageContext',
+      path: getCurrentPath(),
+      title: document.title,
+      sections: sections
+    };
+  }
+
+  function send() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(function() {
+      window.parent.postMessage(getPageContext(), '*');
+    }, 100);
+  }
+
+  // Listen for route changes
+  window.addEventListener('hashchange', send);
+  window.addEventListener('popstate', send);
+
+  // Observe title changes
+  var titleEl = document.querySelector('title');
+  if (titleEl) {
+    new MutationObserver(send).observe(titleEl, { childList: true, subtree: true });
+  }
+
+  // Monkey-patch pushState/replaceState (may already be patched by location script, so be safe)
+  var origPush = history.pushState;
+  var origReplace = history.replaceState;
+  history.pushState = function() {
+    origPush.apply(this, arguments);
+    send();
+  };
+  history.replaceState = function() {
+    origReplace.apply(this, arguments);
+    send();
+  };
+
+  // Send initial context after app mounts
+  setTimeout(send, 500);
 })();
 </script>`;
   }

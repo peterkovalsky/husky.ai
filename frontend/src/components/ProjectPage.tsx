@@ -99,6 +99,8 @@ export const ProjectPage = () => {
   const lastIframeLocation = useRef<{ path: string; scrollY: number } | null>(null)
   // Guard: don't let the new iframe's initial location update overwrite saved position
   const isIframeReloading = useRef(false)
+  // Track current page context from preview iframe (path, title, sections)
+  const pageContextRef = useRef<{ path: string; title: string; sections: string[] } | null>(null)
 
   // Sidebar state with localStorage persistence
   const [isSidebarLocked, setIsSidebarLocked] = useLocalStorage('husky_sidebar_locked', true)
@@ -323,6 +325,21 @@ export const ProjectPage = () => {
     return () => window.removeEventListener('message', handleMessage)
   }, [])
 
+  // Listen for page context updates from the preview iframe
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (!event.data || event.data.type !== 'husky:pageContext') return
+      pageContextRef.current = {
+        path: event.data.path,
+        title: event.data.title,
+        sections: event.data.sections,
+      }
+    }
+
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
+  }, [])
+
   // Note: Removed aggressive redirect logic that was causing users to be redirected
   // to home page after a build completed. The page now stays on ProjectPage and either:
   // 1. Shows NewProjectStarter when there are no builds or all builds failed
@@ -534,6 +551,7 @@ export const ProjectPage = () => {
             onboardingMessages={onboardingMessages}
             buildJustCompleted={buildJustCompleted}
             onAnnotate={hasReadyPreview ? handleAnnotate : undefined}
+            pageContextRef={pageContextRef}
           />
         </div>
       )}
