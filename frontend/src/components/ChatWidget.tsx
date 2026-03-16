@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { ApiService, type JobStatus, type ChatMessage as APIChatMessage, type ChatMessageMedia } from '../services/api'
@@ -33,6 +33,12 @@ interface ChatMessage {
 }
 
 
+export interface PageContext {
+  path: string;
+  title: string;
+  sections: string[];
+}
+
 interface ChatWidgetProps {
   projectId?: string;
   projectName?: string;
@@ -45,6 +51,7 @@ interface ChatWidgetProps {
   onboardingMessages?: OnboardingChatMessage[];
   buildJustCompleted?: boolean;
   onAnnotate?: () => void;
+  pageContextRef?: RefObject<PageContext | null>;
 }
 
 export const ChatWidget = ({
@@ -57,6 +64,7 @@ export const ChatWidget = ({
   onboardingMessages = [],
   buildJustCompleted = false,
   onAnnotate,
+  pageContextRef,
 }: ChatWidgetProps = {}) => {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [conversationHistory, setConversationHistory] = useState<ChatMessage[]>([])
@@ -337,7 +345,10 @@ export const ChatWidget = ({
     setIsSubmitting(true)
 
     try {
-      console.log('[ChatWidget] Submitting prompt with mediaIds:', mediaIds)
+      // Capture current page context from preview iframe
+      const pageContext = pageContextRef?.current || undefined
+
+      console.log('[ChatWidget] Submitting prompt with mediaIds:', mediaIds, 'pageContext:', pageContext)
       const response = await ApiService.submitPrompt(
         userMessage.content,
         activeProjectId,
@@ -347,7 +358,8 @@ export const ChatWidget = ({
         undefined, // skippedClarification
         undefined, // inspoId
         undefined, // chatMessages
-        annotationMediaIds.length > 0 ? annotationMediaIds : undefined
+        annotationMediaIds.length > 0 ? annotationMediaIds : undefined,
+        pageContext
       )
       console.log('[ChatWidget] Submit response:', response)
 

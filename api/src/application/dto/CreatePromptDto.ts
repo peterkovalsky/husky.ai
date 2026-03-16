@@ -19,6 +19,12 @@ export interface ChatMessageInput {
   metadata?: ChatMessageMetadata;
 }
 
+export interface PageContext {
+  path: string;
+  title: string;
+  sections: string[];
+}
+
 export interface CreatePromptDto {
   prompt: string;
   projectId?: string;
@@ -32,6 +38,8 @@ export interface CreatePromptDto {
   inspoId?: string;
   // Chat messages for onboarding conversation history (optional)
   chatMessages?: ChatMessageInput[];
+  // Current page context from the app preview (optional)
+  pageContext?: PageContext;
 }
 
 export interface CreatePromptResponseDto {

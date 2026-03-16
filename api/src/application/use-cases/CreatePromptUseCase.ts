@@ -9,6 +9,7 @@ import { ClarificationAnswer } from '../dto/AnalyzePromptDto';
 import { User } from '../../domain/entities/User';
 import { BuildStepStatus } from '../build-steps/IBuildStep';
 import { ChatMessageSource } from '../../domain/entities/ChatMessage';
+import { PageContext } from '../dto/CreatePromptDto';
 
 export class CreatePromptUseCase {
   constructor(
@@ -77,12 +78,13 @@ export class CreatePromptUseCase {
       }
     }
 
-    // Enhance prompt with clarification data if provided
+    // Enhance prompt with clarification data and page context if provided
     const enhancedPrompt = this.buildEnhancedPrompt(
       dto.prompt,
       dto.clarificationAnswers,
       dto.skippedClarification,
-      !!dto.inspoId // hasInspoImage flag
+      !!dto.inspoId, // hasInspoImage flag
+      dto.pageContext
     );
 
     // Get the next version number for chat_messages (build starts at 0, version assigned later)
@@ -175,7 +177,8 @@ export class CreatePromptUseCase {
     originalPrompt: string,
     clarificationAnswers?: ClarificationAnswer[],
     skippedClarification?: boolean,
-    hasInspoImage?: boolean
+    hasInspoImage?: boolean,
+    pageContext?: PageContext
   ): string {
     let prompt = originalPrompt;
 
@@ -234,6 +237,21 @@ CRITICAL - DO NOT copy from the inspiration:
 - Any business-specific information
 
 The inspiration is purely for VISUAL STYLE guidance. All content must come from the user's prompt describing THEIR business/project.`;
+    }
+
+    // Add page context if the user was viewing a specific page in the app preview
+    if (pageContext && pageContext.path) {
+      const sections = pageContext.sections && pageContext.sections.length > 0
+        ? `\n- Visible Sections: ${pageContext.sections.join(', ')}`
+        : '';
+      const title = pageContext.title ? `\n- Page Title: ${pageContext.title}` : '';
+
+      prompt = `${prompt}
+
+CURRENT PAGE CONTEXT (the user is viewing this page in the app preview):
+- Path: ${pageContext.path}${title}${sections}
+
+Use this context to understand which part of the app the user is likely referring to. Focus your changes on the relevant page/components.`;
     }
 
     return prompt;

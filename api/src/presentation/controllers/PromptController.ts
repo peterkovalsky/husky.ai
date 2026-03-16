@@ -13,9 +13,9 @@ export class PromptController {
 
   createPrompt = async (req: AuthRequest, res: Response) => {
     try {
-      const { prompt, projectId, mediaIds, annotationMediaIds, clarificationAnswers, analysisId, skippedClarification, inspoId, chatMessages } = req.body;
+      const { prompt, projectId, mediaIds, annotationMediaIds, clarificationAnswers, analysisId, skippedClarification, inspoId, chatMessages, pageContext } = req.body;
 
-      console.log('[PromptController] Creating prompt - projectId:', projectId, 'prompt:', prompt?.substring(0, 50), 'mediaIds:', mediaIds);
+      console.log('[PromptController] Creating prompt - projectId:', projectId, 'prompt:', prompt?.substring(0, 50), 'mediaIds:', mediaIds, 'pageContext:', pageContext ? pageContext.path : 'none');
       if (clarificationAnswers) {
         console.log('[PromptController] With clarification answers:', clarificationAnswers.length);
       }
@@ -34,7 +34,7 @@ export class PromptController {
       }
 
       const result = await this.createPromptUseCase.execute(
-        { prompt, projectId, mediaIds, annotationMediaIds, clarificationAnswers, analysisId, skippedClarification, inspoId, chatMessages },
+        { prompt, projectId, mediaIds, annotationMediaIds, clarificationAnswers, analysisId, skippedClarification, inspoId, chatMessages, pageContext },
         req.user
       );
 

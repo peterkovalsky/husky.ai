@@ -416,7 +416,8 @@ export class ApiService {
     skippedClarification?: boolean,
     inspoId?: string,
     chatMessages?: ChatMessageInput[],
-    annotationMediaIds?: string[]
+    annotationMediaIds?: string[],
+    pageContext?: { path: string; title: string; sections: string[] }
   ): Promise<PromptResponse> {
     return this.request<PromptResponse>('/api/prompt', {
       method: 'POST',
@@ -429,7 +430,8 @@ export class ApiService {
         skippedClarification,
         inspoId,
         chatMessages,
-        annotationMediaIds
+        annotationMediaIds,
+        pageContext
       }),
     });
   }
