@@ -46,7 +46,7 @@ export default {
         console.log(`[Worker] Looking up validation token in KV: ${kvKey}`);
 
         // Get the validation token from KV
-        const validationToken = await env.SUBDOMAIN_MAPPING.get(kvKey);
+        const validationToken = await env.SUBDOMAIN_MAPPING.get(kvKey, { cacheTtl: 300 });
 
         if (validationToken) {
           console.log(`[Worker] Found validation token, returning for HTTP validation`);
@@ -174,4 +174,4 @@ export default {
       return new Response(`Internal Server Error: ${error.message}`, { status: 500 });
     }
   },
-};
+};      
