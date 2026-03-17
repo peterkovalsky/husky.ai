@@ -65,6 +65,7 @@ export const PromptInput = ({
   }
 
   const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+  const LARGE_TEXT_THRESHOLD = 1000
 
   const handlePaste = useCallback((e: React.ClipboardEvent) => {
     if (isDisabled || isSubmitting || attachedFiles.length >= maxFiles) return
@@ -72,6 +73,7 @@ export const PromptInput = ({
     const items = e.clipboardData?.items
     if (!items) return
 
+    // Check for file pastes (images)
     const dt = new DataTransfer()
     for (const item of items) {
       if (item.kind === 'file' && ALLOWED_IMAGE_TYPES.includes(item.type)) {
@@ -82,6 +84,17 @@ export const PromptInput = ({
     if (dt.files.length > 0) {
       e.preventDefault()
       onFileSelect(dt.files)
+      return
+    }
+
+    // Check for large text pastes - auto-convert to .txt file attachment
+    const text = e.clipboardData?.getData('text/plain')
+    if (text && text.length > LARGE_TEXT_THRESHOLD) {
+      e.preventDefault()
+      const file = new File([text], 'pasted-text.txt', { type: 'text/plain' })
+      const dt2 = new DataTransfer()
+      dt2.items.add(file)
+      onFileSelect(dt2.files)
     }
   }, [isDisabled, isSubmitting, attachedFiles.length, maxFiles, onFileSelect])
 
@@ -141,7 +154,7 @@ export const PromptInput = ({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime,application/pdf"
+          accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime,application/pdf,text/plain"
           multiple
           onChange={(e) => {
             onFileSelect(e.target.files)

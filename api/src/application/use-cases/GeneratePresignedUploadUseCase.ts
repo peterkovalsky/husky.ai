@@ -27,8 +27,9 @@ export class GeneratePresignedUploadUseCase {
       'video/mp4',
       'video/webm',
       'video/quicktime', // .mov
-      // PDFs
+      // Documents
       'application/pdf',
+      'text/plain',
     ];
     if (!allowedMimeTypes.includes(dto.mimeType)) {
       throw new Error(`Unsupported mime type: ${dto.mimeType}. Allowed types: ${allowedMimeTypes.join(', ')}`);
@@ -97,7 +98,7 @@ export class GeneratePresignedUploadUseCase {
     if (mimeType.startsWith('video/')) {
       return 'video';
     }
-    if (mimeType === 'application/pdf') {
+    if (mimeType === 'application/pdf' || mimeType === 'text/plain') {
       return 'doc';
     }
     return 'doc'; // Default fallback
@@ -116,6 +117,7 @@ export class GeneratePresignedUploadUseCase {
       'video/quicktime': '.mov',
       // Documents
       'application/pdf': '.pdf',
+      'text/plain': '.txt',
     };
     return mimeToExt[mimeType] || '';
   }

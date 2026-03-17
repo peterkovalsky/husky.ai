@@ -78,7 +78,7 @@ export const ChatWidget = ({
   const [successfulBuildsCount, setSuccessfulBuildsCount] = useState(0)
   const [lastPromptText, setLastPromptText] = useState<string | null>(null)
   const [showInsufficientCredits, setShowInsufficientCredits] = useState(false)
-  const [lightboxMedia, setLightboxMedia] = useState<{ url: string; type: 'image' | 'video' | 'doc' } | null>(null)
+  const [lightboxMedia, setLightboxMedia] = useState<{ url: string; type: 'image' | 'video' | 'doc'; textContent?: string } | null>(null)
   const { currentProject } = useProject()
   const navigate = useNavigate()
 
@@ -663,7 +663,16 @@ export const ChatWidget = ({
                     <button
                       key={media.id}
                       className="relative w-16 h-16 rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
-                      onClick={() => setLightboxMedia({ url: media.fullUrl, type: media.type })}
+                      onClick={() => {
+                        if (media.mimeType === 'text/plain') {
+                          fetch(media.fullUrl)
+                            .then(res => res.text())
+                            .then(textContent => setLightboxMedia({ url: media.fullUrl, type: 'doc', textContent }))
+                            .catch(() => setLightboxMedia({ url: media.fullUrl, type: media.type }))
+                        } else {
+                          setLightboxMedia({ url: media.fullUrl, type: media.type })
+                        }
+                      }}
                     >
                       {media.type === 'video' ? (
                         <video
@@ -674,8 +683,11 @@ export const ChatWidget = ({
                       ) : media.type === 'image' ? (
                         <Image src={media.thumbnailUrl} className="w-full h-full object-cover" removeWrapper />
                       ) : (
-                        <div className="w-full h-full bg-default-200 flex items-center justify-center">
-                          <FileText className="h-6 w-6" />
+                        <div className="w-full h-full flex items-center justify-center bg-white/10 rounded-lg">
+                          <div className="text-center px-1">
+                            <FileText className="h-6 w-6 mx-auto mb-0.5 text-white/60" />
+                            <p className="text-[8px] text-white/60 truncate max-w-full">TXT</p>
+                          </div>
                         </div>
                       )}
                     </button>
@@ -859,8 +871,15 @@ export const ChatWidget = ({
             loadingStatus={currentLoadingStatus}
             onAnnotate={onAnnotate}
             onPreviewFile={(file) => {
-              const type = file.file.type.startsWith('video/') ? 'video' : 'image' as const
-              setLightboxMedia({ url: file.preview, type })
+              if (file.file.type === 'text/plain') {
+                // Read text file content for preview
+                file.file.text().then(textContent => {
+                  setLightboxMedia({ url: file.preview, type: 'doc', textContent })
+                })
+              } else {
+                const type = file.file.type.startsWith('video/') ? 'video' : 'image' as const
+                setLightboxMedia({ url: file.preview, type })
+              }
             }}
           />
         </div>
@@ -960,6 +979,10 @@ export const ChatWidget = ({
                 className="max-w-full max-h-[90vh] object-contain"
                 removeWrapper
               />
+            ) : lightboxMedia.textContent ? (
+              <div className="bg-content1 rounded-lg p-6 max-w-[80vw] max-h-[80vh] overflow-auto">
+                <pre className="text-sm whitespace-pre-wrap break-words font-mono">{lightboxMedia.textContent}</pre>
+              </div>
             ) : null}
           </div>
         </div>,
