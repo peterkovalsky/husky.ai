@@ -86,27 +86,49 @@ export class CodeGenerationStep implements IBuildStep {
       const publicUploadStartTime = Date.now();
       let publicR2UploadTimeMs = 0;
 
+      // Track text file content to append to prompt
+      let textFileContents: { fileName: string; content: string }[] = [];
+
       if (context.mediaIds && context.mediaIds.length > 0) {
-        console.log(`[${this.stepName}] Uploading ${context.mediaIds.length} media files to public R2...`);
+        console.log(`[${this.stepName}] Processing ${context.mediaIds.length} media files...`);
         const medias = await this.mediaRepository.findByIds(context.mediaIds);
 
-        // Upload each media file in parallel
-        const uploadPromises = medias.map(async (media) => {
-          const { publicKey, publicUrl } = await this.publicMediaStorageService.copyFromS3ToR2(
-            media.s3Key,
-            media.s3Bucket,
-            context.projectId
-          );
+        // Separate text files from other media
+        const textMedias = medias.filter(m => m.mimeType === 'text/plain');
+        const nonTextMedias = medias.filter(m => m.mimeType !== 'text/plain');
 
-          // Update media record with public R2 info
-          await this.mediaRepository.updatePublicS3Info(media.id, publicKey, process.env.CLOUDFLARE_R2_PUBLIC_MEDIA_BUCKET!);
+        // Download text file contents (these go into the prompt, not as media URLs)
+        if (textMedias.length > 0) {
+          console.log(`[${this.stepName}] Downloading ${textMedias.length} text file(s) for prompt injection...`);
+          const textPromises = textMedias.map(async (media) => {
+            const buffer = await this.storageService.downloadFile(media.s3Key, media.s3Bucket);
+            const fileName = media.s3Key.split('/').pop() || 'pasted-text.txt';
+            return { fileName, content: buffer.toString('utf-8') };
+          });
+          textFileContents = await Promise.all(textPromises);
+          console.log(`[${this.stepName}] Downloaded ${textFileContents.length} text file(s)`);
+        }
 
-          return publicUrl;
-        });
+        // Upload non-text media files to public R2 in parallel
+        if (nonTextMedias.length > 0) {
+          console.log(`[${this.stepName}] Uploading ${nonTextMedias.length} media files to public R2...`);
+          const uploadPromises = nonTextMedias.map(async (media) => {
+            const { publicKey, publicUrl } = await this.publicMediaStorageService.copyFromS3ToR2(
+              media.s3Key,
+              media.s3Bucket,
+              context.projectId
+            );
 
-        publicMediaUrls = await Promise.all(uploadPromises);
+            // Update media record with public R2 info
+            await this.mediaRepository.updatePublicS3Info(media.id, publicKey, process.env.CLOUDFLARE_R2_PUBLIC_MEDIA_BUCKET!);
+
+            return publicUrl;
+          });
+
+          publicMediaUrls = await Promise.all(uploadPromises);
+        }
         publicR2UploadTimeMs = Date.now() - publicUploadStartTime;
-        console.log(`[${this.stepName}] Uploaded ${publicMediaUrls.length} images to public R2 in ${publicR2UploadTimeMs}ms`);
+        console.log(`[${this.stepName}] Processed media in ${publicR2UploadTimeMs}ms (${publicMediaUrls.length} uploaded, ${textFileContents.length} text files)`);
       }
 
       // 3b. Add inspiration image if selected
@@ -155,7 +177,7 @@ export class CodeGenerationStep implements IBuildStep {
       // 4. Determine which AI model to use
       const config = loadAppConfig();
       const hasSuccessfulBuilds = await this.buildRepository.findLatestSuccessfulByProjectId(context.projectId);
-      const hasImages = context.mediaIds && context.mediaIds.length > 0;
+      const hasImages = publicMediaUrls.length > 0;
       const isFirstBuild = !hasSuccessfulBuilds;
       const useFastModel = !isFirstBuild && !hasImages;
 
@@ -176,11 +198,17 @@ export class CodeGenerationStep implements IBuildStep {
       }
 
       let enhancedPrompt = prompt;
-      if (annotationUrls.length > 0) {
-        enhancedPrompt = `${prompt}
 
-ANNOTATED SCREENSHOT OF CURRENT APP:
-The user has drawn annotations (arrows, circles, highlights, text labels) on a screenshot of their current app to indicate specific areas they want changed. The annotated screenshot${annotationUrls.length > 1 ? 's are' : ' is'} included in the attached images. Pay close attention to the annotations - they show exactly what the user wants modified.`;
+      // Append text file contents to the prompt
+      if (textFileContents.length > 0) {
+        for (const textFile of textFileContents) {
+          enhancedPrompt += `\n\nUSER ATTACHED TEXT FILE (${textFile.fileName}):\n---\n${textFile.content}\n---`;
+        }
+        console.log(`[${this.stepName}] Appended ${textFileContents.length} text file(s) to prompt`);
+      }
+
+      if (annotationUrls.length > 0) {
+        enhancedPrompt += `\n\nANNOTATED SCREENSHOT OF CURRENT APP:\nThe user has drawn annotations (arrows, circles, highlights, text labels) on a screenshot of their current app to indicate specific areas they want changed. The annotated screenshot${annotationUrls.length > 1 ? 's are' : ' is'} included in the attached images. Pay close attention to the annotations - they show exactly what the user wants modified.`;
       }
 
       console.log(`[${this.stepName}] [PARALLEL] Running AI generation...`);

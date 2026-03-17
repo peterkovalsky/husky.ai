@@ -23,11 +23,12 @@ export const useMediaUpload = ({ projectId, onError, maxFiles = 1 }: UseMediaUpl
       'video/mp4',
       'video/webm',
       'video/quicktime', // .mov
-      // PDFs
+      // Documents
       'application/pdf',
+      'text/plain',
     ]
     if (!allowedTypes.includes(file.type)) {
-      return 'Only images (JPEG, PNG, GIF, WebP), videos (MP4, WebM, MOV), and PDFs are allowed'
+      return 'Only images (JPEG, PNG, GIF, WebP), videos (MP4, WebM, MOV), PDFs, and text files are allowed'
     }
 
     // File size limit: 10MB for all media types

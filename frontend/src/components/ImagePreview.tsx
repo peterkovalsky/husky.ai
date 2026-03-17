@@ -1,4 +1,4 @@
-import { X, Loader2, AlertCircle, ImageIcon, Video } from 'lucide-react'
+import { X, Loader2, AlertCircle, ImageIcon, Video, FileText } from 'lucide-react'
 
 export interface AttachedImage {
   id: string
@@ -19,6 +19,7 @@ interface ImagePreviewProps {
 export const ImagePreview = ({ file, onRemove, onPreview }: ImagePreviewProps) => {
   const isImage = file.file.type.startsWith('image/')
   const isVideo = file.file.type.startsWith('video/')
+  const isText = file.file.type === 'text/plain'
 
   return (
     <div className="relative w-14 h-14 group">
@@ -42,6 +43,13 @@ export const ImagePreview = ({ file, onRemove, onPreview }: ImagePreviewProps) =
             />
             <div className="absolute inset-0 flex items-center justify-center bg-black/30">
               <Video className="h-5 w-5 text-white" />
+            </div>
+          </div>
+        ) : isText ? (
+          <div className="w-full h-full flex items-center justify-center bg-default-100">
+            <div className="text-center px-1">
+              <FileText className="h-6 w-6 mx-auto mb-0.5 opacity-60" />
+              <p className="text-[8px] opacity-60 truncate max-w-full">TXT</p>
             </div>
           </div>
         ) : (
