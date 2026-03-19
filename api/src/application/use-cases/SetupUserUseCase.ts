@@ -1,5 +1,6 @@
 import { IWorkspaceRepository } from '../../domain/repositories/IWorkspaceRepository';
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
+import { IEmailService } from '../../domain/services/IEmailService';
 import { User } from '../../domain/entities/User';
 import { Workspace } from '../../domain/entities/Workspace';
 import { Project } from '../../domain/entities/Project';
@@ -14,7 +15,8 @@ export interface SetupUserResponse {
 export class SetupUserUseCase {
   constructor(
     private workspaceRepository: IWorkspaceRepository,
-    private projectRepository: IProjectRepository
+    private projectRepository: IProjectRepository,
+    private emailService?: IEmailService
   ) {}
 
   async execute(user: User, displayName?: string): Promise<SetupUserResponse> {
@@ -45,6 +47,16 @@ export class SetupUserUseCase {
       // Create workspace and add user atomically
       const workspace = await this.workspaceRepository.create({ name: 'Personal' });
       await this.workspaceRepository.addUserToWorkspace(user.id, workspace.id);
+
+      // Send welcome email (fire-and-forget — never block signup)
+      if (this.emailService) {
+        console.log(`[SetupUserUseCase] Sending welcome email to ${user.email}`);
+        this.emailService.sendWelcomeEmail(user.email, displayName || user.displayName).catch((err) => {
+          console.error(`[SetupUserUseCase] Failed to send welcome email to ${user.email}:`, err.message);
+        });
+      } else {
+        console.log(`[SetupUserUseCase] Email service not configured, skipping welcome email`);
+      }
 
       // Note: We no longer create a default project - users create their first project via /project/new
       console.log(`🚀 [${timestamp}] SetupUserUseCase.execute: Setup completed successfully for user:`, user.id);

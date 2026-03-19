@@ -37,6 +37,7 @@ export interface AppConfig {
     openaiApiKey?: string;
     geminiApiKey?: string;
   };
+  resendApiKey?: string;
 }
 
 export function loadAppConfig(): AppConfig {
@@ -78,6 +79,7 @@ export function loadAppConfig(): AppConfig {
       anthropicApiKey: process.env.ANTHROPIC_API_KEY,
       openaiApiKey: process.env.OPENAI_API_KEY,
       geminiApiKey: process.env.GEMINI_API_KEY,
-    }
+    },
+    resendApiKey: process.env.RESEND_API_KEY,
   };
 }

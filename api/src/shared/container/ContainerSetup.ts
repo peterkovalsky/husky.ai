@@ -21,6 +21,7 @@ import { IPublicMediaStorageService } from '../../domain/services/IPublicMediaSt
 import { IQueueService } from '../../domain/services/IQueueService';
 import { ISubdomainService } from '../../domain/services/ISubdomainService';
 import { IStripeService } from '../../domain/services/IStripeService';
+import { IEmailService } from '../../domain/services/IEmailService';
 
 // Infrastructure Implementations
 import { SupabaseWorkspaceRepository } from '../../infrastructure/database/SupabaseWorkspaceRepository';
@@ -45,6 +46,7 @@ import { CloudflareSaaSService } from '../../infrastructure/cdn/CloudflareSaaSSe
 import { CloudflareKVService } from '../../infrastructure/storage/CloudflareKVService';
 import { DNSVerificationService, IDNSVerificationService } from '../../infrastructure/dns/DNSVerificationService';
 import { StripeService } from '../../infrastructure/payment/StripeService';
+import { ResendEmailService } from '../../infrastructure/email/ResendEmailService';
 
 // Application Use Cases
 import { CreatePromptUseCase } from '../../application/use-cases/CreatePromptUseCase';
@@ -193,6 +195,11 @@ export function setupContainer(): DIContainer {
   // Stripe payment service
   container.registerFactory<IStripeService>('stripeService', () => new StripeService());
 
+  // Email service (optional - only registered if RESEND_API_KEY is configured)
+  if (config.resendApiKey) {
+    container.registerFactory<IEmailService>('emailService', () => new ResendEmailService(config.resendApiKey!));
+  }
+
   // Register Use Cases
   container.registerFactory<CreatePromptUseCase>('createPromptUseCase', () => new CreatePromptUseCase(
     container.get<IBuildRepository>('buildRepository'),
@@ -260,7 +267,8 @@ export function setupContainer(): DIContainer {
 
   container.registerFactory<SetupUserUseCase>('setupUserUseCase', () => new SetupUserUseCase(
     container.get<IWorkspaceRepository>('workspaceRepository'),
-    container.get<IProjectRepository>('projectRepository')
+    container.get<IProjectRepository>('projectRepository'),
+    config.resendApiKey ? container.get<IEmailService>('emailService') : undefined
   ));
 
   // Register Middleware
