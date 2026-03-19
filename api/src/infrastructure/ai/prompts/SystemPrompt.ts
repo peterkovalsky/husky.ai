@@ -282,7 +282,48 @@ SVG ICONS:
 - Other libraries (react-icons, @heroicons/react) require adding to package.json
 - OR create inline SVGs in src/components/Icons.tsx as React components
 
-HASH LINKS: Use href="#section" NOT href="/#section" (breaks SPA navigation)
+SECTION ANCHOR LINKS - CRITICAL (multi-page navigation):
+Navbar links to page sections (e.g., Pricing, Features) MUST work from ANY route, not just the home page.
+███ NEVER use href="/#section" — the app is deployed at a subpath, so "/#section" navigates to the root "/" which breaks. ███
+Use href="#section" as the fallback href, but handle actual navigation via onClick + React Router.
+
+Implement this pattern in your navbar component:
+
+\`\`\`tsx
+import { useNavigate, useLocation } from "react-router-dom";
+
+const navigate = useNavigate();
+const location = useLocation();
+
+const scrollToSection = (e: React.MouseEvent, sectionId: string) => {
+  e.preventDefault();
+  if (location.pathname !== "/") {
+    navigate("/", { state: { scrollTo: sectionId } });
+  } else {
+    document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth" });
+  }
+};
+
+// Usage — href is "#id" for accessibility, onClick handles cross-route navigation:
+<a href={"#" + sectionId} onClick={(e) => scrollToSection(e, "pricing")}>Pricing</a>
+\`\`\`
+
+On the home page component, add useEffect to scroll after cross-route navigation:
+
+\`\`\`tsx
+import { useLocation } from "react-router-dom";
+const location = useLocation();
+
+useEffect(() => {
+  const sectionId = location.state?.scrollTo;
+  if (sectionId) {
+    setTimeout(() => {
+      document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth" });
+    }, 100);
+    window.history.replaceState({}, document.title);
+  }
+}, [location.state]);
+\`\`\`
 
 ROUTING - CRITICAL:
 - BrowserRouter is configured in main.tsx with basename for deployment
