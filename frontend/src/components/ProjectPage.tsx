@@ -3,12 +3,13 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { ApiService, type JobStatus, type ProjectDetails } from '../services/api'
 import { useProject } from '../contexts/ProjectContext'
 import { ChatWidget } from './ChatWidget'
+import { ProjectSidebarRail, type SidebarPanel } from './ProjectSidebarRail'
 import { NewProjectStarter } from './NewProjectStarter'
 import InspirationGallery from './InspirationGallery'
 import OnboardingQuestionPanel from './OnboardingQuestionPanel'
 import { AnnotationOverlay } from './annotation/AnnotationOverlay'
 import { Button, Spinner, Card, CardHeader, CardBody } from '@heroui/react'
-import { Code2, ArrowLeft, Loader2, AlertCircle } from 'lucide-react'
+import { Code2, ArrowLeft, Loader2, AlertCircle, ChevronLeft } from 'lucide-react'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { useOnboarding } from '../hooks/useOnboarding'
 import type { ProjectPageLocationState } from '../types/onboarding'
@@ -102,11 +103,8 @@ export const ProjectPage = () => {
   // Track current page context from preview iframe (path, title, sections)
   const pageContextRef = useRef<{ path: string; title: string; sections: string[] } | null>(null)
 
-  // Sidebar state with localStorage persistence
-  const [isSidebarLocked, setIsSidebarLocked] = useLocalStorage('husky_sidebar_locked', true)
-  const [isSidebarOpen, setIsSidebarOpen] = useLocalStorage('husky_sidebar_open', true)
-  const [isHoveringLeftEdge, setIsHoveringLeftEdge] = useState(false)
-  const [isHoveringSidebar, setIsHoveringSidebar] = useState(false)
+  // Sidebar panel state with localStorage persistence
+  const [activePanel, setActivePanel] = useLocalStorage<SidebarPanel>('husky_active_panel', 'chat')
 
   // Counter to force reload - increment to trigger re-fetch
   const [reloadCounter, setReloadCounter] = useState(0)
@@ -487,13 +485,11 @@ export const ProjectPage = () => {
     shouldShowLoading
   })
 
-  // Determine if sidebar should be visible
-  // When locked: show if open OR if hovering (to allow reopening)
-  // When unlocked: show ONLY when hovering (ignore isSidebarOpen)
-  const shouldShowSidebar = isSidebarLocked
-    ? (isSidebarOpen || isHoveringLeftEdge || isHoveringSidebar)
-    : (isHoveringLeftEdge || isHoveringSidebar)
-  const sidebarWidth = 400 // Fixed width in pixels
+  const panelWidth = 400 // Expanded panel width in pixels
+
+  const handleRailItemClick = (panel: NonNullable<SidebarPanel>) => {
+    setActivePanel(prev => prev === panel ? null : panel)
+  }
 
   return (
     <div className="h-screen flex relative bg-background">
@@ -507,65 +503,44 @@ export const ProjectPage = () => {
         </div>
       )}
 
-      {/* Left edge hover zone - active when sidebar is not visible */}
-      {!shouldShowSidebar && isFullyLoaded && (
-        <div
-          className="absolute left-0 top-0 h-full w-5 z-40"
-          onMouseEnter={() => setIsHoveringLeftEdge(true)}
-          onMouseLeave={() => setIsHoveringLeftEdge(false)}
+      {/* Icon Rail - always visible when fully loaded */}
+      {isFullyLoaded && (
+        <ProjectSidebarRail
+          activePanel={activePanel}
+          onItemClick={handleRailItemClick}
         />
       )}
 
-      {/* Chat Sidebar - only show when fully loaded */}
-      {isFullyLoaded && (
+      {/* Expanded Panel - pushes preview to the right */}
+      {isFullyLoaded && activePanel === 'chat' && (
         <div
-          className={`
-            ${(isSidebarLocked && isSidebarOpen) ? 'relative' : 'absolute left-0 top-0 h-full z-30'}
-            transition-transform duration-300 ease-in-out
-            ${shouldShowSidebar ? 'translate-x-0' : '-translate-x-full'}
-            ${!shouldShowSidebar ? 'pointer-events-none' : ''}
-          `}
-          style={{ width: `${sidebarWidth}px` }}
-          onMouseEnter={() => {
-            setIsHoveringSidebar(true)
-          }}
-          onMouseLeave={() => {
-            setIsHoveringSidebar(false)
-            setIsHoveringLeftEdge(false)
-          }}
+          className="relative h-full flex-shrink-0 bg-white border-r border-slate-200"
+          style={{ width: `${panelWidth}px` }}
         >
           <ChatWidget
             projectId={projectDetails.project.id}
-            isSidebarLocked={isSidebarLocked}
-            onToggleLock={() => setIsSidebarLocked(!isSidebarLocked)}
-            isSidebarOpen={isSidebarOpen}
-            onToggleOpen={() => {
-              setIsSidebarOpen(!isSidebarOpen)
-              // Clear hover states when explicitly closing
-              if (isSidebarOpen) {
-                setIsHoveringLeftEdge(false)
-                setIsHoveringSidebar(false)
-              }
-            }}
             onboardingPhase={onboardingPhase}
             onboardingMessages={onboardingMessages}
             buildJustCompleted={buildJustCompleted}
             onAnnotate={hasReadyPreview ? handleAnnotate : undefined}
             pageContextRef={pageContextRef}
           />
+          {/* Canva-style collapse pill button at the panel edge */}
+          <button
+            onClick={() => setActivePanel(null)}
+            className="absolute -right-3 top-1/2 -translate-y-1/2 z-40 w-6 h-10 rounded-full bg-white flex items-center justify-center cursor-pointer transition-shadow hover:shadow-[rgba(64,79,109,0.08)_0px_0px_0px_0.5px,rgba(24,44,89,0.18)_0px_2px_6px_0px,rgba(24,44,89,0.10)_0px_8px_16px_0px]"
+            style={{
+              boxShadow: 'rgba(64,79,109,0.06) 0px 0px 0px 0.5px, rgba(24,44,89,0.137) 0px 2px 4px 0px, rgba(24,44,89,0.07) 0px 6px 12px 0px',
+            }}
+            title="Collapse panel"
+          >
+            <ChevronLeft className="w-4 h-4 text-black/70" />
+          </button>
         </div>
       )}
 
       {/* Preview/Content container */}
-      <div
-        className={`
-          flex-1 h-full relative
-          transition-all duration-300 ease-in-out
-        `}
-        style={{
-          marginLeft: isSidebarLocked && isSidebarOpen && isFullyLoaded ? `0px` : '0px'
-        }}
-      >
+      <div className="flex-1 h-full relative bg-background">
         {/* Onboarding: Analyzing phase */}
         {onboardingPhase === 'ANALYZING' && (
           <div className="h-full flex items-center justify-center bg-background">
