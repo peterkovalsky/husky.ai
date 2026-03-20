@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { ApiService, type JobStatus, type ChatMessage as APIChatMessage, type ChatMessageMedia } from '../services/api'
 import { useProject } from '../contexts/ProjectContext'
 import { Button, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Alert, Divider, Image } from '@heroui/react'
-import { MessageCircle, Loader2, CheckCircle, AlertCircle, Undo2, ArrowLeft, CircleChevronLeft, PanelLeft, Bot, SkipForward, FileText, X } from 'lucide-react'
+import { MessageCircle, Loader2, CheckCircle, AlertCircle, Undo2, Bot, SkipForward, FileText, X } from 'lucide-react'
 import { PromptInput } from './PromptInput'
 import { useMediaUpload } from '../hooks/useMediaUpload'
 import type { OnboardingPhase, OnboardingChatMessage, OnboardingMessageMetadata } from '../types/onboarding'
@@ -42,10 +42,6 @@ export interface PageContext {
 interface ChatWidgetProps {
   projectId?: string;
   projectName?: string;
-  isSidebarLocked?: boolean;
-  onToggleLock?: () => void;
-  isSidebarOpen?: boolean;
-  onToggleOpen?: () => void;
   // Onboarding props
   onboardingPhase?: OnboardingPhase;
   onboardingMessages?: OnboardingChatMessage[];
@@ -56,10 +52,6 @@ interface ChatWidgetProps {
 
 export const ChatWidget = ({
   projectId,
-  isSidebarLocked = true,
-  onToggleLock,
-  isSidebarOpen = true,
-  onToggleOpen,
   onboardingPhase = 'NONE',
   onboardingMessages = [],
   buildJustCompleted = false,
@@ -719,47 +711,7 @@ export const ChatWidget = ({
   return (
     <>
       {/* Full-height sidebar */}
-      <div className="h-full flex flex-col bg-background border-r border-divider">
-        {/* Header with controls */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-divider">
-          {/* Left side: Back to Projects button */}
-          <Button
-            variant="light"
-            size="sm"
-            onPress={() => navigate('/projects')}
-            startContent={<ArrowLeft className="h-4 w-4" />}
-          >
-            Projects
-          </Button>
-
-          {/* Right side: Control buttons */}
-          <div className="flex items-center gap-1">
-            {isSidebarLocked && isSidebarOpen ? (
-              /* Locked and open: Show circle-chevron-left to collapse */
-              <Button
-                variant="light"
-                size="sm"
-                onPress={onToggleOpen}
-                title="Collapse sidebar"
-                isIconOnly
-              >
-                <CircleChevronLeft className="h-4 w-4" />
-              </Button>
-            ) : (
-              /* Unlocked or closed: Show panel-left to lock/open sidebar */
-              <Button
-                variant="light"
-                size="sm"
-                onPress={isSidebarLocked ? onToggleOpen : onToggleLock}
-                title={isSidebarLocked ? "Open sidebar" : "Lock sidebar"}
-                isIconOnly
-              >
-                <PanelLeft className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-        </div>
-
+      <div className="h-full flex flex-col bg-white">
         {/* Conversation history */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
           {conversationHistory.length === 0 && messages.filter(msg => msg.type === 'user').length === 0 && onboardingMessages.length === 0 && (
@@ -846,7 +798,7 @@ export const ChatWidget = ({
         )}
 
         {/* Input area at bottom */}
-        <div className="p-4 bg-background">
+        <div className="p-4 bg-white">
           <PromptInput
             value={currentPrompt}
             onChange={setCurrentPrompt}
