@@ -16,4 +16,12 @@ Steps:
      - `## Problem` - What issue or need this addresses
      - `## Solution` - Proposed approach
      - `## Acceptance Criteria` - Checklist of done conditions
-4. Return the ticket identifier and URL to the user.
+4. **Attachments**: If the user included any images or screenshots in their message, attach them to the created ticket:
+   - Read each image file using the Read tool to get its contents
+   - Convert to base64 and upload using `mcp__linear-server__create_attachment` with:
+     - `issue`: The ticket identifier from step 3 (e.g., "HUS-14")
+     - `base64Content`: The base64-encoded image data
+     - `filename`: A descriptive filename (e.g., "reference-screenshot.png")
+     - `contentType`: The correct MIME type (e.g., "image/png", "image/jpeg")
+     - `title`: A short description of what the image shows
+5. Return the ticket identifier and URL to the user.

@@ -129,6 +129,19 @@ export default {
       const object = await env.R2_BUCKET.get(objectKey);
 
       if (!object) {
+        // Serve default robots.txt for sites that don't have one in R2
+        // (published before robots.txt was included in the build template)
+        if (url.pathname === '/robots.txt') {
+          console.log(`[Worker] Serving default robots.txt for project ${projectId}`);
+          return new Response('User-agent: *\nAllow: /\n', {
+            status: 200,
+            headers: {
+              'Content-Type': 'text/plain',
+              'Cache-Control': 'public, max-age=86400',
+            },
+          });
+        }
+
         // SPA fallback: for any 404, serve index.html
         // This handles React Router paths like /about, /contact, etc.
         console.log(`[Worker] ✗ R2 object not found: ${objectKey}`);
