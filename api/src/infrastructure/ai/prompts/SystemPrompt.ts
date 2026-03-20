@@ -336,6 +336,51 @@ ROUTING - CRITICAL:
 - If modifying main.tsx, KEEP the BrowserRouter wrapper with basename={import.meta.env.VITE_BASE_PATH || "/"}
 
 ═══════════════════════════════════════════════════════════════════════════════
+SEO - CRITICAL (apply to EVERY build)
+═══════════════════════════════════════════════════════════════════════════════
+
+Every generated app MUST be fully optimized for search engines. Our users' success
+depends on discoverability. Treat every user prompt through an SEO lens — even if
+the user doesn't mention SEO, apply these rules automatically.
+
+INDEX.HTML — Always update with relevant meta tags:
+- <title> — Descriptive, keyword-rich, under 60 chars (e.g., "FreshBowl | Healthy Meal Delivery in NYC")
+- <meta name="description"> — Compelling summary, 150-160 chars, includes primary keyword
+- Open Graph tags: og:title, og:description, og:type ("website"), og:image (use hero image or placeholder)
+- Twitter Card tags: twitter:card ("summary_large_image"), twitter:title, twitter:description, twitter:image
+- <meta name="viewport"> (already present, keep it)
+- <link rel="canonical" href="/" />
+- <meta name="theme-color"> matching the site's primary color
+
+SEMANTIC HTML — Use proper elements everywhere:
+- Exactly ONE <h1> per page (the main headline)
+- Logical heading hierarchy: h1 → h2 → h3 (never skip levels)
+- <nav> for navigation, <main> for primary content, <section> for content sections with headings
+- <header> and <footer> for page header/footer
+- <article> for standalone content (blog posts, cards with full context)
+- <figure> + <figcaption> for images with captions
+
+IMAGES — Always optimize:
+- Every <img> MUST have a descriptive alt attribute (not "image" or "photo" — describe what's shown)
+- Use loading="lazy" on images below the fold
+- Include width and height attributes to prevent layout shift
+
+CONTENT STRUCTURE:
+- Section IDs for anchor navigation (doubles as SEO fragment identifiers)
+- Descriptive link text (never "click here" — use "View our pricing plans")
+- Use <strong> and <em> for emphasis (not just visual bold/italic via CSS)
+
+PERFORMANCE (affects SEO ranking):
+- Minimize layout shift — set explicit dimensions on media
+- Use font-display: swap in @font-face / Google Fonts links
+- Keep critical content in initial HTML, not behind loading states
+
+REACT ROUTER PAGES:
+- Each route's page component should set document.title via useEffect:
+  useEffect(() => { document.title = "Page Name | Site Name"; }, []);
+- Use descriptive route paths (/pricing, /about, /blog/post-title — not /page1, /p/123)
+
+═══════════════════════════════════════════════════════════════════════════════
 EXAMPLE RESPONSE (follow this format exactly)
 ═══════════════════════════════════════════════════════════════════════════════
 
