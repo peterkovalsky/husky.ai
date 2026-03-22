@@ -1,5 +1,6 @@
 import puppeteer, { Browser } from 'puppeteer';
 import sharp from 'sharp';
+import { rmSync } from 'fs';
 import { getPostHogErrorTracker } from '../monitoring/PostHogErrorTracker';
 
 export interface IScreenshotService {
@@ -16,6 +17,7 @@ export class ScreenshotService implements IScreenshotService {
   // Browser pooling - reuse browser instance across screenshots
   private static browser: Browser | null = null;
   private static browserLastUsed: number = 0;
+  private static userDataDir: string | null = null;
   private static readonly BROWSER_IDLE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 
   /**
@@ -36,6 +38,18 @@ export class ScreenshotService implements IScreenshotService {
         ScreenshotService.browser = null;
       }
     }
+
+    // Clean up previous user data dir if it exists
+    if (ScreenshotService.userDataDir) {
+      try {
+        rmSync(ScreenshotService.userDataDir, { recursive: true, force: true });
+      } catch {
+        // Ignore cleanup errors
+      }
+    }
+
+    // Use a unique temp dir per browser launch to avoid stale profile corruption
+    ScreenshotService.userDataDir = `/tmp/chromium-${Date.now()}`;
 
     console.log('[ScreenshotService] Launching new browser instance...');
     const isDev = process.env.NODE_ENV !== 'production';
@@ -60,7 +74,7 @@ export class ScreenshotService implements IScreenshotService {
         '--safebrowsing-disable-auto-update',
         '--disable-features=HttpsUpgrades,HttpsFirstModeV2,HttpsFirstModeForTypedNavigations,HttpsOnlyMode',
         '--disable-blink-features=AutomationControlled',
-        '--user-data-dir=/tmp/chromium-user-data',
+        `--user-data-dir=${ScreenshotService.userDataDir}`,
       ],
       protocolTimeout: 30000,
     });
@@ -81,6 +95,14 @@ export class ScreenshotService implements IScreenshotService {
         console.log('[ScreenshotService] Browser closed');
       } catch (error) {
         console.warn('[ScreenshotService] Error closing browser:', error);
+      }
+    }
+    if (ScreenshotService.userDataDir) {
+      try {
+        rmSync(ScreenshotService.userDataDir, { recursive: true, force: true });
+        ScreenshotService.userDataDir = null;
+      } catch {
+        // Ignore cleanup errors
       }
     }
   }
@@ -188,7 +210,13 @@ export class ScreenshotService implements IScreenshotService {
         return compressedBuffer;
 
       } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
+        // Properly serialize non-Error objects (e.g., ErrorEvent from WebSocket failures)
+        if (error instanceof Error) {
+          lastError = error;
+        } else {
+          const errorMessage = (error as any)?.message || (error as any)?.error || JSON.stringify(error);
+          lastError = new Error(`Screenshot error: ${errorMessage}`);
+        }
 
         // Close the page if it was opened
         if (page) {
@@ -200,9 +228,11 @@ export class ScreenshotService implements IScreenshotService {
         }
 
         // Check if this is a connection error that warrants a retry
-        const isConnectionError = lastError.message.includes('Connection closed') ||
-          lastError.message.includes('Protocol error') ||
-          lastError.message.includes('Target closed') ||
+        const errorMsg = lastError.message;
+        const isConnectionError = errorMsg.includes('Connection closed') ||
+          errorMsg.includes('Protocol error') ||
+          errorMsg.includes('Target closed') ||
+          errorMsg.includes('WebSocket') ||
           lastError.name === 'ConnectionClosedError';
 
         if (isConnectionError && attempt < maxRetries) {
@@ -212,8 +242,8 @@ export class ScreenshotService implements IScreenshotService {
           continue; // Retry with fresh browser
         }
 
-        // Non-retryable error or exhausted retries - log and throw
-        console.error('[ScreenshotService] Failed to capture screenshot:', error);
+        // Non-retryable error or exhausted retries - log with full detail
+        console.error(`[ScreenshotService] Failed to capture screenshot: ${lastError.message}`);
 
         // Log error to PostHog (use captureException to flush immediately)
         try {
