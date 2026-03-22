@@ -41,7 +41,9 @@ RUN npm install -g typescript vite
 COPY worker/package*.json ./
 
 # Install all dependencies (including dev dependencies for build)
-# Puppeteer will download its own compatible Chrome during npm ci
+# Puppeteer downloads its own compatible Chrome during npm ci
+# into ~/.cache/puppeteer (PUPPETEER_CACHE_DIR)
+ENV PUPPETEER_CACHE_DIR=/app/.puppeteer-cache
 RUN npm ci && npm cache clean --force
 
 # Copy worker source code
@@ -77,8 +79,8 @@ RUN groupadd -g 1001 nodejs && \
 # Create /tmp/apps directory with proper permissions for generated apps
 RUN mkdir -p /tmp/apps && chown -R worker:nodejs /tmp/apps
 
-# Create Chromium cache directory with proper permissions
-RUN mkdir -p /home/worker/.cache/puppeteer && chown -R worker:nodejs /home/worker
+# Ensure Puppeteer cache directory has proper permissions
+RUN chown -R worker:nodejs /app/.puppeteer-cache /home/worker
 
 # Change ownership of the app directory
 RUN chown -R worker:nodejs /app
