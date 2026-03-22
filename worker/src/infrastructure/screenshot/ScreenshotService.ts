@@ -56,6 +56,7 @@ export class ScreenshotService implements IScreenshotService {
 
     ScreenshotService.browser = await puppeteer.launch({
       headless: 'shell',
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
