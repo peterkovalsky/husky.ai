@@ -62,7 +62,6 @@ export class ScreenshotService implements IScreenshotService {
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
-        '--disable-software-rasterizer',
         '--disable-extensions',
         '--disable-background-networking',
         '--disable-default-apps',
