@@ -55,15 +55,12 @@ export class ScreenshotService implements IScreenshotService {
     const isDev = process.env.NODE_ENV !== 'production';
 
     ScreenshotService.browser = await puppeteer.launch({
-      headless: isDev ? 'shell' : 'shell',
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+      headless: 'shell',
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
-        '--no-zygote',
-        '--single-process',
         '--disable-extensions',
         '--disable-background-networking',
         '--disable-default-apps',

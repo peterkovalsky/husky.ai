@@ -1,30 +1,37 @@
-# Use Node.js 22 LTS Alpine for smaller image size
-FROM node:22-alpine
+# Use Node.js 22 LTS on Debian Slim
+# Puppeteer requires glibc and system libraries that Alpine doesn't provide reliably.
+# Debian Slim is the officially supported base for Puppeteer's bundled Chrome.
+FROM node:22-slim
 
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies for native modules and Chromium for Puppeteer
-RUN apk add --no-cache \
+# Install system dependencies for native modules and Puppeteer's Chrome
+RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     make \
     g++ \
-    chromium \
-    nss \
-    freetype \
-    freetype-dev \
-    harfbuzz \
     ca-certificates \
-    ttf-freefont \
-    font-noto-emoji \
-    udev \
-    ttf-dejavu \
+    fonts-freefont-ttf \
+    fonts-dejavu-core \
     fontconfig \
-    dbus
-
-# Configure Puppeteer to use system Chromium
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
-    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+    libfreetype6 \
+    libharfbuzz0b \
+    libnss3 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxrandr2 \
+    libgbm1 \
+    libpango-1.0-0 \
+    libcairo2 \
+    libasound2 \
+    libxshmfence1 \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install TypeScript and Vite globally for building generated apps
 RUN npm install -g typescript vite
@@ -34,6 +41,7 @@ RUN npm install -g typescript vite
 COPY worker/package*.json ./
 
 # Install all dependencies (including dev dependencies for build)
+# Puppeteer will download its own compatible Chrome during npm ci
 RUN npm ci && npm cache clean --force
 
 # Copy worker source code
@@ -63,8 +71,8 @@ RUN npm prune --production && \
     rm -rf src tsconfig.json nodemon.json
 
 # Create non-root user for security
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S worker -u 1001
+RUN groupadd -g 1001 nodejs && \
+    useradd -m -u 1001 -g nodejs worker
 
 # Create /tmp/apps directory with proper permissions for generated apps
 RUN mkdir -p /tmp/apps && chown -R worker:nodejs /tmp/apps
