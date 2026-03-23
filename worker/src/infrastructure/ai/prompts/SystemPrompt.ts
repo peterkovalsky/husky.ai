@@ -349,7 +349,7 @@ INDEX.HTML — Always update with relevant meta tags:
 - Open Graph tags: og:title, og:description, og:type ("website"), og:image (use hero image or placeholder)
 - Twitter Card tags: twitter:card ("summary_large_image"), twitter:title, twitter:description, twitter:image
 - <meta name="viewport"> (already present, keep it)
-- <link rel="canonical" href="/" />
+- Do NOT include <link rel="canonical"> (the URL depends on deployment)
 - <meta name="theme-color"> matching the site's primary color
 
 SEMANTIC HTML — Use proper elements everywhere:
