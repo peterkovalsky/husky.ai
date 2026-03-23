@@ -23,8 +23,16 @@ export class BuildService implements IBuildService {
     // Create project web directory if it doesn't exist
     this.fileSystemHelper.ensureDirectoryExists(appDir);
 
+    // Detect conflicting paths (e.g., "index.html" as file AND "index.html/config.json")
+    // which would cause mkdirSync to turn a file into a directory, breaking vite builds
+    const cleanedFileTree = this.removeConflictingPaths(fileTree);
+
+    // Log all file paths for EISDIR debugging (temporary — remove once root cause found)
+    const filePaths = Object.keys(cleanedFileTree).filter(p => p !== 'node_modules' && p !== 'package-lock.json');
+    console.log(`[BuildService] Writing ${filePaths.length} files to disk: ${filePaths.join(', ')}`);
+
     // Write all files to disk (excluding node_modules and package-lock.json which are handled separately)
-    for (const [filePath, content] of Object.entries(fileTree)) {
+    for (const [filePath, content] of Object.entries(cleanedFileTree)) {
       if (filePath === 'node_modules' || filePath === 'package-lock.json') {
         continue; // Skip, these are handled separately
       }
@@ -33,8 +41,53 @@ export class BuildService implements IBuildService {
       this.fileSystemHelper.writeFile(fullFilePath, content);
     }
 
+    // Verify index.html is a file, not a directory (EISDIR debugging)
+    const indexPath = path.join(appDir, 'index.html');
+    if (fs.existsSync(indexPath)) {
+      const stat = fs.statSync(indexPath);
+      if (stat.isDirectory()) {
+        console.error(`[BuildService] BUG: index.html is a DIRECTORY after writing files! Listing contents:`);
+        console.error(`[BuildService] ${fs.readdirSync(indexPath).join(', ')}`);
+      }
+    } else {
+      console.error(`[BuildService] BUG: index.html does not exist after writing files!`);
+    }
+
     console.log("All files written to disk in directory:", appDir);
     return appDir;
+  }
+
+  /**
+   * Remove conflicting paths from a file tree.
+   * If a path exists as both a file and a directory prefix (e.g., "index.html" and
+   * "index.html/config.json"), the file wins and directory-prefixed paths are dropped.
+   */
+  private removeConflictingPaths(fileTree: Record<string, string>): Record<string, string> {
+    const filePaths = new Set(Object.keys(fileTree));
+    const conflicting: string[] = [];
+
+    for (const filePath of filePaths) {
+      // Check if any prefix of this path is itself a file in the tree
+      const segments = filePath.split('/');
+      for (let i = 1; i < segments.length; i++) {
+        const prefix = segments.slice(0, i).join('/');
+        if (filePaths.has(prefix)) {
+          conflicting.push(filePath);
+          break;
+        }
+      }
+    }
+
+    if (conflicting.length === 0) {
+      return fileTree;
+    }
+
+    console.warn(`[BuildService] Removing ${conflicting.length} conflicting paths from file tree: ${conflicting.join(', ')}`);
+    const cleaned = { ...fileTree };
+    for (const p of conflicting) {
+      delete cleaned[p];
+    }
+    return cleaned;
   }
 
   private async findSourceDirectory(projectId: string): Promise<string | null> {
