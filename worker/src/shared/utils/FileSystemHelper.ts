@@ -85,28 +85,17 @@ export class FileSystemHelper {
   }
 
   /**
-   * Write a file to the filesystem
-   * Handles conflicts where a parent path segment exists as a file
-   * (e.g., writing "src/components/Button.tsx" when "src/components" is a file)
-   * or the target path itself exists as a directory.
+   * Write a file to the filesystem.
+   * If the target path is a directory (left over from a previous build), it is
+   * removed first so the file can be written.
    */
   public writeFile(filePath: string, content: string): void {
-    // Check if the target path itself is a directory (AI generated conflicting paths)
+    // Check if the target path itself is a directory (stale from previous build)
     if (fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()) {
       fs.rmSync(filePath, { recursive: true, force: true });
     }
 
-    // Check if any parent path segment exists as a file (would block mkdir)
     const fileDir = path.dirname(filePath);
-    const segments = fileDir.split(path.sep);
-    let currentPath = '';
-    for (const segment of segments) {
-      currentPath = currentPath ? path.join(currentPath, segment) : segment;
-      if (fs.existsSync(currentPath) && fs.statSync(currentPath).isFile()) {
-        fs.unlinkSync(currentPath);
-      }
-    }
-
     this.ensureDirectoryExists(fileDir);
     fs.writeFileSync(filePath, content, 'utf8');
   }

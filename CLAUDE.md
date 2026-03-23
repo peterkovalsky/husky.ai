@@ -590,6 +590,23 @@ Each generated app includes:
 - Standard build/dev/preview scripts
 - Component-based architecture with pages and components folders
 
+## Problem-Solving Approach
+**CRITICAL: Always choose robust, proven solutions over quick hacks**
+
+When fixing bugs or implementing features:
+- ✅ DO: Investigate and understand the root cause before writing any fix
+- ✅ DO: Choose well-understood, proven approaches even if they take longer
+- ✅ DO: Add diagnostic logging when the root cause is unclear, rather than guessing
+- ✅ DO: Verify your fix actually addresses the confirmed cause, not a hypothetical one
+- ❌ DON'T: Add defensive code that masks the real problem without understanding it
+- ❌ DON'T: Apply quick hacks or workarounds as the first response
+- ❌ DON'T: Treat symptoms instead of root causes
+
+**Hacks as last resort:** If a proper fix is blocked (e.g., third-party bug, time-critical production issue), a hack is acceptable ONLY if you:
+1. Clearly tell the user it's a hacky/temporary solution
+2. Explain why a proper fix isn't possible right now
+3. Add a `// HACK:` comment in the code explaining the workaround and linking to context
+
 ## Code Quality Standards
 
 ### Error Handling
