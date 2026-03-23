@@ -119,7 +119,7 @@ export class ScreenshotService implements IScreenshotService {
         deviceScaleFactor: 1,
       },
       gotoOptions: {
-        waitUntil: 'load',
+        waitUntil: 'networkidle0',
         timeout: this.requestTimeout,
       },
       setExtraHTTPHeaders: Object.keys(headers).length > 0 ? headers : undefined,
