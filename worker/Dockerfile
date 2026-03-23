@@ -1,36 +1,15 @@
 # Use Node.js 22 LTS on Debian Slim
-# Puppeteer requires glibc and system libraries that Alpine doesn't provide reliably.
-# Debian Slim is the officially supported base for Puppeteer's bundled Chrome.
 FROM node:22-slim
 
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies for native modules and Puppeteer's Chrome
+# Install system dependencies for native modules (Sharp)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     make \
     g++ \
     ca-certificates \
-    fonts-freefont-ttf \
-    fonts-dejavu-core \
-    fontconfig \
-    libfreetype6 \
-    libharfbuzz0b \
-    libnss3 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libxkbcommon0 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxrandr2 \
-    libgbm1 \
-    libpango-1.0-0 \
-    libcairo2 \
-    libasound2 \
-    libxshmfence1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install TypeScript and Vite globally for building generated apps
@@ -41,9 +20,6 @@ RUN npm install -g typescript vite
 COPY worker/package*.json ./
 
 # Install all dependencies (including dev dependencies for build)
-# Puppeteer downloads its own compatible Chrome during npm ci
-# into ~/.cache/puppeteer (PUPPETEER_CACHE_DIR)
-ENV PUPPETEER_CACHE_DIR=/app/.puppeteer-cache
 RUN npm ci && npm cache clean --force
 
 # Copy worker source code
@@ -79,11 +55,8 @@ RUN groupadd -g 1001 nodejs && \
 # Create /tmp/apps directory with proper permissions for generated apps
 RUN mkdir -p /tmp/apps && chown -R worker:nodejs /tmp/apps
 
-# Ensure Puppeteer cache directory has proper permissions
-RUN chown -R worker:nodejs /app/.puppeteer-cache /home/worker
-
-# Change ownership of the app directory
-RUN chown -R worker:nodejs /app
+# Change ownership of home and app directories
+RUN chown -R worker:nodejs /app /home/worker
 USER worker
 
 # Expose the worker health check port

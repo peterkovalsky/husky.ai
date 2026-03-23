@@ -136,9 +136,9 @@ const gracefulShutdown = async (signal: string) => {
   // Close browser instance if running
   try {
     await screenshotService.shutdown();
-    logger.info('Screenshot service browser closed');
+    logger.info('Screenshot service shut down');
   } catch (error) {
-    logger.warn('Error closing screenshot service browser:', error);
+    logger.warn('Error shutting down screenshot service:', error);
   }
 
   // Close HTTP server (stops accepting new connections, waits for existing)
