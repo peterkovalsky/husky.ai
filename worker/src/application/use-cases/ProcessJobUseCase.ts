@@ -201,28 +201,8 @@ export class ProcessJobUseCase {
         return; // Exit cleanly - credits NOT consumed
       }
 
-      const aiSummary = context.getStepData<string>('aiSummary');
-      if (aiSummary) {
-        // Save AI summary as chat message
-        const latestMessages = await this.chatMessageRepository.findByProjectId(build.projectId);
-        const maxRound = latestMessages.reduce((max, m) => Math.max(max, m.conversationRound), 0);
-
-        await this.chatMessageRepository.create({
-          projectId: build.projectId,
-          buildId: build.id,
-          userId: build.userId,
-          type: ChatMessageType.AI_SUMMARY,
-          source: ChatMessageSource.ITERATION,
-          content: aiSummary,
-          role: 'assistant',
-          conversationRound: maxRound,
-          messageOrder: 99, // After user prompt in the same round
-          status: 'completed',
-        });
-
-        // Also store on build record for fast polling access
-        await this.buildRepository.update(context.buildId, { aiSummary });
-      }
+      // Note: AI summary is saved AFTER the build succeeds (after preview build loop)
+      // to avoid showing a success summary when the build actually fails.
 
       // Step 3.5: Generate AI images (if markers present in code)
       if (this.imageGenerationService) {
@@ -291,6 +271,28 @@ export class ProcessJobUseCase {
             lastError = fixError instanceof Error ? fixError : new Error(String(fixError));
           }
         }
+      }
+
+      // Save AI summary now that the build succeeded
+      const aiSummary = context.getStepData<string>('aiSummary');
+      if (aiSummary) {
+        const latestMessages = await this.chatMessageRepository.findByProjectId(build.projectId);
+        const maxRound = latestMessages.reduce((max, m) => Math.max(max, m.conversationRound), 0);
+
+        await this.chatMessageRepository.create({
+          projectId: build.projectId,
+          buildId: build.id,
+          userId: build.userId,
+          type: ChatMessageType.AI_SUMMARY,
+          source: ChatMessageSource.ITERATION,
+          content: aiSummary,
+          role: 'assistant',
+          conversationRound: maxRound,
+          messageOrder: 99,
+          status: 'completed',
+        });
+
+        await this.buildRepository.update(context.buildId, { aiSummary });
       }
 
       // Step 5b: Inject screenshot helper into preview build
@@ -367,25 +369,30 @@ export class ProcessJobUseCase {
     }
 
     // Save error as chat message so it persists in conversation history
-    try {
-      const latestMessages = await this.chatMessageRepository.findByProjectId(context.projectId);
-      const maxRound = latestMessages.reduce((max, m) => Math.max(max, m.conversationRound), 0);
+    // Skip for duplicate processing errors (build was already handled)
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const isDuplicateProcessing = errorMessage.includes('Build already being processed');
 
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      await this.chatMessageRepository.create({
-        projectId: context.projectId,
-        buildId: context.buildId,
-        userId: context.userId,
-        type: ChatMessageType.SYSTEM_ERROR,
-        source: ChatMessageSource.ITERATION,
-        content: `Build failed: ${errorMessage}`,
-        role: 'system',
-        conversationRound: maxRound,
-        messageOrder: 99,
-        status: 'failed',
-      });
-    } catch (chatError) {
-      console.error(`[ProcessJobUseCase] Failed to save error chat message:`, chatError);
+    if (!isDuplicateProcessing) {
+      try {
+        const latestMessages = await this.chatMessageRepository.findByProjectId(context.projectId);
+        const maxRound = latestMessages.reduce((max, m) => Math.max(max, m.conversationRound), 0);
+
+        await this.chatMessageRepository.create({
+          projectId: context.projectId,
+          buildId: context.buildId,
+          userId: context.userId,
+          type: ChatMessageType.SYSTEM_ERROR,
+          source: ChatMessageSource.ITERATION,
+          content: 'Build failed. Please try again or modify your request.',
+          role: 'system',
+          conversationRound: maxRound,
+          messageOrder: 99,
+          status: 'failed',
+        });
+      } catch (chatError) {
+        console.error(`[ProcessJobUseCase] Failed to save error chat message:`, chatError);
+      }
     }
 
     // Update project status to FAILED if it's currently NEW (no successful builds yet)
