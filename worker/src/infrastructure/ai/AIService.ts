@@ -30,11 +30,12 @@ export class AIService implements IAIService {
   // Fallback model mappings
   private static readonly FALLBACK_MODELS: Record<string, string> = {
     // Gemini models fallback to Anthropic Sonnet
-    'gemini-3-pro-preview': 'claude-sonnet-4-5-20250929',
-    'gemini-2.5-pro': 'claude-sonnet-4-5-20250929',
-    'gemini-2.5-flash': 'claude-sonnet-4-5-20250929',
-    // Anthropic Haiku fallback to Gemini 3
-    'claude-haiku-4-5-20251001': 'gemini-3-pro-preview',
+    'gemini-3.1-pro-preview': 'claude-sonnet-4-6',
+    'gemini-3-flash-preview': 'claude-sonnet-4-6',
+    'gemini-2.5-pro': 'claude-sonnet-4-6',
+    'gemini-2.5-flash': 'claude-sonnet-4-6',
+    // Anthropic Haiku fallback to Gemini Flash
+    'claude-haiku-4-5-20251001': 'gemini-3-flash-preview',
   };
 
   constructor(

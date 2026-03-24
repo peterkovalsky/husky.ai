@@ -12,6 +12,11 @@ interface ModelPricing {
 }
 
 const MODEL_PRICING: Record<string, ModelPricing> = {
+  // Claude Sonnet 4.6
+  'claude-sonnet-4-6': {
+    inputPricePerMillion: 3.00,
+    outputPricePerMillion: 15.00,
+  },
   // Claude Sonnet 4.5
   'claude-sonnet-4-5-20250929': {
     inputPricePerMillion: 3.00,
@@ -54,7 +59,17 @@ const MODEL_PRICING: Record<string, ModelPricing> = {
     outputPricePerMillion: 10.00,
   },
   // Google Gemini Models
-  // Gemini 3 Pro Preview - Latest reasoning model
+  // Gemini 3.1 Pro Preview - Latest reasoning model
+  'gemini-3.1-pro-preview': {
+    inputPricePerMillion: 2.00,
+    outputPricePerMillion: 12.00,
+  },
+  // Gemini 3 Flash Preview - Fast frontier model
+  'gemini-3-flash-preview': {
+    inputPricePerMillion: 0.50,
+    outputPricePerMillion: 3.00,
+  },
+  // Gemini 3 Pro Preview (deprecated March 9, 2026)
   'gemini-3-pro-preview': {
     inputPricePerMillion: 2.00,
     outputPricePerMillion: 12.00,
@@ -79,7 +94,7 @@ const MODEL_PRICING: Record<string, ModelPricing> = {
 export class CostCalculator {
   /**
    * Calculate the cost in USD for an API request
-   * @param model - The model ID used (e.g., 'claude-sonnet-4-5-20250929')
+   * @param model - The model ID used (e.g., 'claude-sonnet-4-6')
    * @param inputTokens - Number of input tokens
    * @param outputTokens - Number of output tokens
    * @returns Cost in USD, or 0 if model pricing is unknown

@@ -68,13 +68,13 @@ export function loadAppConfig(): AppConfig {
     ai: {
       primary: {
         provider: (process.env.AI_PROVIDER_PRIMARY || 'anthropic') as AIProviderType,
-        model: process.env.AI_MODEL_PRIMARY || 'claude-sonnet-4-5-20250929',
+        model: process.env.AI_MODEL_PRIMARY || 'claude-sonnet-4-6',
       },
       fast: {
-        provider: (process.env.AI_PROVIDER_FAST || 'anthropic') as AIProviderType,
-        model: process.env.AI_MODEL_FAST || 'claude-haiku-4-5-20251001',
+        provider: (process.env.AI_PROVIDER_FAST || 'gemini') as AIProviderType,
+        model: process.env.AI_MODEL_FAST || 'gemini-3-flash-preview',
       },
-      autofixModel: process.env.AI_MODEL_AUTOFIX || 'claude-sonnet-4-5-20250929',
+      autofixModel: process.env.AI_MODEL_AUTOFIX || 'claude-sonnet-4-6',
       autofixMaxAttempts: parseInt(process.env.AI_AUTOFIX_MAX_ATTEMPTS || '3', 10),
       anthropicApiKey: process.env.ANTHROPIC_API_KEY,
       openaiApiKey: process.env.OPENAI_API_KEY,
