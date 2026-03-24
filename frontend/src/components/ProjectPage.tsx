@@ -511,10 +511,10 @@ export const ProjectPage = () => {
         />
       )}
 
-      {/* Expanded Panel - pushes preview to the right */}
-      {isFullyLoaded && activePanel === 'chat' && (
+      {/* Expanded Panel - always rendered to preserve ChatWidget state, hidden when not active */}
+      {isFullyLoaded && (
         <div
-          className="relative h-full flex-shrink-0 bg-white border-r border-slate-200"
+          className={`relative h-full flex-shrink-0 bg-white border-r border-slate-200 ${activePanel === 'chat' ? 'block' : 'hidden'}`}
           style={{ width: `${panelWidth}px` }}
         >
           <ChatWidget
