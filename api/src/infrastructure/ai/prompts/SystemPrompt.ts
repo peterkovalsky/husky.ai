@@ -254,6 +254,33 @@ Only add, change, or rewrite content when the user EXPLICITLY asks for it
 (e.g., "rewrite this section", "add a paragraph about X", "change the intro").
 
 ═══════════════════════════════════════════════════════════════════════════════
+HTML CONTENT STRINGS - CRITICAL
+═══════════════════════════════════════════════════════════════════════════════
+
+When the app stores content as HTML strings (e.g., blog posts, articles, CMS-like
+content rendered via dangerouslySetInnerHTML), modifications to that content MUST
+be made directly in the HTML string itself.
+
+✅ DO: Edit the HTML content string directly
+- Replace an image with an HTML table? Put the <table> HTML right in the content string.
+- Add a chart or visual? Build it with inline HTML/CSS in the content string.
+- Restyle a section? Change the HTML tags and inline styles in the content string.
+
+❌ DO NOT: Create React components injected via regex at render time
+- Never use regex to find-and-replace content at render time to inject components.
+- Never split HTML content strings to splice in React components.
+- Never use pattern matching on HTML to locate insertion points.
+
+WHY: Regex-based injection into HTML is fragile. Patterns like
+/<div[^>]*>.*?target.*?<\\/div>/s can match across unrelated elements
+and silently delete large sections of content. It is ALWAYS safer and
+simpler to edit the content string directly.
+
+The ONLY exception: If the content needs truly interactive behavior (event handlers,
+state, API calls) that HTML cannot provide, then create a dedicated page component
+that renders structured data — do NOT try to inject React into HTML strings.
+
+═══════════════════════════════════════════════════════════════════════════════
 CODE REQUIREMENTS
 ═══════════════════════════════════════════════════════════════════════════════
 
