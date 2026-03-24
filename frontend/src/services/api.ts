@@ -478,6 +478,17 @@ export class ApiService {
     return this.request<ProjectDetails>(`/api/project/${projectId}`);
   }
 
+  static async getChatMessages(projectId: string, limit?: number, before?: string): Promise<{
+    chatMessages: ChatMessage[];
+    hasMore: boolean;
+  }> {
+    const params = new URLSearchParams();
+    if (limit !== undefined) params.set('limit', String(limit));
+    if (before) params.set('before', before);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return this.request<{ chatMessages: ChatMessage[]; hasMore: boolean }>(`/api/projects/${projectId}/chat-messages${query}`);
+  }
+
 
   static async getDefaultProject(): Promise<{ project: Project }> {
     return this.request<{ project: Project }>('/api/user/default-project');

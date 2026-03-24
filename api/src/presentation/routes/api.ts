@@ -90,9 +90,15 @@ export function createApiRoutes(deps: ApiRoutesDependencies): Router {
     deps.projectController.getProjectDetails
   );
 
-  router.get('/prompts/:projectId', 
-    deps.authMiddleware.authenticate, 
-    deps.workspaceAccessMiddleware.checkProjectAccess('projectId'), 
+  router.get('/projects/:projectId/chat-messages',
+    deps.authMiddleware.authenticate,
+    deps.workspaceAccessMiddleware.checkProjectAccess('projectId'),
+    deps.projectController.getChatMessages
+  );
+
+  router.get('/prompts/:projectId',
+    deps.authMiddleware.authenticate,
+    deps.workspaceAccessMiddleware.checkProjectAccess('projectId'),
     deps.projectController.getPromptsByProject
   );
 

@@ -55,6 +55,7 @@ import { AnalyzePromptUseCase } from '../../application/use-cases/AnalyzePromptU
 import { CreateProjectUseCase } from '../../application/use-cases/CreateProjectUseCase';
 import { CreateProjectFromPromptUseCase } from '../../application/use-cases/CreateProjectFromPromptUseCase';
 import { GetProjectDetailsUseCase } from '../../application/use-cases/GetProjectDetailsUseCase';
+import { GetChatMessagesUseCase } from '../../application/use-cases/GetChatMessagesUseCase';
 import { UpdateProjectUseCase } from '../../application/use-cases/UpdateProjectUseCase';
 import { DeleteProjectUseCase } from '../../application/use-cases/DeleteProjectUseCase';
 import { SetupUserUseCase } from '../../application/use-cases/SetupUserUseCase';
@@ -246,6 +247,12 @@ export function setupContainer(): DIContainer {
     container.get<IStorageService>('storageService')
   ));
 
+  container.registerFactory<GetChatMessagesUseCase>('getChatMessagesUseCase', () => new GetChatMessagesUseCase(
+    container.get<IChatMessageRepository>('chatMessageRepository'),
+    container.get<IMediaRepository>('mediaRepository'),
+    container.get<IStorageService>('storageService')
+  ));
+
   container.registerFactory<UpdateProjectUseCase>('updateProjectUseCase', () => new UpdateProjectUseCase(
     container.get<IProjectRepository>('projectRepository')
   ));
@@ -293,6 +300,7 @@ export function setupContainer(): DIContainer {
     container.get<CreateProjectUseCase>('createProjectUseCase'),
     container.get<CreateProjectFromPromptUseCase>('createProjectFromPromptUseCase'),
     container.get<GetProjectDetailsUseCase>('getProjectDetailsUseCase'),
+    container.get<GetChatMessagesUseCase>('getChatMessagesUseCase'),
     container.get<UpdateProjectUseCase>('updateProjectUseCase'),
     container.get<UndoVersionUseCase>('undoVersionUseCase'),
     container.get<IProjectRepository>('projectRepository'),

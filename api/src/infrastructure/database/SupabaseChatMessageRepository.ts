@@ -1,5 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { IChatMessageRepository } from '../../domain/repositories/IChatMessageRepository';
+import { IChatMessageRepository, PaginatedChatMessages } from '../../domain/repositories/IChatMessageRepository';
 import { ChatMessage, CreateChatMessageRequest } from '../../domain/entities/ChatMessage';
 import { SupabaseClientFactory } from '../../shared/database/SupabaseClientFactory';
 
@@ -60,6 +60,44 @@ export class SupabaseChatMessageRepository implements IChatMessageRepository {
     if (error) throw error;
 
     return (data || []).map(this.mapToEntity);
+  }
+
+  async findByProjectIdPaginated(projectId: string, options: {
+    limit: number;
+    before?: string;
+  }): Promise<PaginatedChatMessages> {
+    const { limit, before } = options;
+
+    let query = this.supabase
+      .from('chat_messages')
+      .select('*')
+      .eq('project_id', projectId);
+
+    if (before) {
+      query = query.lt('created_at', before);
+    }
+
+    // Fetch one extra to determine hasMore
+    query = query
+      .order('created_at', { ascending: false })
+      .order('message_order', { ascending: false })
+      .limit(limit + 1);
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+
+    const rows = data || [];
+    const hasMore = rows.length > limit;
+
+    // Take only the requested number and reverse to chronological order
+    const sliced = rows.slice(0, limit);
+    sliced.reverse();
+
+    return {
+      messages: sliced.map(this.mapToEntity),
+      hasMore,
+    };
   }
 
   async findByBuildId(buildId: string): Promise<ChatMessage[]> {

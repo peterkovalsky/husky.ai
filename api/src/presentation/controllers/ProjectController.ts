@@ -3,6 +3,7 @@ import { AuthRequest } from '../middleware/AuthMiddleware';
 import { CreateProjectUseCase } from '../../application/use-cases/CreateProjectUseCase';
 import { CreateProjectFromPromptUseCase } from '../../application/use-cases/CreateProjectFromPromptUseCase';
 import { GetProjectDetailsUseCase } from '../../application/use-cases/GetProjectDetailsUseCase';
+import { GetChatMessagesUseCase } from '../../application/use-cases/GetChatMessagesUseCase';
 import { UpdateProjectUseCase } from '../../application/use-cases/UpdateProjectUseCase';
 import { UndoVersionUseCase } from '../../application/use-cases/UndoVersionUseCase';
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
@@ -16,6 +17,7 @@ export class ProjectController {
     private createProjectUseCase: CreateProjectUseCase,
     private createProjectFromPromptUseCase: CreateProjectFromPromptUseCase,
     private getProjectDetailsUseCase: GetProjectDetailsUseCase,
+    private getChatMessagesUseCase: GetChatMessagesUseCase,
     private updateProjectUseCase: UpdateProjectUseCase,
     private undoVersionUseCase: UndoVersionUseCase,
     private projectRepository: IProjectRepository,
@@ -180,6 +182,28 @@ export class ProjectController {
       
       res.status(500).json({ 
         error: 'Failed to fetch project details',
+        details: errorMessage
+      });
+    }
+  };
+
+  getChatMessages = async (req: AuthRequest, res: Response) => {
+    try {
+      const { projectId } = req.params;
+      const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 10, 1), 50);
+      const before = req.query.before as string | undefined;
+
+      if (!req.user) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+
+      const result = await this.getChatMessagesUseCase.execute(projectId, limit, before);
+      res.json(result);
+    } catch (error) {
+      console.error('Error fetching chat messages:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      res.status(500).json({
+        error: 'Failed to fetch chat messages',
         details: errorMessage
       });
     }

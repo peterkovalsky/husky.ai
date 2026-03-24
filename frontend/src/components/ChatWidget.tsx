@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type RefObject } from 'react'
+import { useState, useEffect, useRef, useCallback, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { ApiService, type JobStatus, type ChatMessage as APIChatMessage, type ChatMessageMedia } from '../services/api'
@@ -71,12 +71,22 @@ export const ChatWidget = ({
   const [lastPromptText, setLastPromptText] = useState<string | null>(null)
   const [showInsufficientCredits, setShowInsufficientCredits] = useState(false)
   const [lightboxMedia, setLightboxMedia] = useState<{ url: string; type: 'image' | 'video' | 'doc'; textContent?: string } | null>(null)
+
+  // Pagination state
+  const [isLoadingInitial, setIsLoadingInitial] = useState(false)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(false)
+  const [oldestMessageCursor, setOldestMessageCursor] = useState<string | null>(null)
+
   const { currentProject } = useProject()
   const navigate = useNavigate()
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const sentinelRef = useRef<HTMLDivElement>(null)
   const pollCleanupRef = useRef<(() => void) | null>(null)
   const lastStatusRef = useRef<string | null>(null)
+  const initialLoadDoneRef = useRef(false)
 
   // Use explicit projectId prop if provided, otherwise fall back to context
   const activeProjectId = projectId || currentProject?.id
@@ -124,13 +134,24 @@ export const ChatWidget = ({
     }))
   }
 
-  // Re-fetch conversation history from DB and replace session messages
+  // Re-fetch latest messages from API and merge with existing history
   const refreshConversationHistory = async () => {
     if (!activeProjectId) return
-    const details = await ApiService.getProjectDetails(activeProjectId)
-    if (details.chatMessages && details.chatMessages.length > 0) {
-      setConversationHistory(mapApiMessages(details.chatMessages))
+    const result = await ApiService.getChatMessages(activeProjectId, 10)
+    if (result.chatMessages && result.chatMessages.length > 0) {
+      const newMessages = mapApiMessages(result.chatMessages)
+
+      setConversationHistory(prev => {
+        // Merge: keep older messages that aren't in the new batch, then append new
+        const newIds = new Set(newMessages.map(m => m.id))
+        const olderMessages = prev.filter(m => !newIds.has(m.id))
+        return [...olderMessages, ...newMessages]
+      })
       setMessages([]) // Clear session messages since they're now in conversation history
+
+      // Update cursor and hasMore
+      setHasMore(result.hasMore)
+      // Don't update cursor since we may have older messages already loaded
     }
   }
 
@@ -152,13 +173,34 @@ export const ChatWidget = ({
     }
   }, [handleFileSelect])
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  const scrollToBottom = (instant = false) => {
+    if (instant) {
+      // Jump to bottom without animation (for initial load)
+      const container = scrollContainerRef.current
+      if (container) {
+        container.scrollTop = container.scrollHeight
+      }
+    } else {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
   }
 
+  // Scroll to bottom on initial load (instant, no animation)
   useEffect(() => {
-    scrollToBottom()
-  }, [messages, conversationHistory, onboardingMessages])
+    if (!isLoadingInitial && conversationHistory.length > 0 && initialLoadDoneRef.current) {
+      // Use requestAnimationFrame to ensure DOM has rendered
+      requestAnimationFrame(() => {
+        scrollToBottom(true)
+      })
+    }
+  }, [isLoadingInitial]) // Only trigger when initial load completes
+
+  // Smooth scroll for new session messages and onboarding messages
+  useEffect(() => {
+    if (messages.length > 0 || onboardingMessages.length > 0) {
+      scrollToBottom()
+    }
+  }, [messages, onboardingMessages])
 
   useEffect(() => {
     return () => {
@@ -190,33 +232,36 @@ export const ChatWidget = ({
     fetchProjectDetails()
   }, [activeProjectId])
 
-  // Fetch conversation history from chat_messages table
+  // Fetch initial chat messages (paginated)
   useEffect(() => {
-    const fetchConversationHistory = async () => {
+    const fetchInitialMessages = async () => {
       if (!activeProjectId) {
         setConversationHistory([])
         setLastPromptText(null)
+        setHasMore(false)
+        setOldestMessageCursor(null)
+        initialLoadDoneRef.current = false
         return
       }
 
+      setIsLoadingInitial(true)
       try {
-        const details = await ApiService.getProjectDetails(activeProjectId)
+        const result = await ApiService.getChatMessages(activeProjectId, 10)
 
-        console.log('[ChatWidget] Fetched project details:', {
+        console.log('[ChatWidget] Fetched initial chat messages:', {
           projectId: activeProjectId,
-          chatMessagesCount: details.chatMessages?.length || 0,
-          recentPromptsCount: details.recentPrompts?.length || 0,
+          count: result.chatMessages.length,
+          hasMore: result.hasMore,
         })
-        if (details.chatMessages && details.chatMessages.length > 0) {
-          console.log('[ChatWidget] Chat messages breakdown:',
-            details.chatMessages.map(m => ({ id: m.id, type: m.type, content: m.content.substring(0, 50), metadata: m.metadata }))
-          )
-        }
 
-        // Use chatMessages if available, otherwise fall back to prompts
-        if (details.chatMessages && details.chatMessages.length > 0) {
-          const historyMessages = mapApiMessages(details.chatMessages)
+        if (result.chatMessages.length > 0) {
+          const historyMessages = mapApiMessages(result.chatMessages)
           setConversationHistory(historyMessages)
+          setHasMore(result.hasMore)
+
+          // Set cursor to the oldest message's createdAt
+          const oldest = result.chatMessages[0]
+          setOldestMessageCursor(oldest.createdAt)
 
           // Find the last user prompt for undo modal
           const userPrompts = historyMessages.filter(m => m.type === 'user' && m.status === 'completed')
@@ -226,38 +271,94 @@ export const ChatWidget = ({
             setLastPromptText(null)
           }
         } else {
-          // Fall back to old behavior using prompts if no chat messages exist
-          const historyMessages: ChatMessage[] = details.recentPrompts.map((prompt) => ({
-            id: prompt.id,
-            type: 'user' as const,
-            content: prompt.prompt,
-            timestamp: new Date(prompt.createdAt),
-            status: prompt.status === 'READY' || prompt.status === 'COMPLETED' ? 'completed' : prompt.status === 'FAILED' ? 'failed' : 'processing',
-            jobId: prompt.id
-          }))
-
-          // Sort by timestamp ascending (oldest first)
-          historyMessages.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
-
-          setConversationHistory(historyMessages)
-
-          // Find the last completed prompt for undo modal
-          const completedPrompts = historyMessages.filter(m => m.status === 'completed')
-          if (completedPrompts.length > 0) {
-            setLastPromptText(completedPrompts[completedPrompts.length - 1].content)
-          } else {
-            setLastPromptText(null)
-          }
+          setConversationHistory([])
+          setHasMore(false)
+          setOldestMessageCursor(null)
+          setLastPromptText(null)
         }
+
+        initialLoadDoneRef.current = true
       } catch (error) {
         console.error('Failed to fetch conversation history:', error)
         setConversationHistory([])
         setLastPromptText(null)
+        setHasMore(false)
+        setOldestMessageCursor(null)
+      } finally {
+        setIsLoadingInitial(false)
       }
     }
 
-    fetchConversationHistory()
-  }, [activeProjectId, buildJustCompleted])
+    fetchInitialMessages()
+  }, [activeProjectId])
+
+  // Re-fetch latest messages when a build just completed
+  useEffect(() => {
+    if (buildJustCompleted && activeProjectId && initialLoadDoneRef.current) {
+      refreshConversationHistory().catch(err => {
+        console.error('Failed to refresh after build completion:', err)
+      })
+    }
+  }, [buildJustCompleted, activeProjectId])
+
+  // Load older messages when scrolling to top
+  const loadOlderMessages = useCallback(async () => {
+    if (!activeProjectId || !hasMore || isLoadingMore || !oldestMessageCursor) return
+
+    setIsLoadingMore(true)
+    const container = scrollContainerRef.current
+    const previousScrollHeight = container?.scrollHeight || 0
+
+    try {
+      const result = await ApiService.getChatMessages(activeProjectId, 10, oldestMessageCursor)
+
+      if (result.chatMessages.length > 0) {
+        const olderMessages = mapApiMessages(result.chatMessages)
+
+        setConversationHistory(prev => [...olderMessages, ...prev])
+        setHasMore(result.hasMore)
+
+        // Update cursor to the oldest message
+        const oldest = result.chatMessages[0]
+        setOldestMessageCursor(oldest.createdAt)
+
+        // Preserve scroll position after DOM update
+        requestAnimationFrame(() => {
+          if (container) {
+            const newScrollHeight = container.scrollHeight
+            container.scrollTop = newScrollHeight - previousScrollHeight
+          }
+        })
+      } else {
+        setHasMore(false)
+      }
+    } catch (error) {
+      console.error('Failed to load older messages:', error)
+    } finally {
+      setIsLoadingMore(false)
+    }
+  }, [activeProjectId, hasMore, isLoadingMore, oldestMessageCursor])
+
+  // IntersectionObserver for infinite scroll sentinel
+  useEffect(() => {
+    const sentinel = sentinelRef.current
+    if (!sentinel) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isLoadingMore && !isLoadingInitial) {
+          loadOlderMessages()
+        }
+      },
+      {
+        root: scrollContainerRef.current,
+        threshold: 0.1,
+      }
+    )
+
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [hasMore, isLoadingMore, isLoadingInitial, loadOlderMessages])
 
   const updateMessageStatus = (messageId: string, status: ChatMessage['status'], jobId?: string) => {
     setMessages(prev => prev.map(msg => 
@@ -713,8 +814,22 @@ export const ChatWidget = ({
       {/* Full-height sidebar */}
       <div className="h-full flex flex-col bg-white">
         {/* Conversation history */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-          {conversationHistory.length === 0 && messages.filter(msg => msg.type === 'user').length === 0 && onboardingMessages.length === 0 && (
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+          {/* Loading indicator for initial load */}
+          {isLoadingInitial && (
+            <div className="flex justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          )}
+
+          {/* Sentinel for infinite scroll + loading indicator for older messages */}
+          {!isLoadingInitial && hasMore && (
+            <div ref={sentinelRef} className="flex justify-center py-2">
+              {isLoadingMore && <Loader2 className="h-4 w-4 animate-spin text-default-400" />}
+            </div>
+          )}
+
+          {!isLoadingInitial && conversationHistory.length === 0 && messages.filter(msg => msg.type === 'user').length === 0 && onboardingMessages.length === 0 && (
             <div className="text-center py-12">
               <div className="bg-content2 rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
                 <MessageCircle className="h-8 w-8 opacity-60" />
