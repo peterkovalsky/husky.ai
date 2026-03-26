@@ -201,3 +201,6 @@ projects/
 # GCP service account keys
 .gcp-local-dev-key.json
 .gcp-claude-code-prod.json
+
+# Wrangler local dev state
+.wrangler/
