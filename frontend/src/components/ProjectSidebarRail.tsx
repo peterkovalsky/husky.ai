@@ -1,13 +1,12 @@
 import { useNavigate } from 'react-router-dom'
-import { MessageSquareMore, Home } from 'lucide-react'
+import { MessageSquareMore, Home, Globe } from 'lucide-react'
 
-export type SidebarPanel = 'chat' | null
+export type SidebarPanel = 'chat' | 'publish' | null
 
 interface SidebarItem {
   id: string
   label: string
   icon: React.ReactNode
-  activeIcon: React.ReactNode
   panel: NonNullable<SidebarPanel>
 }
 
@@ -18,10 +17,14 @@ const SIDEBAR_ITEMS: SidebarItem[] = [
     id: 'chat',
     label: 'Chat',
     icon: <MessageSquareMore className={ICON_CLASS} strokeWidth={1.5} />,
-    activeIcon: <MessageSquareMore className={ICON_CLASS} fill="currentColor" strokeWidth={0} />,
     panel: 'chat',
   },
-  // Future items: Assets, Settings, History, etc.
+  {
+    id: 'publish',
+    label: 'Publish',
+    icon: <Globe className={ICON_CLASS} strokeWidth={1.5} />,
+    panel: 'publish',
+  },
 ]
 
 interface ProjectSidebarRailProps {
@@ -47,6 +50,7 @@ export const ProjectSidebarRail = ({ activePanel, onItemClick }: ProjectSidebarR
       </button>
 
       {/* Panel items */}
+      <div className="flex flex-col items-center gap-4">
       {SIDEBAR_ITEMS.map((item) => {
         const isActive = activePanel === item.panel
         return (
@@ -65,7 +69,7 @@ export const ProjectSidebarRail = ({ activePanel, onItemClick }: ProjectSidebarR
                 }
               `}
             >
-              {isActive ? item.activeIcon : item.icon}
+              {item.icon}
             </span>
             <span className="text-xs font-medium leading-none text-[#737373]">
               {item.label}
@@ -73,6 +77,7 @@ export const ProjectSidebarRail = ({ activePanel, onItemClick }: ProjectSidebarR
           </button>
         )
       })}
+      </div>
     </div>
   )
 }

@@ -1,15 +1,16 @@
-import { Card, CardBody, Input, Button, Code, Alert, Chip, Divider, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Accordion, AccordionItem } from '@heroui/react'
+import { Input, Button, Code, Alert, Chip, Divider, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Accordion, AccordionItem } from '@heroui/react'
 import { ApiService, type CustomDomainInfo, CustomDomainStatus } from '../services/api'
 import { useState } from 'react'
-import { Globe, Check, AlertCircle, Loader2, X, ExternalLink, Copy, CheckCheck, Info } from 'lucide-react'
+import { Globe, Check, Loader2, Copy, CheckCheck, Info, ArrowUpRight, ArrowRight, RefreshCw } from 'lucide-react'
 
 interface CustomDomainSectionProps {
   projectId: string
   customDomain?: CustomDomainInfo
   onUpdate: () => void
+  compact?: boolean
 }
 
-export const CustomDomainSection = ({ projectId, customDomain, onUpdate }: CustomDomainSectionProps) => {
+export const CustomDomainSection = ({ projectId, customDomain, onUpdate, compact }: CustomDomainSectionProps) => {
   const [domainInput, setDomainInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
@@ -84,40 +85,24 @@ export const CustomDomainSection = ({ projectId, customDomain, onUpdate }: Custo
     }
   }
 
-  const getStatusChip = (status: CustomDomainStatus) => {
-    switch (status) {
-      case CustomDomainStatus.ACTIVE:
-        return <Chip size="sm" color="success" startContent={<Check className="w-3 h-3" />}>Active</Chip>
-      case CustomDomainStatus.PENDING_DNS:
-        return <Chip size="sm" color="warning" startContent={<AlertCircle className="w-3 h-3" />}>Pending DNS</Chip>
-      case CustomDomainStatus.PENDING_SSL:
-        return <Chip size="sm" color="primary" startContent={<Loader2 className="w-3 h-3 animate-spin" />}>Pending SSL</Chip>
-      case CustomDomainStatus.FAILED:
-        return <Chip size="sm" color="danger" startContent={<X className="w-3 h-3" />}>Failed</Chip>
-      default:
-        return null
-    }
-  }
-
   if (!customDomain) {
     // No custom domain set - show input to add one
     return (
       <div className="space-y-3">
-        <Divider className="my-4" />
+        {!compact && (
+          <>
+            <Divider className="my-4" />
+            <div className="text-sm font-medium text-default-700 flex items-center gap-2">
+              <Globe className="w-4 h-4" />
+              Custom Domain (Optional)
+            </div>
+          </>
+        )}
 
-        <div className="text-sm font-medium text-default-700 flex items-center gap-2">
-          <Globe className="w-4 h-4" />
-          Custom Domain (Optional)
-        </div>
-
-        <div className="text-xs text-default-500">
-          Use your own domain for this project
-        </div>
-
-        <div className="flex gap-2">
+        <div className="relative">
           <Input
             size="sm"
-            placeholder="www.example.com"
+            placeholder="example.com"
             value={domainInput}
             onChange={(e) => setDomainInput(e.target.value)}
             onKeyDown={(e) => {
@@ -126,23 +111,36 @@ export const CustomDomainSection = ({ projectId, customDomain, onUpdate }: Custo
               }
             }}
             isDisabled={isLoading}
+            variant="bordered"
+            radius="lg"
             classNames={{
-              input: "text-sm"
+              input: 'text-sm',
+              inputWrapper: 'border-default-200 hover:border-default-300 h-10',
             }}
+            endContent={
+              <Button
+                size="sm"
+                variant="light"
+                color="primary"
+                onPress={handleSetCustomDomain}
+                isLoading={isLoading}
+                isIconOnly={!domainInput.trim()}
+                className="min-w-fit h-7 px-2"
+              >
+                {domainInput.trim() ? (
+                  <span className="flex items-center gap-1 text-xs">
+                    Connect <ArrowRight className="w-3 h-3" />
+                  </span>
+                ) : (
+                  <ArrowRight className="w-3.5 h-3.5" />
+                )}
+              </Button>
+            }
           />
-          <Button
-            size="sm"
-            onPress={handleSetCustomDomain}
-            isLoading={isLoading}
-          >
-            Add Domain
-          </Button>
         </div>
 
         {error && (
-          <Alert color="danger" variant="flat" className="text-xs">
-            {error}
-          </Alert>
+          <p className="text-xs text-danger">{error}</p>
         )}
       </div>
     )
@@ -151,161 +149,144 @@ export const CustomDomainSection = ({ projectId, customDomain, onUpdate }: Custo
   // Custom domain is set - show status and instructions
   return (
     <div className="space-y-3">
-      <Divider className="my-4" />
+      {!compact && <Divider className="my-4" />}
 
-      <div className="flex items-center justify-between">
-        <div className="text-sm font-medium text-default-700 flex items-center gap-2">
-          <Globe className="w-4 h-4" />
-          Custom Domain
-        </div>
-        {getStatusChip(customDomain.status)}
-      </div>
-
-      {/* Domain URL (if active) */}
+      {/* Active domain — clickable link */}
       {customDomain.status === CustomDomainStatus.ACTIVE && customDomain.url && (
-        <Card shadow="none" className="bg-success-50 border border-success-200">
-          <CardBody className="p-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-success-700">
-                <Check className="w-4 h-4" />
-                <a
-                  href={customDomain.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm font-medium hover:underline flex items-center gap-1"
-                >
-                  {customDomain.domain}
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-              </div>
-            </div>
-          </CardBody>
-        </Card>
-      )}
-
-      {/* DNS Instructions */}
-      {customDomain.dnsInstructions && (
-        <Card shadow="none" className="bg-default-50">
-          <CardBody className="p-3 space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="text-xs font-medium text-default-700">
-                DNS Configuration
-              </div>
-              <button
-                onClick={() => setShowInstructions(true)}
-                className="p-1 hover:bg-default-200 rounded transition-colors"
-                title="View DNS setup instructions"
-              >
-                <Info className="w-3.5 h-3.5 text-default-600" />
-              </button>
-            </div>
-            <div className="space-y-1.5 text-xs">
-              <div className="flex justify-between items-center">
-                <span className="text-default-500">Type:</span>
-                <Code size="sm" className="text-xs">{customDomain.dnsInstructions.type}</Code>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-default-500">Name:</span>
-                <Code size="sm" className="text-xs">{customDomain.dnsInstructions.name}</Code>
-              </div>
-              <div className="flex justify-between items-center gap-2">
-                <span className="text-default-500">Value:</span>
-                <div className="flex items-center gap-1.5">
-                  <Code size="sm" className="text-xs break-all">{customDomain.dnsInstructions.value}</Code>
-                  <button
-                    onClick={() => handleCopyValue(customDomain.dnsInstructions!.value)}
-                    className="p-1 hover:bg-default-200 rounded transition-colors"
-                    title="Copy to clipboard"
-                  >
-                    {copiedValue ? (
-                      <CheckCheck className="w-3.5 h-3.5 text-success" />
-                    ) : (
-                      <Copy className="w-3.5 h-3.5 text-default-600" />
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </CardBody>
-        </Card>
-      )}
-
-      {/* Status-specific messages and actions */}
-      {customDomain.status === CustomDomainStatus.PENDING_DNS && (
-        <Alert
-          color="warning"
-          variant="flat"
-          title="DNS Not Configured"
-          description="Point your DNS to the CNAME above"
-          className="text-xs"
+        <a
+          href={customDomain.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="group flex items-center justify-between rounded-xl border border-default-200 hover:border-emerald-200 bg-default-50 hover:bg-emerald-50/30 px-3.5 py-3 transition-all duration-150"
         >
-          <div className="mt-2">
-            <Button
-              size="sm"
-              color="warning"
-              variant="flat"
-              onPress={handleVerifyDNS}
-              isLoading={isVerifying}
-              startContent={!isVerifying ? <Check className="w-3 h-3" /> : undefined}
-            >
-              Check DNS
-            </Button>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="relative flex h-2 w-2 flex-shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+            </span>
+            <span className="text-sm text-default-700 group-hover:text-emerald-700 truncate">
+              {customDomain.domain}
+            </span>
           </div>
-        </Alert>
+          <ArrowUpRight className="w-4 h-4 text-default-300 group-hover:text-emerald-500 flex-shrink-0 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+        </a>
+      )}
+
+      {/* Non-active states — show status header */}
+      {customDomain.status !== CustomDomainStatus.ACTIVE && (
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-default-600 truncate">{customDomain.domain}</span>
+          {customDomain.status === CustomDomainStatus.PENDING_DNS && (
+            <Chip size="sm" variant="flat" color="warning" className="h-5 text-[10px]">Pending DNS</Chip>
+          )}
+          {customDomain.status === CustomDomainStatus.PENDING_SSL && (
+            <Chip size="sm" variant="flat" color="primary" className="h-5 text-[10px]">
+              <Loader2 className="w-2.5 h-2.5 animate-spin mr-1" />SSL
+            </Chip>
+          )}
+          {customDomain.status === CustomDomainStatus.FAILED && (
+            <Chip size="sm" variant="flat" color="danger" className="h-5 text-[10px]">Failed</Chip>
+          )}
+        </div>
+      )}
+
+      {/* DNS Instructions — only shown when DNS is pending */}
+      {customDomain.dnsInstructions && customDomain.status === CustomDomainStatus.PENDING_DNS && (
+        <div className="rounded-xl border border-default-200 bg-default-50/50 overflow-hidden">
+          <div className="px-3 py-2 border-b border-default-100 flex items-center justify-between">
+            <span className="text-[11px] font-medium text-default-500 uppercase tracking-wider">CNAME Record</span>
+            <button
+              onClick={() => setShowInstructions(true)}
+              className="p-1 hover:bg-default-200 rounded-md transition-colors"
+              title="View DNS setup instructions"
+            >
+              <Info className="w-3 h-3 text-default-400" />
+            </button>
+          </div>
+          <div className="px-3 py-2.5 space-y-2 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-default-400">Name</span>
+              <code className="text-default-600 bg-default-100 px-1.5 py-0.5 rounded text-[11px]">{customDomain.dnsInstructions.name}</code>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-default-400">Value</span>
+              <div className="flex items-center gap-1">
+                <code className="text-default-600 bg-default-100 px-1.5 py-0.5 rounded text-[11px] truncate max-w-[180px]">{customDomain.dnsInstructions.value}</code>
+                <button
+                  onClick={() => handleCopyValue(customDomain.dnsInstructions!.value)}
+                  className="p-1 hover:bg-default-200 rounded-md transition-colors flex-shrink-0"
+                  title="Copy to clipboard"
+                >
+                  {copiedValue ? (
+                    <CheckCheck className="w-3 h-3 text-emerald-500" />
+                  ) : (
+                    <Copy className="w-3 h-3 text-default-400" />
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Status-specific actions */}
+      {customDomain.status === CustomDomainStatus.PENDING_DNS && (
+        <div className="space-y-2">
+          <p className="text-xs text-default-400 leading-relaxed">
+            Add the CNAME record above at your domain registrar, then verify.
+          </p>
+          <Button
+            size="sm"
+            variant="flat"
+            color="primary"
+            onPress={handleVerifyDNS}
+            isLoading={isVerifying}
+            fullWidth
+            radius="lg"
+            startContent={!isVerifying ? <Check className="w-3.5 h-3.5" /> : undefined}
+          >
+            Verify DNS
+          </Button>
+        </div>
       )}
 
       {customDomain.status === CustomDomainStatus.PENDING_SSL && (
-        <Alert
-          color="primary"
-          variant="flat"
-          title="SSL Certificate Provisioning"
-          description="SSL is being provisioned automatically by Cloudflare (30 seconds - 2 minutes). No action needed!"
-          className="text-xs"
-        />
+        <div className="flex items-center gap-2 px-1">
+          <Loader2 className="w-3 h-3 animate-spin text-primary" />
+          <p className="text-xs text-default-400">SSL provisioning (30s - 2min)...</p>
+        </div>
       )}
 
       {customDomain.status === CustomDomainStatus.FAILED && customDomain.error && (
-        <Alert
-          color="danger"
-          variant="flat"
-          title="Configuration Failed"
-          description={customDomain.error}
-          className="text-xs"
-        >
-          <div className="mt-2">
-            <Button
-              size="sm"
-              color="danger"
-              variant="flat"
-              onPress={handleVerifyDNS}
-              isLoading={isVerifying}
-            >
-              Retry Verification
-            </Button>
-          </div>
-        </Alert>
+        <div className="space-y-2">
+          <p className="text-xs text-danger-500">{customDomain.error}</p>
+          <Button
+            size="sm"
+            variant="flat"
+            color="danger"
+            onPress={handleVerifyDNS}
+            isLoading={isVerifying}
+            radius="lg"
+            startContent={!isVerifying ? <RefreshCw className="w-3 h-3" /> : undefined}
+          >
+            Retry
+          </Button>
+        </div>
       )}
 
       {error && (
-        <Alert color="danger" variant="flat" className="text-xs">
-          {error}
-        </Alert>
+        <p className="text-xs text-danger">{error}</p>
       )}
 
-      {/* Remove button - hidden during SSL provisioning */}
+      {/* Remove — subtle text link */}
       {customDomain.status !== CustomDomainStatus.PENDING_SSL && (
-        <div className="pt-2">
-          <Button
-            size="sm"
-            color="danger"
-            variant="light"
-            onPress={handleRemove}
-            isLoading={isLoading}
-            startContent={<X className="w-3 h-3" />}
-          >
-            Remove Custom Domain
-          </Button>
-        </div>
+        <button
+          onClick={handleRemove}
+          disabled={isLoading}
+          className="text-xs text-default-400 hover:text-danger transition-colors cursor-pointer disabled:opacity-50"
+        >
+          {isLoading ? 'Removing...' : 'Remove domain'}
+        </button>
       )}
 
       {/* DNS Instructions Modal */}
@@ -346,7 +327,7 @@ export const CustomDomainSection = ({ projectId, customDomain, onUpdate }: Custo
                     </li>
                     <li>Save the DNS record</li>
                     <li>DNS changes can take 5 minutes to 48 hours to propagate (usually 15-30 minutes)</li>
-                    <li>Return here and click "Check DNS" to verify your configuration</li>
+                    <li>Return here and click "Verify DNS" to verify your configuration</li>
                   </ol>
                 </div>
 
@@ -395,7 +376,7 @@ export const CustomDomainSection = ({ projectId, customDomain, onUpdate }: Custo
                 </div>
 
                 <Alert color="primary" variant="flat" className="text-xs">
-                  <p>After adding the DNS record, it may take some time to propagate. You can use the "Check DNS" button to verify when it's ready.</p>
+                  <p>After adding the DNS record, it may take some time to propagate. You can use the "Verify DNS" button to verify when it's ready.</p>
                 </Alert>
               </ModalBody>
               <ModalFooter>

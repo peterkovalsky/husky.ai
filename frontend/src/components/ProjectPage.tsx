@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { ApiService, type JobStatus, type ProjectDetails } from '../services/api'
 import { useProject } from '../contexts/ProjectContext'
 import { ChatWidget } from './ChatWidget'
+import { PublishPanel } from './PublishPanel'
 import { ProjectSidebarRail, type SidebarPanel } from './ProjectSidebarRail'
 import { NewProjectStarter } from './NewProjectStarter'
 import InspirationGallery from './InspirationGallery'
@@ -126,6 +127,7 @@ export const ProjectPage = () => {
     currentPreviewUrlRef.current = ''
     lastIframeLocation.current = null
     setError(null)
+    setActivePanel('chat')
   }, [project_id])
 
   useEffect(() => {
@@ -511,7 +513,7 @@ export const ProjectPage = () => {
         />
       )}
 
-      {/* Expanded Panel - always rendered to preserve ChatWidget state, hidden when not active */}
+      {/* Chat Panel - always rendered to preserve ChatWidget state, hidden when not active */}
       {isFullyLoaded && (
         <div
           className={`relative h-full flex-shrink-0 bg-white border-r border-slate-200 ${activePanel === 'chat' ? 'block' : 'hidden'}`}
@@ -524,6 +526,30 @@ export const ProjectPage = () => {
             buildJustCompleted={buildJustCompleted}
             onAnnotate={hasReadyPreview ? handleAnnotate : undefined}
             pageContextRef={pageContextRef}
+          />
+          {/* Canva-style collapse pill button at the panel edge */}
+          <button
+            onClick={() => setActivePanel(null)}
+            className="absolute -right-3 top-1/2 -translate-y-1/2 z-40 w-6 h-10 rounded-full bg-white flex items-center justify-center cursor-pointer transition-shadow hover:shadow-[rgba(64,79,109,0.08)_0px_0px_0px_0.5px,rgba(24,44,89,0.18)_0px_2px_6px_0px,rgba(24,44,89,0.10)_0px_8px_16px_0px]"
+            style={{
+              boxShadow: 'rgba(64,79,109,0.06) 0px 0px 0px 0.5px, rgba(24,44,89,0.137) 0px 2px 4px 0px, rgba(24,44,89,0.07) 0px 6px 12px 0px',
+            }}
+            title="Collapse panel"
+          >
+            <ChevronLeft className="w-4 h-4 text-black/70" />
+          </button>
+        </div>
+      )}
+
+      {/* Publish Panel */}
+      {isFullyLoaded && (
+        <div
+          className={`relative h-full flex-shrink-0 bg-white border-r border-slate-200 ${activePanel === 'publish' ? 'block' : 'hidden'}`}
+          style={{ width: `${panelWidth}px` }}
+        >
+          <PublishPanel
+            projectId={projectDetails.project.id}
+            isVisible={activePanel === 'publish'}
           />
           {/* Canva-style collapse pill button at the panel edge */}
           <button

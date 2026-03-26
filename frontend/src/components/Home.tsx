@@ -1,20 +1,13 @@
 import { useProject } from '../contexts/ProjectContext'
-import { Card, Button, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Chip } from '@heroui/react'
-import { EditProjectDialog } from './EditProjectDialog'
-import { DeleteProjectDialog } from './DeleteProjectDialog'
-import { PublishDialog } from './PublishDialog'
-import { Code2, MoreVertical, Trash2, Globe, Loader2, AlertCircle, Edit, Plus, Sparkles } from 'lucide-react'
+import { Card, Button, Chip } from '@heroui/react'
+import { Code2, Globe, Loader2, AlertCircle, Plus, Sparkles } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { useState, useEffect, useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { PublishingStatus, ProjectStatus, type Project } from '../services/api'
 
 export const Home = () => {
-  const { projects, loading, deleteProject, refreshProjects } = useProject()
+  const { projects, loading, refreshProjects } = useProject()
   const navigate = useNavigate()
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [publishDialogOpen, setPublishDialogOpen] = useState(false)
-  const [editDialogOpen, setEditDialogOpen] = useState(false)
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null)
 
   // Filter to only ACTIVE projects and sort by modified date descending (most recent first)
   const sortedProjects = useMemo(() => {
@@ -53,29 +46,6 @@ export const Home = () => {
       month: 'short',
       day: 'numeric'
     })
-  }
-
-  const handleDeleteProject = (project: Project) => {
-    setSelectedProject(project)
-    setDeleteDialogOpen(true)
-  }
-
-  const confirmDeleteProject = async (projectId: string) => {
-    if (deleteProject) {
-      await deleteProject(projectId)
-    }
-  }
-
-  const handleEditProject = (project: Project) => {
-    setSelectedProject(project)
-    setEditDialogOpen(true)
-  }
-
-  const handlePublishClick = (project: Project) => {
-    console.log('[Home] Publish clicked for project:', project)
-    setSelectedProject(project)
-    console.log('[Home] Opening publish dialog')
-    setPublishDialogOpen(true)
   }
 
   const getPublishingStatusBadge = (project: Project) => {
@@ -176,73 +146,6 @@ export const Home = () => {
                   onPress={() => navigate(`/project/${project.id}`)}
                   className="group relative overflow-hidden border border-default-200 shadow-none"
                 >
-                  {/* Action Menu - Overlaid on thumbnail */}
-                  <div className="absolute top-2 right-2 z-10">
-                    <Dropdown>
-                      <DropdownTrigger>
-                        <Button
-                          as="div"
-                          isIconOnly
-                          size="sm"
-                          className="glass hover:bg-white/90 transition-colors"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <MoreVertical className="h-4 w-4 text-default-700" />
-                        </Button>
-                      </DropdownTrigger>
-                      <DropdownMenu aria-label="Project actions">
-                        <DropdownItem
-                          key="edit"
-                          textValue="Edit Project"
-                          onClick={() => handleEditProject(project)}
-                        >
-                          <div className="flex items-center">
-                            <Edit className="mr-2 h-4 w-4" />
-                            Edit Project
-                          </div>
-                        </DropdownItem>
-                        {(project.publishedStatus === PublishingStatus.UNPUBLISHED || project.publishedStatus === PublishingStatus.FAILED) ? (
-                          <DropdownItem
-                            key="publish"
-                            textValue="Publish"
-                            onClick={() => handlePublishClick(project)}
-                            isDisabled={!project.currentVersion || project.currentVersion === 0}
-                            description={!project.currentVersion || project.currentVersion === 0 ? 'No successful builds available' : undefined}
-                          >
-                            <div className="flex items-center">
-                              <Globe className="mr-2 h-4 w-4" />
-                              Publish
-                            </div>
-                          </DropdownItem>
-                        ) : null}
-                        {project.publishedStatus === PublishingStatus.PUBLISHED ? (
-                          <DropdownItem
-                            key="republish"
-                            textValue="Republish"
-                            onClick={() => handlePublishClick(project)}
-                          >
-                            <div className="flex items-center">
-                              <Globe className="mr-2 h-4 w-4" />
-                              Republish
-                            </div>
-                          </DropdownItem>
-                        ) : null}
-                        <DropdownItem
-                          key="delete"
-                          textValue="Delete Project"
-                          className="text-danger"
-                          color="danger"
-                          onClick={() => handleDeleteProject(project)}
-                        >
-                          <div className="flex items-center">
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete Project
-                          </div>
-                        </DropdownItem>
-                      </DropdownMenu>
-                    </Dropdown>
-                  </div>
-
                   {/* Publishing Status Badge - Overlaid on thumbnail */}
                   {getPublishingStatusBadge(project) && (
                     <div className="absolute top-2 left-2 z-10">
@@ -285,33 +188,6 @@ export const Home = () => {
         )}
       </div>
 
-      {/* Dialogs */}
-      {selectedProject && (
-        <>
-          <EditProjectDialog
-            projectId={selectedProject.id}
-            currentName={selectedProject.name}
-            currentDescription={undefined}
-            isOpen={editDialogOpen}
-            onOpenChange={() => setEditDialogOpen(!editDialogOpen)}
-            onProjectUpdated={refreshProjects}
-          />
-          <DeleteProjectDialog
-            isOpen={deleteDialogOpen}
-            onOpenChange={setDeleteDialogOpen}
-            projectName={selectedProject.name}
-            projectId={selectedProject.id}
-            publishedStatus={selectedProject.publishedStatus}
-            onConfirm={confirmDeleteProject}
-          />
-          <PublishDialog
-            isOpen={publishDialogOpen}
-            onOpenChange={setPublishDialogOpen}
-            projectId={selectedProject.id}
-            onSuccess={refreshProjects}
-          />
-        </>
-      )}
     </div>
   )
 }
