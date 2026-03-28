@@ -1,4 +1,5 @@
 import { FileTree } from '../../domain/entities/Build';
+import { ProjectTemplate } from '../../domain/entities/Project';
 
 /**
  * Shared context passed between all build steps
@@ -9,6 +10,7 @@ export class BuildStepContext {
   readonly buildId: string;
   readonly projectId: string;
   readonly userId: string;
+  readonly template: ProjectTemplate;
 
   // Build state (mutable, set by steps)
   workingDirectory?: string;
@@ -24,10 +26,11 @@ export class BuildStepContext {
   // Step-specific data storage (for passing data between steps)
   private readonly stepData: Map<string, any> = new Map();
 
-  constructor(jobMessage: { buildId: string; projectId: string; userId: string }) {
+  constructor(jobMessage: { buildId: string; projectId: string; userId: string; template?: ProjectTemplate }) {
     this.buildId = jobMessage.buildId;
     this.projectId = jobMessage.projectId;
     this.userId = jobMessage.userId;
+    this.template = jobMessage.template || 'react18-ts';
   }
 
   /**

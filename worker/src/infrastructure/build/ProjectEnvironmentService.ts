@@ -1,4 +1,5 @@
 import { IProjectEnvironmentService, ProjectEnvironmentResult } from '../../domain/services/IProjectEnvironmentService';
+import { ProjectTemplate } from '../../domain/entities/Project';
 import { FileSystemHelper } from '../../shared/utils/FileSystemHelper';
 import fs from "fs";
 import path from "path";
@@ -57,7 +58,7 @@ export class ProjectEnvironmentService implements IProjectEnvironmentService {
     }
   }
 
-  async prepareEnvironmentAsync(projectId: string): Promise<ProjectEnvironmentResult> {
+  async prepareEnvironmentAsync(projectId: string, template?: ProjectTemplate): Promise<ProjectEnvironmentResult> {
     const prepStartTime = Date.now();
 
     console.log(`[ENV PREP] Starting environment preparation for project ${projectId}...`);
@@ -67,10 +68,10 @@ export class ProjectEnvironmentService implements IProjectEnvironmentService {
     this.fileSystemHelper.ensureDirectoryExists(webDir);
 
     // Prepare node_modules
-    const nodeModulesResult = await this.copyNodeModulesIfNeeded(webDir, projectId);
+    const nodeModulesResult = await this.copyNodeModulesIfNeeded(webDir, projectId, template);
 
     // Prepare package-lock.json
-    const packageLockResult = await this.copyPackageLockIfNeeded(webDir, projectId);
+    const packageLockResult = await this.copyPackageLockIfNeeded(webDir, projectId, template);
 
     const totalPrepTime = Date.now() - prepStartTime;
 
@@ -86,7 +87,7 @@ export class ProjectEnvironmentService implements IProjectEnvironmentService {
     };
   }
 
-  private async copyNodeModulesIfNeeded(webDir: string, projectId: string): Promise<{ copied: boolean; copyTime: number }> {
+  private async copyNodeModulesIfNeeded(webDir: string, projectId: string, template?: ProjectTemplate): Promise<{ copied: boolean; copyTime: number }> {
     try {
       const targetNodeModules = path.join(webDir, 'node_modules');
 
@@ -99,7 +100,7 @@ export class ProjectEnvironmentService implements IProjectEnvironmentService {
       console.log(`[ENV PREP] No node_modules found, checking template...`);
 
       // Try to copy from template directory
-      const templateDir = this.fileSystemHelper.getTemplateDir();
+      const templateDir = this.fileSystemHelper.getTemplateDir(template);
       const templateNodeModules = path.join(templateDir, 'node_modules');
 
       if (this.fileSystemHelper.directoryExists(templateNodeModules)) {
@@ -134,7 +135,7 @@ export class ProjectEnvironmentService implements IProjectEnvironmentService {
     }
   }
 
-  private async copyPackageLockIfNeeded(webDir: string, projectId: string): Promise<boolean> {
+  private async copyPackageLockIfNeeded(webDir: string, projectId: string, template?: ProjectTemplate): Promise<boolean> {
     try {
       const targetPackageLock = path.join(webDir, 'package-lock.json');
 
@@ -147,7 +148,7 @@ export class ProjectEnvironmentService implements IProjectEnvironmentService {
       console.log(`[ENV PREP] No package-lock.json found, checking template...`);
 
       // Try to copy from template directory
-      const templateDir = this.fileSystemHelper.getTemplateDir();
+      const templateDir = this.fileSystemHelper.getTemplateDir(template);
       const templatePackageLock = path.join(templateDir, 'package-lock.json');
 
       if (fs.existsSync(templatePackageLock)) {

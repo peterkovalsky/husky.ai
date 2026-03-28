@@ -49,7 +49,7 @@ export class ProductionBuildStep implements IBuildStep {
 
       // Build production version with root path
       console.log(`[${this.stepName}] Running production build with root path...`);
-      const productionBuildResult = await this.buildService.buildAppWithBasePath(appDirectory, "/");
+      const productionBuildResult = await this.buildService.buildAppWithBasePath(appDirectory, "/", context.template);
 
       if (!productionBuildResult.success) {
         console.warn(`[${this.stepName}] Production build failed: ${productionBuildResult.error || "Unknown build error"}`);

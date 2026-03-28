@@ -90,7 +90,7 @@ export class ProjectController {
 
   createProjectFromPrompt = async (req: AuthRequest, res: Response) => {
     try {
-      const { suggestedName, workspaceId } = req.body;
+      const { suggestedName, workspaceId, template } = req.body;
 
       if (!req.user) {
         return res.status(401).json({ error: 'User not authenticated' });
@@ -101,7 +101,7 @@ export class ProjectController {
       }
 
       const project = await this.createProjectFromPromptUseCase.execute(
-        { suggestedName, workspaceId },
+        { suggestedName, workspaceId, template },
         req.user
       );
 

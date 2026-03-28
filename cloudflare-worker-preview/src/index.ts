@@ -69,12 +69,22 @@ export default {
 
     if (!path || path.endsWith('/')) {
       path = path + 'index.html';
-    } else if (!path.includes('.')) {
-      // SPA route fallback - serve index.html for client-side routes
-      path = `projects/${projectId}/index.html`;
     }
 
-    const object = await env.PREVIEW_BUCKET.get(path);
+    let object = await env.PREVIEW_BUCKET.get(path);
+
+    // Directory-style path resolution for Astro SSG multi-page sites
+    // e.g., projects/{id}/about → projects/{id}/about/index.html
+    if (!object && !path.includes('.')) {
+      const dirPath = path.endsWith('/') ? path + 'index.html' : path + '/index.html';
+      object = await env.PREVIEW_BUCKET.get(dirPath);
+    }
+
+    // SPA route fallback - serve index.html for client-side routes (React apps)
+    if (!object && !path.includes('.')) {
+      object = await env.PREVIEW_BUCKET.get(`projects/${projectId}/index.html`);
+    }
+
     if (!object) {
       return new Response('Not Found', { status: 404 });
     }

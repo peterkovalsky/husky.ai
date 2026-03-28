@@ -39,7 +39,7 @@ export class PreviewBuildStep implements IBuildStep {
 
       // Build the app with project-specific base path
       console.log(`[${this.stepName}] Running build for app directory: ${appDirectory}`);
-      const buildResult = await this.buildService.buildApp(appDirectory, context.projectId);
+      const buildResult = await this.buildService.buildApp(appDirectory, context.projectId, context.template);
 
       if (!buildResult.success) {
         throw new Error(`Build failed: ${buildResult.error || "Unknown build error"}`);

@@ -31,4 +31,5 @@ export interface AnalyzePromptResponseDto {
   analysisId: string;
   suggestedProjectName?: string;  // AI-generated project name for new projects
   showInspirationGallery?: boolean; // True if the prompt is for a website/landing page
+  suggestedTemplate?: string; // AI-suggested template: 'react18-ts' | 'astro-website'
 }

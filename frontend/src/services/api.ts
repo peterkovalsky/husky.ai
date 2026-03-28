@@ -449,11 +449,12 @@ export class ApiService {
 
   static async createProjectFromPrompt(
     suggestedName: string,
-    workspaceId?: string
+    workspaceId?: string,
+    template?: string
   ): Promise<Project> {
     return this.request<Project>('/api/project/from-prompt', {
       method: 'POST',
-      body: JSON.stringify({ suggestedName, workspaceId }),
+      body: JSON.stringify({ suggestedName, workspaceId, template }),
     });
   }
 

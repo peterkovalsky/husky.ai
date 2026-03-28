@@ -82,10 +82,12 @@ export const NewProjectPage = () => {
         mediaIds.length > 0 ? mediaIds : undefined
       )
 
-      // Step 2: Create the project with AI-suggested name
-      console.log('[NewProjectPage] Creating project with name:', analysisResponse.suggestedProjectName)
+      // Step 2: Create the project with AI-suggested name and template
+      console.log('[NewProjectPage] Creating project with name:', analysisResponse.suggestedProjectName, 'template:', analysisResponse.suggestedTemplate)
       const project = await ApiService.createProjectFromPrompt(
-        analysisResponse.suggestedProjectName || 'New Project'
+        analysisResponse.suggestedProjectName || 'New Project',
+        undefined,
+        analysisResponse.suggestedTemplate
       )
       console.log('[NewProjectPage] Project created:', project.id)
 

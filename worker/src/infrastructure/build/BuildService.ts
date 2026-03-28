@@ -1,5 +1,6 @@
 import { IBuildService, BuildResult, NodeModulesCopyResult } from '../../domain/services/IBuildService';
 import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
+import { ProjectTemplate } from '../../domain/entities/Project';
 import { FileSystemHelper } from '../../shared/utils/FileSystemHelper';
 import fs from "fs";
 import path from "path";
@@ -82,7 +83,7 @@ export class BuildService implements IBuildService {
     }
   }
 
-  async copyPackageLockJson(targetDirectory: string, projectId: string): Promise<void> {
+  async copyPackageLockJson(targetDirectory: string, projectId: string, template?: ProjectTemplate): Promise<void> {
     try {
       console.log(`Copying package-lock.json for project ${projectId}...`);
 
@@ -108,7 +109,7 @@ export class BuildService implements IBuildService {
     }
   }
 
-  async copyNodeModulesAsync(targetDirectory: string, projectId: string): Promise<NodeModulesCopyResult> {
+  async copyNodeModulesAsync(targetDirectory: string, projectId: string, template?: ProjectTemplate): Promise<NodeModulesCopyResult> {
     try {
       console.log(`Checking node_modules for project ${projectId}...`);
 
@@ -124,7 +125,7 @@ export class BuildService implements IBuildService {
       console.log(`No node_modules found in web directory: ${targetDirectory}`);
 
       // Try to copy from template directory
-      const templateDir = this.fileSystemHelper.getTemplateDir();
+      const templateDir = this.fileSystemHelper.getTemplateDir(template);
       const templateNodeModules = path.join(templateDir, 'node_modules');
 
       if (this.fileSystemHelper.directoryExists(templateNodeModules)) {
@@ -221,7 +222,7 @@ export class BuildService implements IBuildService {
     }
   }
 
-  async buildApp(appDirectory: string, projectId?: string): Promise<BuildResult> {
+  async buildApp(appDirectory: string, projectId?: string, template?: ProjectTemplate): Promise<BuildResult> {
     try {
       // Check if build already exists
       const distPath = path.join(appDirectory, "dist");
@@ -234,9 +235,9 @@ export class BuildService implements IBuildService {
         };
       }
 
-      // Use vite build directly with --minify false for faster preview builds
-      // Production builds (via buildAppWithBasePath) still use full minification
-      let buildCommand = "npx vite build --minify false";
+      // Use appropriate build command per template
+      const isAstro = template === 'astro-website';
+      let buildCommand = isAstro ? "npx astro build" : "npx vite build --minify false";
 
       // Check if we need to install dependencies
       const nodeModulesPath = path.join(appDirectory, 'node_modules');
@@ -299,24 +300,26 @@ export class BuildService implements IBuildService {
 
       // Note: rolldown-vite handles dependency optimization automatically during builds
       // Log cache status for debugging
-      this.logViteCacheStatus();
+      if (!isAstro) this.logViteCacheStatus();
 
       // Run build command
-      console.log("[BUILD] Starting vite build...");
+      console.log(`[BUILD] Starting ${isAstro ? 'astro' : 'vite'} build...`);
       console.log(`[BUILD] Command: ${buildCommand}`);
       console.log(`[BUILD] CWD: ${appDirectory}`);
-      console.log(`[BUILD] VITE_CACHE_DIR: ${this.viteCacheDir}`);
-      if (projectId) console.log(`[BUILD] VITE_BASE_PATH: /projects/${projectId}/`);
+      if (!isAstro) console.log(`[BUILD] VITE_CACHE_DIR: ${this.viteCacheDir}`);
+      if (projectId) console.log(`[BUILD] ${isAstro ? 'ASTRO_BASE_PATH' : 'VITE_BASE_PATH'}: /projects/${projectId}/`);
 
       const buildStartTime = Date.now();
 
-      // Set up environment variables for the build
+      // Set up environment variables for the build (different per template)
       const buildEnv = {
         ...process.env,
-        NODE_ENV: 'production', // Production mode enables optimizations in Vite/React/libraries
+        NODE_ENV: 'production',
         PATH: `${nodeBinPath}:${process.env.PATH}`,
-        VITE_CACHE_DIR: this.viteCacheDir, // Use shared Vite cache for faster builds
-        ...(projectId ? { VITE_BASE_PATH: `/projects/${projectId}/` } : {}),
+        ...(isAstro ? {} : { VITE_CACHE_DIR: this.viteCacheDir }),
+        ...(projectId ? {
+          [isAstro ? 'ASTRO_BASE_PATH' : 'VITE_BASE_PATH']: `/projects/${projectId}/`
+        } : {}),
       };
 
       const { stdout, stderr } = await this.execAsync(buildCommand, {
@@ -360,14 +363,15 @@ export class BuildService implements IBuildService {
     }
   }
 
-  async buildAppWithBasePath(appDirectory: string, basePath: string): Promise<BuildResult> {
+  async buildAppWithBasePath(appDirectory: string, basePath: string, template?: ProjectTemplate): Promise<BuildResult> {
     try {
       const buildCommand = "npm run build";
       const nodeBinPath = path.join(appDirectory, 'node_modules', '.bin');
+      const isAstro = template === 'astro-website';
 
       // Note: rolldown-vite handles dependency optimization automatically
       // Log cache status for debugging
-      this.logViteCacheStatus();
+      if (!isAstro) this.logViteCacheStatus();
 
       console.log(`[BUILD] Starting production build with base path: ${basePath}`);
       const buildStartTime = Date.now();
@@ -377,8 +381,8 @@ export class BuildService implements IBuildService {
         ...process.env,
         NODE_ENV: 'production',
         PATH: `${nodeBinPath}:${process.env.PATH}`,
-        VITE_CACHE_DIR: this.viteCacheDir, // Use shared Vite cache for faster builds
-        VITE_BASE_PATH: basePath,
+        ...(isAstro ? {} : { VITE_CACHE_DIR: this.viteCacheDir }),
+        [isAstro ? 'ASTRO_BASE_PATH' : 'VITE_BASE_PATH']: basePath,
       };
 
       const { stdout, stderr } = await this.execAsync(buildCommand, {

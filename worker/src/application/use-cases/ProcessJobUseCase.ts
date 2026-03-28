@@ -92,7 +92,8 @@ export class ProcessJobUseCase {
     const context = new BuildStepContext({
       buildId: build.id,
       projectId: build.projectId,
-      userId: build.userId
+      userId: build.userId,
+      template: project.template || 'react18-ts'
     });
 
     // Set initial data from build record

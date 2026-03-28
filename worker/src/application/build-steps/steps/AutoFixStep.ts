@@ -56,7 +56,7 @@ export class AutoFixStep implements IBuildStep {
       console.log(`[${this.stepName}] Calling AI to generate fixes...`);
 
       // Build fix prompt for AI
-      const fixPrompt = this.buildFixPrompt(buildError, context.fileTree);
+      const fixPrompt = this.buildFixPrompt(buildError, context.fileTree, context.template);
 
       // Call AI to generate fixes using configured autofix model
       // Defaults to Claude Sonnet 4.5 for reliable fixes
@@ -117,17 +117,23 @@ export class AutoFixStep implements IBuildStep {
    * Build prompt for AI to fix the build error
    * Uses plain text format for file content to avoid JSON escaping issues
    */
-  private buildFixPrompt(buildError: string, fileTree: Record<string, string>): string {
+  private buildFixPrompt(buildError: string, fileTree: Record<string, string>, template?: string): string {
     // Extract key file paths for context (limit to reasonable size)
     const filePaths = Object.keys(fileTree);
+    const isAstro = template === 'astro-website';
+    const sourceExtensions = isAstro
+      ? ['.ts', '.tsx', '.astro', '.md', '.mjs']
+      : ['.ts', '.tsx', '.jsx', '.js'];
     const sourceFiles = filePaths.filter(
-      path => path.endsWith('.ts') || path.endsWith('.tsx') || path.endsWith('.jsx') || path.endsWith('.js')
+      path => sourceExtensions.some(ext => path.endsWith(ext))
     );
 
     // Use plain text format to avoid JSON double-escaping issues with quotes
     const formattedFileTree = FileTreeFormatter.formatForPrompt(fileTree);
 
-    return `A React/TypeScript build failed with the following error:
+    const techStack = isAstro ? 'An Astro/TypeScript' : 'A React/TypeScript';
+
+    return `${techStack} build failed with the following error:
 
 ERROR OUTPUT:
 ${buildError}

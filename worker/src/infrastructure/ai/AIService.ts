@@ -26,6 +26,7 @@ export class AIService implements IAIService {
   private currentFileTree: Record<string, string> = {};
   private currentProjectId: string = '';
   private currentBuildId: string = '';
+  private currentTemplate: string = 'react18-ts';
 
   // Fallback model mappings
   private static readonly FALLBACK_MODELS: Record<string, string> = {
@@ -153,7 +154,7 @@ export class AIService implements IAIService {
     // Build the request with all business logic handled here
     const request: AIGenerationRequest = {
       userPrompt: prompt,
-      systemPrompt: getSystemPrompt(),
+      systemPrompt: getSystemPrompt(this.currentTemplate),
       fileTreeContent: FileTreeFormatter.formatForPrompt(this.compactForPrompt(this.currentFileTree)),
       mediaUrls,
       annotationMediaUrls,
@@ -211,10 +212,11 @@ export class AIService implements IAIService {
     };
   }
 
-  async setProjectContext(projectId: string, fileTree: Record<string, string>, buildId?: string): Promise<void> {
+  async setProjectContext(projectId: string, fileTree: Record<string, string>, buildId?: string, template?: string): Promise<void> {
     this.currentProjectId = projectId;
     this.currentFileTree = fileTree;
     this.currentBuildId = buildId || '';
+    this.currentTemplate = template || 'react18-ts';
   }
 
   getCurrentFileTree(): Record<string, string> {
