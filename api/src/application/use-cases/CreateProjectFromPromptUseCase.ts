@@ -3,12 +3,13 @@ import { IWorkspaceRepository } from '../../domain/repositories/IWorkspaceReposi
 import { ISubdomainService } from '../../domain/services/ISubdomainService';
 import { IQueueService, ProvisionHostnameMessage } from '../../domain/services/IQueueService';
 import { User } from '../../domain/entities/User';
-import { Project, HostnameStatus, ProjectStatus } from '../../domain/entities/Project';
+import { Project, ProjectTemplate, HostnameStatus, ProjectStatus } from '../../domain/entities/Project';
 import { NotFoundError, QueueError } from '../../shared/errors/AppErrors';
 
 export interface CreateProjectFromPromptDto {
   suggestedName: string;
   workspaceId?: string;
+  template?: ProjectTemplate;
 }
 
 export class CreateProjectFromPromptUseCase {
@@ -45,7 +46,8 @@ export class CreateProjectFromPromptUseCase {
     // Create the project with status NEW (database default)
     const project = await this.projectRepository.create({
       name: finalName,
-      workspaceId: targetWorkspaceId
+      workspaceId: targetWorkspaceId,
+      template: dto.template
     });
 
     console.log(`[CreateProjectFromPromptUseCase] Created project "${finalName}" (${project.id}) with status NEW`);

@@ -131,7 +131,14 @@ export default {
       }
 
       // Fetch from R2
-      const object = await env.R2_BUCKET.get(objectKey);
+      let object = await env.R2_BUCKET.get(objectKey);
+
+      // Directory-style path resolution for Astro SSG multi-page sites
+      // e.g., /about → /about/index.html
+      if (!object && !url.pathname.includes('.') && url.pathname !== '/' && url.pathname !== '') {
+        const dirKey = `${projectId}/web${url.pathname}${url.pathname.endsWith('/') ? '' : '/'}index.html`;
+        object = await env.R2_BUCKET.get(dirKey);
+      }
 
       if (!object) {
         // Serve default robots.txt for sites that don't have one in R2

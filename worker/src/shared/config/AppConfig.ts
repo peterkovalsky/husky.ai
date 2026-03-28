@@ -71,8 +71,8 @@ export function loadAppConfig(): AppConfig {
     },
     ai: {
       primary: {
-        provider: (process.env.AI_PROVIDER_PRIMARY || 'anthropic') as AIProviderType,
-        model: process.env.AI_MODEL_PRIMARY || 'claude-sonnet-4-6',
+        provider: (process.env.AI_PROVIDER_PRIMARY || 'gemini') as AIProviderType,
+        model: process.env.AI_MODEL_PRIMARY || 'gemini-3.1-pro-preview',
       },
       fast: {
         provider: (process.env.AI_PROVIDER_FAST || 'gemini') as AIProviderType,

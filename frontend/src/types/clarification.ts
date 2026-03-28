@@ -25,4 +25,5 @@ export interface AnalyzePromptResponse {
   analysisId: string;
   suggestedProjectName?: string;
   showInspirationGallery?: boolean;
+  suggestedTemplate?: string;
 }

@@ -1,3 +1,5 @@
+export type ProjectTemplate = 'react18-ts' | 'astro-website';
+
 export enum ProjectStatus {
   NEW = 'NEW',       // Newly created project, no builds yet
   FAILED = 'FAILED', // Contains only failed builds
@@ -32,6 +34,7 @@ export interface Project {
   id: string;
   name: string;
   description?: string;
+  template: ProjectTemplate;
   previewUrl?: string;
   workspaceId: string;
   status: ProjectStatus;
@@ -63,4 +66,5 @@ export interface CreateProjectRequest {
   name: string;
   description?: string;
   workspaceId: string;
+  template?: ProjectTemplate;
 }

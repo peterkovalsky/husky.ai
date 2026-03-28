@@ -44,15 +44,7 @@ export class PreviewScriptInjectionStep implements IBuildStep {
         throw new Error('App directory not found in context');
       }
 
-      const indexHtmlPath = path.join(appDirectory, 'dist', 'index.html');
-
-      // Read the built index.html
-      if (!fs.existsSync(indexHtmlPath)) {
-        console.warn(`[${this.stepName}] dist/index.html not found, skipping injection`);
-        return { success: true, metrics: {} };
-      }
-
-      let html = fs.readFileSync(indexHtmlPath, 'utf-8');
+      const distDir = path.join(appDirectory, 'dist');
 
       // Build the injection scripts
       const screenshotScript = this.buildScreenshotScript();
@@ -60,16 +52,30 @@ export class PreviewScriptInjectionStep implements IBuildStep {
       const pageContextScript = this.buildPageContextScript();
       const injectionScripts = `${screenshotScript}\n${locationScript}\n${pageContextScript}`;
 
-      // Inject before </body>
-      if (html.includes('</body>')) {
-        html = html.replace('</body>', `${injectionScripts}\n</body>`);
-      } else {
-        // Fallback: append at the end
-        html += `\n${injectionScripts}`;
+      // Find all HTML files to inject into
+      // For React SPAs: just dist/index.html
+      // For Astro SSG: every .html file in dist/ (one per page)
+      const htmlFiles = this.findHtmlFiles(distDir);
+
+      if (htmlFiles.length === 0) {
+        console.warn(`[${this.stepName}] No HTML files found in dist/, skipping injection`);
+        return { success: true, metrics: {} };
       }
 
-      // Write back
-      fs.writeFileSync(indexHtmlPath, html, 'utf-8');
+      console.log(`[${this.stepName}] Injecting scripts into ${htmlFiles.length} HTML file(s)`);
+
+      for (const htmlPath of htmlFiles) {
+        let html = fs.readFileSync(htmlPath, 'utf-8');
+
+        // Inject before </body>
+        if (html.includes('</body>')) {
+          html = html.replace('</body>', `${injectionScripts}\n</body>`);
+        } else {
+          html += `\n${injectionScripts}`;
+        }
+
+        fs.writeFileSync(htmlPath, html, 'utf-8');
+      }
 
       const duration = Date.now() - startTime;
       console.log(`[${this.stepName}] Completed in ${duration}ms`);
@@ -93,6 +99,25 @@ export class PreviewScriptInjectionStep implements IBuildStep {
         },
       };
     }
+  }
+
+  /**
+   * Recursively find all .html files in a directory
+   */
+  private findHtmlFiles(dir: string): string[] {
+    const results: string[] = [];
+    if (!fs.existsSync(dir)) return results;
+
+    const items = fs.readdirSync(dir, { withFileTypes: true });
+    for (const item of items) {
+      const fullPath = path.join(dir, item.name);
+      if (item.isDirectory()) {
+        results.push(...this.findHtmlFiles(fullPath));
+      } else if (item.name.endsWith('.html')) {
+        results.push(fullPath);
+      }
+    }
+    return results;
   }
 
   private buildScreenshotScript(): string {

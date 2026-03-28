@@ -12,11 +12,13 @@ export interface NodeModulesCopyResult {
   copyTime: number; // time in ms, 0 if not copied
 }
 
+import { ProjectTemplate } from '../entities/Project';
+
 export interface IBuildService {
-  buildApp(appDirectory: string, projectId?: string): Promise<BuildResult>;
-  buildAppWithBasePath(appDirectory: string, basePath: string): Promise<BuildResult>;
+  buildApp(appDirectory: string, projectId?: string, template?: ProjectTemplate): Promise<BuildResult>;
+  buildAppWithBasePath(appDirectory: string, basePath: string, template?: ProjectTemplate): Promise<BuildResult>;
   saveFileTreeToDisk(fileTree: Record<string, string>, projectId: string, version: number): Promise<string>;
   cleanWorkingDirectory(projectId: string): Promise<void>;
-  copyPackageLockJson(targetDirectory: string, projectId: string): Promise<void>;
-  copyNodeModulesAsync(targetDirectory: string, projectId: string): Promise<NodeModulesCopyResult>;
+  copyPackageLockJson(targetDirectory: string, projectId: string, template?: ProjectTemplate): Promise<void>;
+  copyNodeModulesAsync(targetDirectory: string, projectId: string, template?: ProjectTemplate): Promise<NodeModulesCopyResult>;
 }

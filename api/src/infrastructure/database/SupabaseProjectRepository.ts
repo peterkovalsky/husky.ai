@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
-import { Project, CreateProjectRequest, PublishingStatus, ProjectStatus, HostnameStatus, CustomDomainStatus } from '../../domain/entities/Project';
+import { Project, ProjectTemplate, CreateProjectRequest, PublishingStatus, ProjectStatus, HostnameStatus, CustomDomainStatus } from '../../domain/entities/Project';
 import { SupabaseClientFactory } from '../../shared/database/SupabaseClientFactory';
 
 export class SupabaseProjectRepository implements IProjectRepository {
@@ -14,7 +14,8 @@ export class SupabaseProjectRepository implements IProjectRepository {
     const insertData = {
       name: request.name,
       description: request.description,
-      workspace_id: request.workspaceId
+      workspace_id: request.workspaceId,
+      template: request.template || 'react18-ts'
     };
 
     const { data, error } = await this.supabase
@@ -309,6 +310,7 @@ export class SupabaseProjectRepository implements IProjectRepository {
       id: data.id,
       name: data.name,
       description: data.description,
+      template: (data.template || 'react18-ts') as ProjectTemplate,
       previewUrl: data.preview_url,
       workspaceId: data.workspace_id,
       status: data.status as ProjectStatus,

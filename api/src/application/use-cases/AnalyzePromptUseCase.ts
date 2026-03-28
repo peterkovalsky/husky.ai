@@ -63,21 +63,30 @@ FORMAT RULES:
 - Option descriptions: under 8 words
 - 2-3 options per question
 
-ADDITIONAL TASK:
-Determine if this request is for a website or landing page.
+ADDITIONAL TASKS:
+
+TASK A - Landing page detection:
 Set isLandingPageRequest to true if:
 - The prompt contains the word "website", "site", "landing page", "homepage", or "page"
 - The user wants a landing page, marketing page, portfolio, or business website
 - ANY request that mentions "website" regardless of the type (e.g., "calculator website" = true)
-
 Set isLandingPageRequest to false ONLY for:
 - Pure interactive apps/tools that do NOT mention "website" or "site" (e.g., "build me a todo app")
 - Games or interactive experiences without "website" in the prompt
+
+TASK B - Template selection:
+Choose the best template for this request:
+- "astro-website": Use for blogs, articles, portfolios, landing pages, link-in-bio, marketing sites, documentation, content sites, company websites, product pages, agency sites — any site primarily about content/presentation with no complex client-side interactivity.
+- "react18-ts": Use for interactive apps, dashboards, calculators, games, tools, e-commerce with cart/checkout, chat apps, booking systems, admin panels — anything requiring complex client-side state management and interactivity.
+
+DEFAULT TO "astro-website" if ambiguous. Most requests are for content/presentation sites.
+Only use "react18-ts" when the prompt clearly describes an interactive APPLICATION (not just a website).
 
 RESPONSE FORMAT (JSON only):
 {
   "projectName": "Short Descriptive Name",
   "isLandingPageRequest": true,
+  "suggestedTemplate": "astro-website",
   "questions": [
     {
       "id": "q1",
@@ -145,7 +154,8 @@ export class AnalyzePromptUseCase {
           needsClarification: false,
           analysisId,
           suggestedProjectName: result.projectName,
-          showInspirationGallery: result.isLandingPageRequest
+          showInspirationGallery: result.isLandingPageRequest,
+          suggestedTemplate: result.suggestedTemplate
         };
       }
 
@@ -154,7 +164,8 @@ export class AnalyzePromptUseCase {
         questions: result.questions,
         analysisId,
         suggestedProjectName: result.projectName,
-        showInspirationGallery: result.isLandingPageRequest
+        showInspirationGallery: result.isLandingPageRequest,
+        suggestedTemplate: result.suggestedTemplate
       };
     } catch (error) {
       console.error('[AnalyzePromptUseCase] Error generating analysis:', error);
@@ -184,7 +195,7 @@ export class AnalyzePromptUseCase {
     projectId: string | undefined,
     analysisId: string,
     startTime: number
-  ): Promise<{ questions: ClarificationQuestion[]; projectName: string; isLandingPageRequest: boolean }> {
+  ): Promise<{ questions: ClarificationQuestion[]; projectName: string; isLandingPageRequest: boolean; suggestedTemplate: string }> {
     console.log('[AnalyzePromptUseCase] Generating analysis (name + questions) using Haiku...');
 
     const response = await this.client.messages.create({
@@ -205,7 +216,8 @@ Remember:
 - Only ask about things NOT already specified
 - Make questions relevant to THIS specific type of site/app
 - Fewer questions for detailed prompts, more for vague ones
-- Set isLandingPageRequest to true for websites, landing pages, portfolios, marketing pages`
+- Set isLandingPageRequest to true for websites, landing pages, portfolios, marketing pages
+- Choose suggestedTemplate: "astro-website" for content/presentation sites, "react18-ts" for interactive apps`
         }
       ]
     });
@@ -271,10 +283,13 @@ Remember:
       // Extract isLandingPageRequest
       const isLandingPageRequest = parsed.isLandingPageRequest === true;
 
+      // Extract suggestedTemplate (default to astro-website)
+      const suggestedTemplate = parsed.suggestedTemplate === 'react18-ts' ? 'react18-ts' : 'astro-website';
+
       // Validate questions structure
       if (!Array.isArray(questions)) {
         console.warn('[AnalyzePromptUseCase] Invalid response: questions is not an array');
-        return { questions: [], projectName, isLandingPageRequest };
+        return { questions: [], projectName, isLandingPageRequest, suggestedTemplate };
       }
 
       // Limit to max 3 questions, each with max 3 options
@@ -288,12 +303,12 @@ Remember:
         }))
       }));
 
-      console.log(`[AnalyzePromptUseCase] Generated name: "${projectName}", ${validatedQuestions.length} questions, isLandingPage: ${isLandingPageRequest}`);
-      return { questions: validatedQuestions, projectName, isLandingPageRequest };
+      console.log(`[AnalyzePromptUseCase] Generated name: "${projectName}", ${validatedQuestions.length} questions, isLandingPage: ${isLandingPageRequest}, template: ${suggestedTemplate}`);
+      return { questions: validatedQuestions, projectName, isLandingPageRequest, suggestedTemplate };
     } catch (parseError) {
       console.error('[AnalyzePromptUseCase] Failed to parse AI response:', parseError);
       console.error('[AnalyzePromptUseCase] Raw response:', rawContent);
-      return { questions: [], projectName: this.generateFallbackName(userPrompt), isLandingPageRequest: false };
+      return { questions: [], projectName: this.generateFallbackName(userPrompt), isLandingPageRequest: false, suggestedTemplate: 'astro-website' };
     }
   }
 }

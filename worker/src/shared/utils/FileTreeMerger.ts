@@ -1,3 +1,5 @@
+import { ProjectTemplate } from '../../domain/entities/Project';
+
 export interface MergeResult {
   mergedFileTree: Record<string, string>;
   addedFiles: string[];
@@ -5,8 +7,8 @@ export interface MergeResult {
   preservedFiles: string[];
 }
 
-// Files that should never be deleted by AI
-const PROTECTED_FILES = [
+// Files that should never be deleted by AI (per template)
+const REACT_PROTECTED_FILES = [
   'eslint.config.js',
   'vite.config.ts',
   'tsconfig.json',
@@ -16,16 +18,27 @@ const PROTECTED_FILES = [
   'src/vite-env.d.ts',
 ];
 
+const ASTRO_PROTECTED_FILES = [
+  'astro.config.mjs',
+  'tsconfig.json',
+];
+
+function getProtectedFiles(template: ProjectTemplate): string[] {
+  return template === 'astro-website' ? ASTRO_PROTECTED_FILES : REACT_PROTECTED_FILES;
+}
+
 export class FileTreeMerger {
   /**
    * Merges AI response file tree with the current file tree from last successful build
    * @param currentFileTree - File tree from last successful build (or template for new projects)
    * @param aiResponseFileTree - New file tree from AI response
+   * @param template - Project template type (determines protected files)
    * @returns Merged file tree with tracking of changes
    */
   static merge(
     currentFileTree: Record<string, string>,
-    aiResponseFileTree: Record<string, string>
+    aiResponseFileTree: Record<string, string>,
+    template: ProjectTemplate = 'react18-ts'
   ): MergeResult {
     const mergedFileTree: Record<string, string> = { ...currentFileTree };
     const addedFiles: string[] = [];
@@ -44,7 +57,8 @@ export class FileTreeMerger {
       // Handle file deletion (content === '__DELETE__')
       if (content === '__DELETE__') {
         // Prevent deletion of protected files
-        if (PROTECTED_FILES.includes(filePath)) {
+        const protectedFiles = getProtectedFiles(template);
+        if (protectedFiles.includes(filePath)) {
           console.warn(`[FileTreeMerger] Blocked deletion of protected file: ${filePath}`);
           continue;
         }

@@ -32,7 +32,6 @@ export class CodeGenerationStep implements IBuildStep {
   readonly stepName = 'Code Generation';
   readonly stepStatus = BuildStepStatus.GENERATING_CODE;
 
-  private readonly templateFilePath: string;
   private readonly buildLogger: BuildLogger;
 
   constructor(
@@ -44,7 +43,6 @@ export class CodeGenerationStep implements IBuildStep {
     private prepareProjectEnvironmentUseCase: PrepareProjectEnvironmentUseCase,
     private publicMediaStorageService: IPublicMediaStorageService
   ) {
-    this.templateFilePath = path.join(__dirname, "../../../template-react18-ts.json");
     this.buildLogger = new BuildLogger();
   }
 
@@ -61,11 +59,11 @@ export class CodeGenerationStep implements IBuildStep {
       // START PARALLEL OPERATIONS
       // 1. Start environment preparation (runs in background)
       console.log(`[${this.stepName}] [PARALLEL] Starting environment preparation...`);
-      const envPrepPromise = this.prepareProjectEnvironmentUseCase.execute(context.projectId);
+      const envPrepPromise = this.prepareProjectEnvironmentUseCase.execute(context.projectId, context.template);
 
       // 2. Load file tree and prepare AI context
-      const fileTree = await this.loadFileTreeForProject(context.projectId);
-      await this.aiService.setProjectContext(context.projectId, fileTree, buildId);
+      const fileTree = await this.loadFileTreeForProject(context.projectId, context.template);
+      await this.aiService.setProjectContext(context.projectId, fileTree, buildId, context.template);
 
       // Get conversation context from previous builds (builds are now the source of truth)
       const previousBuilds = await this.buildRepository.findByProjectId(context.projectId);
@@ -248,7 +246,7 @@ export class CodeGenerationStep implements IBuildStep {
         throw new Error("No file tree found in AI response");
       }
 
-      const mergeResult = FileTreeMerger.merge(fileTree, aiResponseFileTree);
+      const mergeResult = FileTreeMerger.merge(fileTree, aiResponseFileTree, context.template);
       FileTreeMerger.logMergeStats(mergeResult);
 
       // Store merged file tree in context for next steps
@@ -328,7 +326,7 @@ export class CodeGenerationStep implements IBuildStep {
   /**
    * Load file tree from latest successful build or template
    */
-  private async loadFileTreeForProject(projectId: string): Promise<Record<string, string>> {
+  private async loadFileTreeForProject(projectId: string, template: string = 'react18-ts'): Promise<Record<string, string>> {
     try {
       // Check if we have a successful file tree in the database
       const successfulBuild = await this.buildRepository.findLatestSuccessfulByProjectId(projectId);
@@ -338,8 +336,9 @@ export class CodeGenerationStep implements IBuildStep {
       }
 
       // Fall back to initial template for new projects
-      console.log(`[${this.stepName}] No successful builds found, using initial template`);
-      const fileContent = fs.readFileSync(this.templateFilePath, "utf8");
+      const templateFilePath = path.join(__dirname, `../../../template-${template}.json`);
+      console.log(`[${this.stepName}] No successful builds found, using initial template: ${template}`);
+      const fileContent = fs.readFileSync(templateFilePath, "utf8");
       const parsedContent = JSON.parse(fileContent);
       return typeof parsedContent === "object" && parsedContent !== null ? parsedContent : {};
     } catch (error) {

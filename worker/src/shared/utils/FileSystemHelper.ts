@@ -1,10 +1,11 @@
 import fs from 'fs';
 import path from 'path';
+import { ProjectTemplate } from '../../domain/entities/Project';
 
 export class FileSystemHelper {
   private static instance: FileSystemHelper;
   private readonly projectsDir: string;
-  private readonly templatesDir: string;
+  private readonly templatesBaseDir: string;
 
   private constructor() {
     // Use /tmp/projects in production environments (like AWS App Runner) where /projects is not writable
@@ -13,11 +14,11 @@ export class FileSystemHelper {
       ? '/tmp/projects'
       : path.join(__dirname, '../../../projects');
 
-    // Templates directory is at the project root level
-    // In production: /app/templates, in development: api/../templates
-    this.templatesDir = process.env.NODE_ENV === 'production'
-      ? '/app/templates/react18-ts'
-      : path.join(__dirname, '../../../../templates/react18-ts');
+    // Templates base directory — each template is a subdirectory
+    // In production: /app/templates, in development: worker/../templates
+    this.templatesBaseDir = process.env.NODE_ENV === 'production'
+      ? '/app/templates'
+      : path.join(__dirname, '../../../../templates');
   }
 
   public static getInstance(): FileSystemHelper {
@@ -50,10 +51,10 @@ export class FileSystemHelper {
   }
 
   /**
-   * Get the template directory path
+   * Get the template directory path for a specific template
    */
-  public getTemplateDir(): string {
-    return this.templatesDir;
+  public getTemplateDir(template: ProjectTemplate = 'react18-ts'): string {
+    return path.join(this.templatesBaseDir, template);
   }
 
   /**
