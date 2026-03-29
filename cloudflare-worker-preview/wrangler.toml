@@ -13,6 +13,8 @@ bucket_name = "dev-husky-app-previews"
 # Allowed origins for iframe embedding (comma-separated)
 # Dev: localhost for development, app domain for staging
 ALLOWED_ORIGINS = "https://app.huskystudio.ai,https://app.huskystudio.app,https://dev.huskystudio.app,http://localhost:5173"
+# External husky.js URL (hosted on R2 public media bucket)
+HUSKY_JS_URL = "https://media-dev.huskystudio.app/husky.js?v=2"
 
 [[routes]]
 pattern = "preview-dev.huskystudio.app"
@@ -33,6 +35,8 @@ bucket_name = "prod-husky-app-previews"
 # Allowed origins for iframe embedding (comma-separated)
 # Prod: only production app domain
 ALLOWED_ORIGINS = "https://app.huskystudio.ai,https://app.huskystudio.app"
+# External husky.js URL (hosted on R2 public media bucket)
+HUSKY_JS_URL = "https://media.huskystudio.app/husky.js?v=2"
 
 [[env.production.routes]]
 pattern = "preview.huskystudio.app"

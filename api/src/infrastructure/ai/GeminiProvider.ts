@@ -73,7 +73,7 @@ export class GeminiProvider extends BaseAIProvider {
       const isFlashModel = request.model.includes('flash');
       const thinkingLevel = isFlashModel ? ThinkingLevel.LOW : ThinkingLevel.HIGH;
 
-      console.log("[GeminiProvider] Calling Gemini API with streaming...");
+      console.log(`[GeminiProvider] Calling Gemini API with streaming... (model: ${request.model}, tools: urlContext + googleSearch)`);
       const response = await this.client.models.generateContentStream({
         model: request.model,
         contents: contents,
@@ -84,6 +84,12 @@ export class GeminiProvider extends BaseAIProvider {
           thinkingConfig: {
             thinkingLevel: thinkingLevel
           },
+          // URL context: allows Gemini to fetch and read URLs found in the prompt
+          // Google Search: allows Gemini to search the web for current information
+          tools: [
+            { urlContext: {} },
+            { googleSearch: {} }
+          ],
           // Use high resolution for images when present
           ...(request.mediaUrls && request.mediaUrls.length > 0 && {
             mediaResolution: MediaResolution.MEDIA_RESOLUTION_HIGH
@@ -104,6 +110,24 @@ export class GeminiProvider extends BaseAIProvider {
           chunkCount++;
           if (chunk.text) {
             rawContent += chunk.text;
+          }
+
+          // Log URL context metadata (indicates which URLs were fetched)
+          const candidate = chunk.candidates?.[0] as Record<string, unknown> | undefined;
+          if (candidate?.urlContextMetadata) {
+            const urlMeta = candidate.urlContextMetadata as { urlMetadata?: Array<{ retrievedUrl?: string; urlRetrievalStatus?: string }> };
+            console.log(`[GeminiProvider] URL context metadata:`, JSON.stringify(urlMeta.urlMetadata || [], null, 2));
+          }
+
+          // Log grounding metadata (indicates Google Search was used)
+          if (candidate?.groundingMetadata) {
+            const groundingMeta = candidate.groundingMetadata as { webSearchQueries?: string[]; groundingChunks?: Array<{ web?: { title?: string; uri?: string } }> };
+            if (groundingMeta.webSearchQueries?.length) {
+              console.log(`[GeminiProvider] Google Search queries:`, groundingMeta.webSearchQueries);
+            }
+            if (groundingMeta.groundingChunks?.length) {
+              console.log(`[GeminiProvider] Grounding sources: ${groundingMeta.groundingChunks.length} chunks`);
+            }
           }
 
           // Capture usage metadata - Gemini reports this in chunks (usually final chunk has complete data)
@@ -147,6 +171,7 @@ export class GeminiProvider extends BaseAIProvider {
     } catch (error) {
       // Check for specific error types
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      console.error(`[GeminiProvider] Error details:`, error instanceof Error ? error.stack : error);
 
       // If it's already our wrapped stream error, re-throw as-is
       if (errorMessage.includes('stream interrupted')) {

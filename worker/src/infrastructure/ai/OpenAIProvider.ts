@@ -4,8 +4,8 @@ import { AIGenerationRequest } from '../../domain/services/IAIProvider';
 import { IAILogRepository } from '../../domain/repositories/IAILogRepository';
 
 /**
- * OpenAI GPT API provider
- * Handles only the API communication - all business logic is in AIService
+ * OpenAI GPT API provider using the Responses API
+ * Uses built-in web_search tool for server-side URL fetching and web search
  */
 export class OpenAIProvider extends BaseAIProvider {
   private client: OpenAI;
@@ -30,7 +30,7 @@ export class OpenAIProvider extends BaseAIProvider {
   }
 
   /**
-   * Make the actual API call to OpenAI
+   * Make the actual API call to OpenAI using the Responses API
    */
   protected async callAPI(
     request: AIGenerationRequest,
@@ -40,61 +40,23 @@ export class OpenAIProvider extends BaseAIProvider {
       // Build user content with images if provided
       const userContent = this.buildUserContent(request);
 
-      // Define tools for web search and web fetch
-      const tools: OpenAI.ChatCompletionTool[] = [
-        {
-          type: "function",
-          function: {
-            name: "web_search",
-            description: "Search the web for current information, trends, and best practices. Use when user explicitly needs current/external info.",
-            parameters: {
-              type: "object",
-              properties: {
-                query: {
-                  type: "string",
-                  description: "The search query"
-                }
-              },
-              required: ["query"]
-            }
-          }
-        },
-        {
-          type: "function",
-          function: {
-            name: "web_fetch",
-            description: "Fetch content from a URL or PDF. Use when user needs external API docs or specific web content.",
-            parameters: {
-              type: "object",
-              properties: {
-                url: {
-                  type: "string",
-                  description: "The URL to fetch content from"
-                }
-              },
-              required: ["url"]
-            }
-          }
-        }
-      ];
-
-      console.log("[OpenAIProvider] Calling OpenAI API with streaming...");
-      const stream = await this.client.chat.completions.create({
+      console.log("[OpenAIProvider] Calling OpenAI Responses API with streaming...");
+      const stream = await this.client.responses.create({
         model: request.model,
-        max_tokens: 32768,
-        messages: [
-          {
-            role: "system",
-            content: request.systemPrompt
-          },
+        max_output_tokens: 32768,
+        instructions: request.systemPrompt,
+        input: [
           {
             role: "user",
-            content: userContent as any
+            content: userContent
           }
         ],
-        tools,
-        stream: true,
-        stream_options: { include_usage: true }
+        tools: [
+          {
+            type: "web_search",
+          }
+        ],
+        stream: true
       });
 
       // Collect streamed content
@@ -103,21 +65,23 @@ export class OpenAIProvider extends BaseAIProvider {
       let outputTokens = 0;
 
       console.log("[OpenAIProvider] Streaming API response...");
-      for await (const chunk of stream) {
-        const delta = chunk.choices[0]?.delta;
-
-        if (delta?.content) {
-          rawContent += delta.content;
+      for await (const event of stream) {
+        // Text deltas contain the actual generated content
+        if (event.type === 'response.output_text.delta') {
+          rawContent += event.delta;
         }
 
-        // Usage data comes in final chunks
-        if (chunk.usage) {
-          inputTokens = chunk.usage.prompt_tokens;
-          outputTokens = chunk.usage.completion_tokens;
+        // Usage data comes in the completed event
+        if (event.type === 'response.completed') {
+          const usage = event.response.usage;
+          if (usage) {
+            inputTokens = usage.input_tokens;
+            outputTokens = usage.output_tokens;
+          }
         }
       }
 
-      console.log("[OpenAIProvider] OpenAI API streaming completed");
+      console.log("[OpenAIProvider] OpenAI Responses API streaming completed");
 
       return {
         rawContent,
@@ -132,9 +96,9 @@ export class OpenAIProvider extends BaseAIProvider {
   }
 
   /**
-   * Build user content array with media (images/videos) and text
+   * Build user content array with media (images/videos) and text for the Responses API
    */
-  private buildUserContent(request: AIGenerationRequest): Array<{ type: string; text?: string; image_url?: { url: string }; input_video?: { url: string } }> {
+  private buildUserContent(request: AIGenerationRequest): string | OpenAI.Responses.ResponseInputContent[] {
     // Build the full prompt text
     let promptText = `Current app:
 ${request.fileTreeContent}
@@ -152,33 +116,41 @@ ${request.mediaUrls.map((url, i) => `${i + 1}. ${url}`).join('\n')}
 IMPORTANT: When the request mentions uploaded images or videos, use the EXACT URLs listed above. DO NOT use stock photos or other URLs.`;
     }
 
-    const content: Array<{ type: string; text?: string; image_url?: { url: string }; input_video?: { url: string } }> = [];
-
-    // Add media first if provided (both regular and annotation as visual attachments)
+    // Combine regular media and annotation screenshots
     const allVisualUrls = [
       ...(request.mediaUrls || []),
       ...(request.annotationMediaUrls || [])
     ];
-    if (allVisualUrls.length > 0) {
-      allVisualUrls.forEach(url => {
-        const isVideo = this.isVideoUrl(url);
-        if (isVideo) {
-          content.push({
-            type: "input_video",
-            input_video: { url }
-          });
-        } else {
-          content.push({
-            type: "image_url",
-            image_url: { url }
-          });
-        }
-      });
+
+    // If no media, return just the text
+    if (allVisualUrls.length === 0) {
+      return promptText;
     }
+
+    // Build content array with media first, then text
+    const content: OpenAI.Responses.ResponseInputContent[] = [];
+
+    allVisualUrls.forEach(url => {
+      const isVideo = this.isVideoUrl(url);
+      if (isVideo) {
+        // Videos use input_file type with file_url
+        content.push({
+          type: "input_file",
+          file_url: url
+        });
+      } else {
+        // Images use input_image type with image_url
+        content.push({
+          type: "input_image",
+          image_url: url,
+          detail: "auto" as const
+        });
+      }
+    });
 
     // Add text
     content.push({
-      type: "text",
+      type: "input_text",
       text: promptText
     });
 

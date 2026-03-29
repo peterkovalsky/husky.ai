@@ -19,6 +19,7 @@
 export interface Env {
   R2_BUCKET: R2Bucket;
   SUBDOMAIN_MAPPING: KVNamespace;
+  HUSKY_JS_URL: string; // URL to the external husky.js script (e.g. https://media.huskystudio.app/husky.js)
 }
 
 interface CustomHostMetadata {
@@ -61,6 +62,11 @@ export default {
         } else {
           return new Response('Not Found', { status: 404 });
         }
+      }
+
+      // External URL redirect (Safari COOP workaround)
+      if (url.pathname === '/_external') {
+        return handleExternalRedirect(url);
       }
 
       // Check Cloudflare Cache first — serves cached responses without KV or R2 reads
@@ -159,7 +165,9 @@ export default {
         const indexObject = await env.R2_BUCKET.get(`${projectId}/web/index.html`);
 
         if (indexObject) {
-          const spaResponse = new Response(indexObject.body, {
+          const html = await indexObject.text();
+          const modifiedHtml = injectHuskyScript(html, env.HUSKY_JS_URL);
+          const spaResponse = new Response(modifiedHtml, {
             status: 200,
             headers: {
               'Content-Type': 'text/html',
@@ -174,20 +182,27 @@ export default {
       }
 
       // Return object with proper headers
-      const headers = new Headers();
-      headers.set(
-        'Content-Type',
-        object.httpMetadata?.contentType || 'application/octet-stream'
-      );
-      headers.set('Cache-Control', 'public, max-age=3600');
-      headers.set('Access-Control-Allow-Origin', '*');
+      const contentType = object.httpMetadata?.contentType || 'application/octet-stream';
+      const responseHeaders = new Headers();
+      responseHeaders.set('Content-Type', contentType);
+      responseHeaders.set('Cache-Control', 'public, max-age=3600');
+      responseHeaders.set('Access-Control-Allow-Origin', '*');
 
       // Security headers
-      headers.set('X-Content-Type-Options', 'nosniff');
-      headers.set('X-Frame-Options', 'SAMEORIGIN');
-      headers.set('X-XSS-Protection', '1; mode=block');
+      responseHeaders.set('X-Content-Type-Options', 'nosniff');
+      responseHeaders.set('X-Frame-Options', 'SAMEORIGIN');
+      responseHeaders.set('X-XSS-Protection', '1; mode=block');
 
-      const response = new Response(object.body, { headers });
+      // Inject husky.js into HTML responses at serve time
+      if (contentType.startsWith('text/html')) {
+        const html = await object.text();
+        const modifiedHtml = injectHuskyScript(html, env.HUSKY_JS_URL);
+        const response = new Response(modifiedHtml, { headers: responseHeaders });
+        ctx.waitUntil(cache.put(cacheKey, response.clone()));
+        return response;
+      }
+
+      const response = new Response(object.body, { headers: responseHeaders });
       ctx.waitUntil(cache.put(cacheKey, response.clone()));
       return response;
     } catch (error: any) {
@@ -197,6 +212,50 @@ export default {
     }
   },
 };
+
+/**
+ * Redirect handler for external URLs (Safari COOP workaround).
+ * Serves an HTML page that redirects via meta-refresh + JS,
+ * so the target page loads in a fresh browsing context without an opener.
+ */
+function handleExternalRedirect(url: URL): Response {
+  const targetUrl = url.searchParams.get('url');
+  if (!targetUrl) {
+    return new Response('Missing url parameter', { status: 400 });
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(targetUrl);
+  } catch {
+    return new Response('Invalid URL', { status: 400 });
+  }
+
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    return new Response('Only http/https URLs allowed', { status: 400 });
+  }
+
+  const safeUrl = targetUrl.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  const jsUrl = JSON.stringify(targetUrl);
+
+  return new Response(
+    `<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=${safeUrl}"><title>Redirecting...</title></head><body><p>Redirecting to <a href="${safeUrl}">${safeUrl}</a>...</p><script>window.location.replace(${jsUrl});</script></body></html>`,
+    {
+      headers: {
+        'Content-Type': 'text/html',
+        'Cache-Control': 'no-store',
+      },
+    },
+  );
+}
+
+/** Inject husky.js script tag into HTML before </body> */
+function injectHuskyScript(html: string, huskyJsUrl: string): string {
+  const huskyTag = `<script src="${huskyJsUrl}"></script>`;
+  return html.includes('</body>')
+    ? html.replace('</body>', `${huskyTag}\n</body>`)
+    : html + `\n${huskyTag}`;
+}
 
 /** Friendly retry page shown when KV is rate-limited */
 function getRetryHtml(hostname: string): string {

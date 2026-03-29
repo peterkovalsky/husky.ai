@@ -1,6 +1,7 @@
 export interface Env {
   PREVIEW_BUCKET: R2Bucket;
   ALLOWED_ORIGINS: string; // comma-separated: "https://app.huskystudio.app,https://localhost:5173"
+  HUSKY_JS_URL: string; // URL to the external husky.js script (e.g. https://media.huskystudio.app/husky.js)
   SCREENSHOT_SECRET: string; // shared secret for screenshot service to bypass iframe-only check
 }
 
@@ -41,16 +42,33 @@ export default {
       return handleProxyRequest(request, url);
     }
 
+    // Serve husky.js by redirecting to R2-hosted script (updatable without worker redeploy)
+    if (url.pathname === '/_husky/husky.js') {
+      return Response.redirect(env.HUSKY_JS_URL, 302);
+    }
+
+    // External URL redirect (Safari COOP workaround)
+    // Serves a same-origin HTML page that redirects to the target URL,
+    // avoiding Cross-Origin-Opener-Policy navigation blocks.
+    if (url.pathname === '/_external') {
+      return handleExternalRedirect(url);
+    }
+
     // Block direct browser navigation (pasting URL in address bar).
     // Modern browsers send Sec-Fetch-Dest: "document" for top-level navigation
     // and "iframe" for iframe loads. Block "document" to enforce iframe-only access.
+    // However, Astro multi-page sites trigger real navigations within the iframe
+    // (e.g., clicking a blog link), which also send Sec-Fetch-Dest: "document".
+    // Allow these in-iframe navigations by checking if the Referer comes from
+    // the same preview origin (same-origin navigation within the iframe).
     // Older browsers that don't send this header are allowed through (permissive).
     // The screenshot service (Puppeteer) bypasses this via X-Screenshot-Key header.
     const fetchDest = request.headers.get('Sec-Fetch-Dest');
     const screenshotKey = request.headers.get('X-Screenshot-Key');
     const isScreenshotService = screenshotKey === env.SCREENSHOT_SECRET;
+    const isSameOriginNavigation = referer && new URL(referer).origin === selfOrigin;
 
-    if (fetchDest === 'document' && !isScreenshotService) {
+    if (fetchDest === 'document' && !isScreenshotService && !isSameOriginNavigation) {
       return new Response('Forbidden: This content can only be viewed within the Husky app.', {
         status: 403,
         headers: { 'Content-Type': 'text/plain' },
@@ -103,15 +121,26 @@ export default {
       ? 'no-cache'
       : 'public, max-age=31536000, immutable';
 
-    return new Response(object.body, {
-      headers: {
-        'Content-Type': contentType,
-        'Cache-Control': cacheControl,
-        // Only allow embedding from Husky app domains
-        'Content-Security-Policy': `frame-ancestors ${frameAncestors}`,
-        'X-Frame-Options': 'SAMEORIGIN', // Fallback for older browsers
-      },
-    });
+    const responseHeaders: Record<string, string> = {
+      'Content-Type': contentType,
+      'Cache-Control': cacheControl,
+      'Content-Security-Policy': `frame-ancestors ${frameAncestors}`,
+      'X-Frame-Options': 'SAMEORIGIN',
+    };
+
+    // Inject husky.js into HTML responses at serve time
+    if (contentType === 'text/html') {
+      const html = await object.text();
+      const configScript = `<script>window.__HUSKY_CONFIG__=${JSON.stringify({ allowedOrigins })};</script>`;
+      const huskyTag = `<script src="/_husky/husky.js"></script>`;
+      const injection = `${configScript}\n${huskyTag}`;
+      const modifiedHtml = html.includes('</body>')
+        ? html.replace('</body>', `${injection}\n</body>`)
+        : html + `\n${injection}`;
+      return new Response(modifiedHtml, { headers: responseHeaders });
+    }
+
+    return new Response(object.body, { headers: responseHeaders });
   },
 };
 
@@ -201,6 +230,42 @@ function isPrivateHostname(hostname: string): boolean {
     if (a === 0) return true;
   }
   return false;
+}
+
+/**
+ * Redirect handler for external URLs (Safari COOP workaround).
+ * Serves an HTML page that redirects via meta-refresh + JS,
+ * so the target page loads in a fresh browsing context without an opener.
+ */
+function handleExternalRedirect(url: URL): Response {
+  const targetUrl = url.searchParams.get('url');
+  if (!targetUrl) {
+    return new Response('Missing url parameter', { status: 400 });
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(targetUrl);
+  } catch {
+    return new Response('Invalid URL', { status: 400 });
+  }
+
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    return new Response('Only http/https URLs allowed', { status: 400 });
+  }
+
+  const safeUrl = targetUrl.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  const jsUrl = JSON.stringify(targetUrl);
+
+  return new Response(
+    `<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=${safeUrl}"><title>Redirecting...</title></head><body><p>Redirecting to <a href="${safeUrl}">${safeUrl}</a>...</p><script>window.location.replace(${jsUrl});</script></body></html>`,
+    {
+      headers: {
+        'Content-Type': 'text/html',
+        'Cache-Control': 'no-store',
+      },
+    },
+  );
 }
 
 function getContentType(path: string): string {
