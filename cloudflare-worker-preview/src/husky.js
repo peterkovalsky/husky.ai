@@ -152,33 +152,6 @@
   }
 
   // ========================================================================
-  // External link redirect (Safari COOP workaround)
-  // Routes external links through /_external to avoid Cross-Origin-Opener-Policy
-  // navigation blocks. The worker serves a same-origin redirect page.
-  // ========================================================================
-  document.addEventListener('click', function(e) {
-    var link = e.target;
-    while (link && link.tagName !== 'A') link = link.parentElement;
-    if (!link || !link.href) return;
-
-    try {
-      var linkUrl = new URL(link.href);
-      if (linkUrl.origin === window.location.origin) return;
-      if (linkUrl.protocol !== 'https:' && linkUrl.protocol !== 'http:') return;
-
-      e.preventDefault();
-      var redirectUrl = '/_external?url=' + encodeURIComponent(link.href);
-      var isInIframe = window.parent && window.parent !== window;
-
-      if (link.target === '_blank' || isInIframe) {
-        window.open(redirectUrl, '_blank', 'noopener');
-      } else {
-        window.location.href = redirectUrl;
-      }
-    } catch(err) {}
-  });
-
-  // ========================================================================
   // Iframe-only features (location tracking + page context)
   // ========================================================================
 

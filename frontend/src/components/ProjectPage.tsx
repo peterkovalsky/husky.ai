@@ -696,7 +696,7 @@ export const ProjectPage = () => {
               src={currentPreviewUrl || undefined}
               className="w-full h-full border-0"
               title="Project Preview"
-              sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
               onLoad={() => {
                 console.log('[ProjectPage] iframe onLoad fired, currentPreviewUrlRef:', currentPreviewUrlRef.current)
                 // Only mark as loaded if we actually have content (use ref to avoid stale closure)
