@@ -2,7 +2,7 @@ Commit all changes on the current branch and create a pull request.
 
 Steps:
 1. Run `git status` to see all changed and untracked files. Run `git diff` to see staged and unstaged changes. Run `git log --oneline -10` to see recent commit style. Run `git log --oneline main..HEAD` to see commits on this branch.
-2. Stage all relevant changed files (exclude sensitive files like .env, credentials, key files). Use specific file names rather than `git add -A`.
+2. Stage ALL changed and untracked files using `git add -A`. Do NOT skip any files — commit everything including lock files, generated files, etc. If you notice files that probably shouldn't be tracked (like .env, credentials, key files, node_modules), WARN the user and suggest adding them to .gitignore INSTEAD of silently skipping them. Never selectively stage files.
 3. Write a concise commit message that summarizes all the changes. Follow the existing commit message style from the repo.
 4. Commit the changes.
 5. Push the branch to origin with `git push -u origin HEAD`.

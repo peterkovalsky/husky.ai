@@ -204,3 +204,5 @@ projects/
 
 # Wrangler local dev state
 .wrangler/
+/husky-prod-migration
+/husky-prod-migration-2

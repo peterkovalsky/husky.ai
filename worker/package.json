@@ -17,7 +17,7 @@
     "@aws-sdk/client-s3": "^3.848.0",
     "@aws-sdk/s3-request-presigner": "^3.913.0",
     "@google-cloud/tasks": "^6.2.1",
-    "@google/genai": "^1.31.0",
+    "@google/genai": "^1.47.0",
     "@supabase/supabase-js": "^2.52.0",
     "cloudflare": "^3.0.0",
     "dotenv": "^17.2.0",
