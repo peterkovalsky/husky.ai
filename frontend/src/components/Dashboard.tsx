@@ -440,7 +440,7 @@ export const Dashboard = () => {
                       src={jobStatus.previewUrl}
                       className="w-full h-full border-0"
                       title="App Preview"
-                      sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                      sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
                     />
                   </div>
                 </CardBody>

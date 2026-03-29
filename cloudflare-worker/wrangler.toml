@@ -14,7 +14,7 @@ id = "ffafafa93adf4e3fb68d190bcb905eb2"
 
 [vars]
 # External husky.js URL (hosted on R2 public media bucket)
-HUSKY_JS_URL = "https://media.huskystudio.app/husky.js?v=2"
+HUSKY_JS_URL = "https://media.huskystudio.app/husky.js?v=3"
 
 # Routes (configure after deployment via Cloudflare dashboard)
 # Recommended route pattern for Cloudflare for SaaS:
