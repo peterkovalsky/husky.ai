@@ -127,6 +127,13 @@
 
     console.log('[HuskyScreenshot] Capture params: scroll=(' + scrollX + ',' + scrollY + '), viewport=(' + width + 'x' + height + '), scale=' + scale);
 
+    // html2canvas renders the full target element into an offscreen canvas,
+    // then crops. For very tall pages (e.g. 10000px at 2x scale = 20000px),
+    // this exceeds browser canvas height limits (~16384px on macOS) and
+    // produces a blank result. Fix: clip the cloned body to just the area
+    // we need so the offscreen canvas stays within GPU limits.
+    var maxRenderHeight = scrollY + height + 200;
+
     html2canvas(document.body, {
       x: scrollX,
       y: scrollY,
@@ -134,13 +141,20 @@
       height: height,
       scrollX: 0,
       scrollY: 0,
-      windowWidth: document.documentElement.scrollWidth || width,
-      windowHeight: document.documentElement.scrollHeight || height,
+      windowWidth: width,
+      windowHeight: height,
       scale: scale,
+      useCORS: true,
       proxy: '/_proxy',
       logging: false,
       imageTimeout: 15000,
-      removeContainer: true
+      removeContainer: true,
+      onclone: function(clonedDoc) {
+        // Clip cloned body to prevent canvas overflow
+        clonedDoc.body.style.maxHeight = maxRenderHeight + 'px';
+        clonedDoc.body.style.overflow = 'hidden';
+        console.log('[HuskyScreenshot] Clipped clone height to ' + maxRenderHeight + 'px');
+      }
     }).then(function(canvas) {
       var dataUrl = canvas.toDataURL('image/png');
       console.log('[HuskyScreenshot] Capture complete, dataUrl length:', dataUrl.length);

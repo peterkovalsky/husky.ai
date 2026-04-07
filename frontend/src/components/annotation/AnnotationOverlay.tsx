@@ -55,7 +55,7 @@ export const AnnotationOverlay = ({ iframeRef, onComplete, onCancel }: Annotatio
     const iframe = iframeRef.current
     console.log('[Annotation] iframe ref:', iframe)
     console.log('[Annotation] iframe src:', iframe?.src)
-    console.log('[Annotation] iframe contentWindow:', iframe?.contentWindow)
+    console.log('[Annotation] iframe contentWindow exists:', !!iframe?.contentWindow)
 
     if (!iframe?.contentWindow) {
       console.warn('[Annotation] No iframe contentWindow - cannot request screenshot')

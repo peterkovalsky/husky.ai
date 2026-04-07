@@ -30,10 +30,15 @@ COPY worker/nodemon.json ./
 # Copy templates (needed for building generated apps)
 COPY templates ./templates
 
-# Install dependencies for react18-ts template (including dev dependencies for build tools)
+# Install dependencies for templates (including dev dependencies for build tools)
 RUN if [ -f "templates/react18-ts/package.json" ]; then \
         echo "Installing dependencies for templates/react18-ts"; \
         cd templates/react18-ts && npm ci && cd /app; \
+    fi
+
+RUN if [ -f "templates/astro-website/package.json" ]; then \
+        echo "Installing dependencies for templates/astro-website"; \
+        cd templates/astro-website && npm ci && cd /app; \
     fi
 
 # Create shared Vite cache directory
