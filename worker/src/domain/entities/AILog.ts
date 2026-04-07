@@ -12,6 +12,7 @@ export interface AILog {
   prompt: string;
   systemPrompt: string;
   aiResponse?: string;
+  conversationHistory?: { role: string; content: string }[];
   createdAt: Date;
   modifiedAt: Date;
 }
@@ -29,4 +30,5 @@ export interface CreateAILogRequest {
   prompt: string;
   systemPrompt: string;
   aiResponse?: string;
+  conversationHistory?: { role: string; content: string }[];
 }

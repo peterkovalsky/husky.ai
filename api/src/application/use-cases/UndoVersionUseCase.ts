@@ -37,29 +37,22 @@ export class UndoVersionUseCase {
 
     console.log(`[UndoVersionUseCase] Undoing version ${latestBuild.version}, restoring version ${previousBuild.version} for project ${projectId}`);
 
-    // Delete latest version from database
-    await this.buildRepository.deleteByVersion(projectId, latestBuild.version);
-    console.log(`[UndoVersionUseCase] Deleted version ${latestBuild.version} from database`);
-
-    // Try to delete version from S3 (don't throw if fails - per requirements)
-    await this.storageService.deleteVersion(projectId, latestBuild.version);
-
-    // Delete thumbnail for the version being undone
-    await this.storageService.deleteThumbnail(projectId, latestBuild.version);
-    console.log(`[UndoVersionUseCase] Deleted thumbnail for version ${latestBuild.version}`);
-
-    // Copy previous version preview-build to preview bucket
+    // Copy previous version preview-build to preview bucket FIRST
+    // (must happen before S3 deletion in case latest and previous share the same version number)
     await this.storageService.copyVersionToPreview(projectId, previousBuild.version);
     console.log(`[UndoVersionUseCase] Restored version ${previousBuild.version} to preview`);
 
+    // Atomically: delete chat messages, delete build record, update project version
+    await this.buildRepository.undoBuild(latestBuild.id, projectId, previousBuild.version);
+    console.log(`[UndoVersionUseCase] Transaction completed: deleted build ${latestBuild.id} (version ${latestBuild.version}), updated project to version ${previousBuild.version}`);
+
+    // Clean up S3 storage (non-transactional, best-effort)
+    await this.storageService.deleteVersion(projectId, latestBuild.version);
+    await this.storageService.deleteThumbnail(projectId, latestBuild.version);
+    console.log(`[UndoVersionUseCase] Deleted S3 files and thumbnail for version ${latestBuild.version}`);
+
     // Construct previewUrl on-the-fly (not from DB)
     const previewUrl = this.storageService.getPreviewUrl(projectId);
-
-    // Update project's currentVersion
-    // Note: Thumbnail URL is constructed on-the-fly from projectId and currentVersion, so updating
-    // currentVersion automatically points to the correct thumbnail
-    await this.projectRepository.updateCurrentVersion(projectId, previousBuild.version);
-    console.log(`[UndoVersionUseCase] Updated project currentVersion to ${previousBuild.version}`);
 
     return {
       version: previousBuild.version,

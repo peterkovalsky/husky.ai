@@ -65,19 +65,47 @@ export class CodeGenerationStep implements IBuildStep {
       const fileTree = await this.loadFileTreeForProject(context.projectId, context.template);
       await this.aiService.setProjectContext(context.projectId, fileTree, buildId, context.template);
 
-      // Get conversation context from previous builds (builds are now the source of truth)
+      // Build conversation history from previous builds for multi-turn context
       const previousBuilds = await this.buildRepository.findByProjectId(context.projectId);
-      const conversation = previousBuilds
+      const completedBuilds = previousBuilds
         .filter((b) => b.id !== context.buildId && (b.status === BuildStepStatus.COMPLETED || b.status === BuildStepStatus.NEEDS_RESPONSE))
-        .map((b) => {
-          let entry = `User: ${b.userPrompt}`;
-          if (b.status === BuildStepStatus.NEEDS_RESPONSE && b.aiSummary) {
-            // aiSummary field is reused for question context in NEEDS_RESPONSE builds
-            entry += `\nAI: [Asked clarifying questions]`;
+        .filter((b) => b.userPrompt) // Skip builds with no user prompt
+        .sort((a, b) => (a.version || 0) - (b.version || 0)); // Sort by version ascending
+
+      // Selection logic: first prompt (establishes project context) + last 5 recent prompts
+      // The current file tree already reflects all past changes, so only recent history
+      // is needed for resolving pronoun references ("it", "that") and understanding user focus
+      let conversationHistory: { role: 'user' | 'assistant'; content: string }[] = [];
+      if (completedBuilds.length > 0) {
+        const firstBuild = completedBuilds[0];
+        const recent = completedBuilds.slice(-5);
+
+        // Always include first prompt for project context
+        const selected = [firstBuild];
+        // Add recent prompts (skip first if it's already included)
+        for (const b of recent) {
+          if (b.id !== firstBuild.id) {
+            selected.push(b);
           }
-          return entry;
-        })
-        .join("\n\n");
+        }
+
+        const seen = new Set<string>();
+        for (const b of selected) {
+          if (!seen.has(b.userPrompt)) {
+            seen.add(b.userPrompt);
+            conversationHistory.push({ role: 'user', content: b.userPrompt });
+            if (b.aiSummary) {
+              conversationHistory.push({ role: 'assistant', content: b.aiSummary });
+            }
+          }
+        }
+      }
+
+      if (conversationHistory.length > 0) {
+        const userCount = conversationHistory.filter(h => h.role === 'user').length;
+        const assistantCount = conversationHistory.filter(h => h.role === 'assistant').length;
+        console.log(`[${this.stepName}] Built conversation history: ${userCount} user prompts, ${assistantCount} AI summaries`);
+      }
 
       // 3. Upload media to public R2 bucket
       let publicMediaUrls: string[] = [];
@@ -213,7 +241,8 @@ export class CodeGenerationStep implements IBuildStep {
         context.buildId,
         selectedModel,
         regularMediaUrls,
-        annotationUrls.length > 0 ? annotationUrls : undefined
+        annotationUrls.length > 0 ? annotationUrls : undefined,
+        conversationHistory.length > 0 ? conversationHistory : undefined
       );
       const aiGenerationTimeMs = Date.now() - aiStartTime;
       console.log(`[${this.stepName}] [PARALLEL] AI generation completed in ${aiGenerationTimeMs}ms (Model: ${aiResponse.model})`);
@@ -284,7 +313,7 @@ export class CodeGenerationStep implements IBuildStep {
         promptId: context.buildId,  // Using buildId for backward compatibility
         prompt: prompt,
         contextPrompt: prompt,
-        hasConversationHistory: !!conversation,
+        hasConversationHistory: conversationHistory.length > 0,
         fileTreeSize: Object.keys(mergeResult.mergedFileTree).length,
         aiGenerationTimeMs,
         modelUsed: aiResponse.model

@@ -112,6 +112,15 @@ export class SupabaseChatMessageRepository implements IChatMessageRepository {
     return (data || []).map(this.mapToEntity);
   }
 
+  async deleteByBuildId(buildId: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('chat_messages')
+      .delete()
+      .eq('build_id', buildId);
+
+    if (error) throw error;
+  }
+
   private mapToRow(request: CreateChatMessageRequest): Record<string, unknown> {
     return {
       project_id: request.projectId,

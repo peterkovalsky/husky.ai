@@ -40,17 +40,22 @@ export class OpenAIProvider extends BaseAIProvider {
       // Build user content with images if provided
       const userContent = this.buildUserContent(request);
 
+      // Build input array with conversation history
+      const input: Array<{ role: 'user' | 'assistant'; content: string | typeof userContent }> = [];
+      if (request.conversationHistory && request.conversationHistory.length > 0) {
+        for (const h of request.conversationHistory) {
+          input.push({ role: h.role === 'assistant' ? 'assistant' : 'user', content: h.content });
+        }
+        console.log(`[OpenAIProvider] Including ${request.conversationHistory.length} conversation history messages`);
+      }
+      input.push({ role: 'user', content: userContent });
+
       console.log("[OpenAIProvider] Calling OpenAI Responses API with streaming...");
       const stream = await this.client.responses.create({
         model: request.model,
         max_output_tokens: 32768,
         instructions: request.systemPrompt,
-        input: [
-          {
-            role: "user",
-            content: userContent
-          }
-        ],
+        input,
         tools: [
           {
             type: "web_search",

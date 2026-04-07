@@ -15,4 +15,5 @@ export interface IChatMessageRepository {
     before?: string;
   }): Promise<PaginatedChatMessages>;
   findByBuildId(buildId: string): Promise<ChatMessage[]>;
+  deleteByBuildId(buildId: string): Promise<void>;
 }

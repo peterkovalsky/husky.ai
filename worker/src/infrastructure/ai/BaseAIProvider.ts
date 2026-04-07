@@ -35,6 +35,15 @@ export abstract class BaseAIProvider implements IAIProvider {
       console.log(`[${this.getName()}Provider] Including ${request.mediaUrls.length} images in AI request`);
     }
 
+    if (request.conversationHistory && request.conversationHistory.length > 0) {
+      console.log(`[${this.getName()}Provider] Conversation history (${request.conversationHistory.length} messages):`);
+      for (const [i, h] of request.conversationHistory.entries()) {
+        console.log(`  [${i}] ${h.role}: ${h.content.substring(0, 150)}${h.content.length > 150 ? '...' : ''}`);
+      }
+    } else {
+      console.log(`[${this.getName()}Provider] No conversation history provided`);
+    }
+
     // Log the prompt to file
     if (request.buildId && request.projectId) {
       this.buildLogger.logUserPrompt(request.projectId, request.buildId, {
@@ -42,7 +51,9 @@ export abstract class BaseAIProvider implements IAIProvider {
         fileTreeSize: request.fileTreeContent.split('\n').length,
         mediaUrls: request.mediaUrls,
         fullPromptLength: request.userPrompt.length,
-        promptPreview: request.userPrompt.substring(0, 500)
+        promptPreview: request.userPrompt.substring(0, 500),
+        conversationHistoryCount: request.conversationHistory?.length || 0,
+        conversationHistory: request.conversationHistory?.map((h, i) => `[${i}] ${h.role}: ${h.content.substring(0, 200)}`) || []
       });
     }
 
@@ -71,7 +82,8 @@ export abstract class BaseAIProvider implements IAIProvider {
         userId: request.userId,
         prompt: request.userPrompt,
         systemPrompt: request.systemPrompt,
-        aiResponse: response.rawContent
+        aiResponse: response.rawContent,
+        conversationHistory: request.conversationHistory
       });
       console.log(`[${this.getName()}Provider] Logged AI execution to ai_logs table (model: ${request.model}, cost: $${cost.toFixed(6)})`);
     } catch (error) {

@@ -23,6 +23,8 @@ export interface AIGenerationRequest {
   projectId?: string;
   /** Build ID for logging */
   buildId?: string;
+  /** Previous conversation turns for multi-turn context (user prompts + AI summaries) */
+  conversationHistory?: { role: 'user' | 'assistant'; content: string }[];
 }
 
 /**
