@@ -34,7 +34,8 @@ export class SupabaseAILogRepository implements IAILogRepository {
         user_id: userId,
         prompt: request.prompt,
         system_prompt: request.systemPrompt,
-        ai_response: request.aiResponse
+        ai_response: request.aiResponse,
+        conversation_history: request.conversationHistory || null
       })
       .select()
       .single();
@@ -107,6 +108,7 @@ export class SupabaseAILogRepository implements IAILogRepository {
       prompt: data.prompt,
       systemPrompt: data.system_prompt,
       aiResponse: data.ai_response,
+      conversationHistory: data.conversation_history || undefined,
       createdAt: new Date(data.created_at),
       modifiedAt: new Date(data.modified_at)
     };

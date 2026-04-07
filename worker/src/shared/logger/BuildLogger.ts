@@ -89,6 +89,8 @@ export class BuildLogger {
     mediaUrls?: string[];
     fullPromptLength: number;
     promptPreview: string;
+    conversationHistoryCount?: number;
+    conversationHistory?: string[];
   }): void {
     if (!this.isDevMode) return;
 

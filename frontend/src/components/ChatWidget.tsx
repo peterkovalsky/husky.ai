@@ -586,36 +586,24 @@ export const ChatWidget = ({
       // Update successful builds count
       setSuccessfulBuildsCount(prev => Math.max(0, prev - 1))
 
-      // Remove the last completed prompt from conversation history
-      setConversationHistory(prev => {
-        const completedPrompts = prev.filter(m => m.status === 'completed')
-        if (completedPrompts.length > 0) {
-          const lastCompletedId = completedPrompts[completedPrompts.length - 1].id
-          return prev.filter(m => m.id !== lastCompletedId)
-        }
-        return prev
-      })
+      // Re-fetch conversation history from API (undo deletes chat messages server-side)
+      const chatResult = await ApiService.getChatMessages(activeProjectId, 10)
+      if (chatResult.chatMessages.length > 0) {
+        const historyMessages = mapApiMessages(chatResult.chatMessages)
+        setConversationHistory(historyMessages)
+        setHasMore(chatResult.hasMore)
+        const oldestMsg = chatResult.chatMessages[0]
+        setOldestMessageCursor(oldestMsg.createdAt)
 
-      // Also remove from current session messages if it was there
-      setMessages(prev => {
-        const userMessages = prev.filter(m => m.type === 'user' && m.status === 'completed')
-        if (userMessages.length > 0) {
-          const lastCompletedId = userMessages[userMessages.length - 1].id
-          return prev.filter(m => m.id !== lastCompletedId)
-        }
-        return prev
-      })
-
-      // Update lastPromptText to the new last completed prompt
-      setConversationHistory(prev => {
-        const completedPrompts = prev.filter(m => m.status === 'completed')
-        if (completedPrompts.length > 0) {
-          setLastPromptText(completedPrompts[completedPrompts.length - 1].content)
-        } else {
-          setLastPromptText(null)
-        }
-        return prev
-      })
+        const userPrompts = historyMessages.filter(m => m.type === 'user' && m.status === 'completed')
+        setLastPromptText(userPrompts.length > 0 ? userPrompts[userPrompts.length - 1].content : null)
+      } else {
+        setConversationHistory([])
+        setHasMore(false)
+        setOldestMessageCursor(null)
+        setLastPromptText(null)
+      }
+      setMessages([])
 
       // Close modal
       setIsUndoModalOpen(false)

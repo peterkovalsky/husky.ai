@@ -15,6 +15,8 @@ export interface IBuildRepository {
   update(id: string, updates: Partial<Build>): Promise<void>; // Generic update for any build fields
   removeMediaIdFromProject(projectId: string, mediaId: string): Promise<void>;
   removeMediaIdFromAllBuilds(mediaId: string): Promise<void>; // Remove media from all builds that reference it
+  deleteById(id: string): Promise<void>;
   deleteByProjectId(projectId: string): Promise<void>;
   deleteByVersion(projectId: string, version: number): Promise<void>;
+  undoBuild(buildId: string, projectId: string, restoreVersion: number): Promise<void>;
 }

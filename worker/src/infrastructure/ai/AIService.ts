@@ -83,7 +83,8 @@ export class AIService implements IAIService {
     buildId: string,
     model: string,
     mediaUrls?: string[],
-    annotationMediaUrls?: string[]
+    annotationMediaUrls?: string[],
+    conversationHistory?: { role: 'user' | 'assistant'; content: string }[]
   ): Promise<AIResponse> {
     // Get build from database to access project info
     const build = await this.buildRepository.findById(buildId);
@@ -109,7 +110,8 @@ export class AIService implements IAIService {
           build,
           mediaUrls,
           annotationMediaUrls,
-          currentModel !== model // isFallback
+          currentModel !== model, // isFallback
+          conversationHistory
         );
         return response;
       } catch (error) {
@@ -144,7 +146,8 @@ export class AIService implements IAIService {
     build: { userId: string },
     mediaUrls?: string[],
     annotationMediaUrls?: string[],
-    isFallback: boolean = false
+    isFallback: boolean = false,
+    conversationHistory?: { role: 'user' | 'assistant'; content: string }[]
   ): Promise<AIResponse> {
     // Select provider based on model
     const provider = this.getProviderForModel(model);
@@ -162,7 +165,8 @@ export class AIService implements IAIService {
       userId: build.userId,
       promptId: buildId, // Use buildId as promptId for AI logging
       projectId: this.currentProjectId,
-      buildId: buildId
+      buildId: buildId,
+      conversationHistory
     };
 
     // Delegate to provider (provider only handles API communication)

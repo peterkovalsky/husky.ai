@@ -41,17 +41,32 @@ export class AnthropicProvider extends BaseAIProvider {
       // Build user content with images if provided
       const userContent = this.buildUserContent(request);
 
+      // Build messages array with conversation history
+      const messages: { role: 'user' | 'assistant'; content: string | typeof userContent }[] = [];
+      if (request.conversationHistory && request.conversationHistory.length > 0) {
+        for (const h of request.conversationHistory) {
+          const role = h.role === 'assistant' ? 'assistant' : 'user';
+          // Anthropic requires alternating roles — insert synthetic turn if same role appears consecutively
+          if (messages.length > 0 && messages[messages.length - 1].role === role) {
+            const fillerRole = role === 'user' ? 'assistant' : 'user';
+            messages.push({ role: fillerRole, content: 'Understood.' });
+          }
+          messages.push({ role, content: h.content });
+        }
+        // Ensure last message before current user turn is an assistant message
+        if (messages.length > 0 && messages[messages.length - 1].role === 'user') {
+          messages.push({ role: 'assistant', content: 'Understood.' });
+        }
+        console.log(`[AnthropicProvider] Including ${request.conversationHistory.length} conversation history messages`);
+      }
+      messages.push({ role: 'user', content: userContent });
+
       console.log("[AnthropicProvider] Calling Anthropic API with streaming...");
       const stream = await this.client.messages.stream({
         model: request.model,
         max_tokens: 32768,
         system: request.systemPrompt,
-        messages: [
-          {
-            role: "user",
-            content: userContent,
-          },
-        ],
+        messages,
         tools: [
           {
             type: "web_search_20250305",

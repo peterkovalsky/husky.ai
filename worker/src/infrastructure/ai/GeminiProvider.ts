@@ -44,17 +44,43 @@ export class GeminiProvider extends BaseAIProvider {
     try {
       // Build content parts with images if provided (async for File API uploads)
       const contentParts = await this.buildContentParts(request);
-      const contents = [{ role: "user" as const, parts: contentParts }];
+
+      // Build contents array with conversation history
+      const contents: { role: 'user' | 'model'; parts: Part[] }[] = [];
+      if (request.conversationHistory && request.conversationHistory.length > 0) {
+        for (const h of request.conversationHistory) {
+          const geminiRole = h.role === 'assistant' ? 'model' : 'user';
+          // Gemini requires alternating roles — insert synthetic turn if same role appears consecutively
+          if (contents.length > 0 && contents[contents.length - 1].role === geminiRole) {
+            const fillerRole = geminiRole === 'user' ? 'model' : 'user';
+            contents.push({ role: fillerRole, parts: [{ text: 'Understood.' }] });
+          }
+          contents.push({ role: geminiRole, parts: [{ text: h.content }] });
+        }
+        // Ensure last message before current user turn is a model message
+        if (contents.length > 0 && contents[contents.length - 1].role === 'user') {
+          contents.push({ role: 'model', parts: [{ text: 'Understood.' }] });
+        }
+        console.log(`[GeminiProvider] Including ${request.conversationHistory.length} conversation history messages`);
+      }
+      contents.push({ role: 'user', parts: contentParts });
 
       // Pre-count input tokens before generation (required for thinking mode which doesn't return promptTokenCount)
       // Note: countTokens doesn't support external image URLs, so we only count text
       let preCountedInputTokens = 0;
       try {
         const textOnlyParts = contentParts.filter((p): p is { text: string } => 'text' in p);
-        const contentsForCounting = [
-          { role: "user" as const, parts: [{ text: request.systemPrompt }] },
-          { role: "user" as const, parts: textOnlyParts }
+        const contentsForCounting: { role: 'user' | 'model'; parts: { text: string }[] }[] = [
+          { role: "user", parts: [{ text: request.systemPrompt }] },
         ];
+        // Include conversation history text in token count
+        if (request.conversationHistory && request.conversationHistory.length > 0) {
+          for (const h of request.conversationHistory) {
+            contentsForCounting.push({ role: "user", parts: [{ text: h.content }] });
+            contentsForCounting.push({ role: "model", parts: [{ text: "Understood." }] });
+          }
+        }
+        contentsForCounting.push({ role: "user", parts: textOnlyParts });
         const countResponse = await this.client.models.countTokens({
           model: request.model,
           contents: contentsForCounting

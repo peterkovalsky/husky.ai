@@ -260,6 +260,15 @@ export class SupabaseBuildRepository implements IBuildRepository {
     }
   }
 
+  async deleteById(id: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('builds')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+  }
+
   async deleteByProjectId(projectId: string): Promise<void> {
     const { error } = await this.supabase
       .from('builds')
@@ -275,6 +284,16 @@ export class SupabaseBuildRepository implements IBuildRepository {
       .delete()
       .eq('project_id', projectId)
       .eq('version', version);
+
+    if (error) throw error;
+  }
+
+  async undoBuild(buildId: string, projectId: string, restoreVersion: number): Promise<void> {
+    const { error } = await this.supabase.rpc('undo_build', {
+      p_build_id: buildId,
+      p_project_id: projectId,
+      p_restore_version: restoreVersion,
+    });
 
     if (error) throw error;
   }

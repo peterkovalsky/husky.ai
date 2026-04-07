@@ -19,7 +19,7 @@ export interface IAIService {
    * @param mediaUrls - Optional array of media URLs (images)
    * @param annotationMediaUrls - Optional array of annotation screenshot URLs (visual reference only)
    */
-  generateResponse(prompt: string, promptId: string, model: string, mediaUrls?: string[], annotationMediaUrls?: string[]): Promise<AIResponse>;
+  generateResponse(prompt: string, promptId: string, model: string, mediaUrls?: string[], annotationMediaUrls?: string[], conversationHistory?: { role: 'user' | 'assistant'; content: string }[]): Promise<AIResponse>;
   setProjectContext(projectId: string, fileTree: Record<string, string>, buildId?: string, template?: string): Promise<void>;
   getCurrentFileTree(): Record<string, string>;
 }
