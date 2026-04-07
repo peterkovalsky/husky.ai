@@ -14,7 +14,7 @@ bucket_name = "dev-husky-app-previews"
 # Dev: localhost for development, app domain for staging
 ALLOWED_ORIGINS = "https://app.huskystudio.ai,https://app.huskystudio.app,https://dev.huskystudio.app,http://localhost:5173"
 # External husky.js URL (hosted on R2 public media bucket)
-HUSKY_JS_URL = "https://media-dev.huskystudio.app/husky.js?v=3"
+HUSKY_JS_URL = "https://media-dev.huskystudio.app/husky.js?v=6"
 
 [[routes]]
 pattern = "preview-dev.huskystudio.app"
@@ -36,7 +36,7 @@ bucket_name = "prod-husky-app-previews"
 # Prod: only production app domain
 ALLOWED_ORIGINS = "https://app.huskystudio.ai,https://app.huskystudio.app"
 # External husky.js URL (hosted on R2 public media bucket)
-HUSKY_JS_URL = "https://media.huskystudio.app/husky.js?v=3"
+HUSKY_JS_URL = "https://media.huskystudio.app/husky.js?v=6"
 
 [[env.production.routes]]
 pattern = "preview.huskystudio.app"

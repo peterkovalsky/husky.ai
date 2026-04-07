@@ -96,6 +96,7 @@ export default {
     if (!object && !path.includes('.')) {
       const dirPath = path.endsWith('/') ? path + 'index.html' : path + '/index.html';
       object = await env.PREVIEW_BUCKET.get(dirPath);
+      if (object) path = dirPath; // Update path so getContentType returns text/html
     }
 
     // SPA route fallback - serve index.html for client-side routes (React apps)

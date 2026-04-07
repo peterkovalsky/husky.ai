@@ -206,3 +206,7 @@ projects/
 .wrangler/
 /husky-prod-migration
 /husky-prod-migration-2
+
+.dev.vars*
+!.dev.vars.example
+!.env.example
