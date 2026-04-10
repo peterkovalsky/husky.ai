@@ -55,6 +55,7 @@ export interface Project {
   customDomainStatus?: CustomDomainStatus;
   customDomainError?: string | null;
   customDomainVerifiedAt?: Date | null;
+  designSystem?: string;
   // Note: thumbnailUrl is not stored in DB - it's constructed on-the-fly from projectId and currentVersion
   // The field is added by ProjectController.addThumbnailUrls() when serving projects to the API
   thumbnailUrl?: string | null;

@@ -1,6 +1,7 @@
 import { IBuildStep, StepResult, BuildStepStatus } from '../IBuildStep';
 import { BuildStepContext } from '../BuildStepContext';
 import { IBuildRepository } from '../../../domain/repositories/IBuildRepository';
+import { IProjectRepository } from '../../../domain/repositories/IProjectRepository';
 import { IMediaRepository } from '../../../domain/repositories/IMediaRepository';
 import { IInspoRepository } from '../../../domain/repositories/IInspoRepository';
 import { IAIService } from '../../../domain/services/IAIService';
@@ -10,6 +11,7 @@ import { PrepareProjectEnvironmentUseCase } from '../../use-cases/PrepareProject
 import { BuildLogger } from '../../../shared/logger/BuildLogger';
 import { FileTreeMerger } from '../../../shared/utils/FileTreeMerger';
 import { loadAppConfig } from '../../../shared/config/AppConfig';
+import { getDesignSystemGenerationPrompt, getDesignSystemUpdatePrompt } from '../../../infrastructure/ai/prompts/DesignSystemTemplate';
 import fs from 'fs';
 import path from 'path';
 
@@ -36,6 +38,7 @@ export class CodeGenerationStep implements IBuildStep {
 
   constructor(
     private buildRepository: IBuildRepository,
+    private projectRepository: IProjectRepository,
     private mediaRepository: IMediaRepository,
     private inspoRepository: IInspoRepository,
     private aiService: IAIService,
@@ -63,7 +66,15 @@ export class CodeGenerationStep implements IBuildStep {
 
       // 2. Load file tree and prepare AI context
       const fileTree = await this.loadFileTreeForProject(context.projectId, context.template);
-      await this.aiService.setProjectContext(context.projectId, fileTree, buildId, context.template);
+
+      // Load project to get existing design system
+      const project = await this.projectRepository.findById(context.projectId);
+      const existingDesignSystem = project?.designSystem;
+      if (existingDesignSystem) {
+        console.log(`[${this.stepName}] Loaded existing design system (${existingDesignSystem.length} chars)`);
+      }
+
+      await this.aiService.setProjectContext(context.projectId, fileTree, buildId, context.template, existingDesignSystem);
 
       // Build conversation history from previous builds for multi-turn context
       const previousBuilds = await this.buildRepository.findByProjectId(context.projectId);
@@ -234,6 +245,14 @@ export class CodeGenerationStep implements IBuildStep {
         enhancedPrompt += `\n\nANNOTATED SCREENSHOT OF CURRENT APP:\nThe user has drawn annotations (arrows, circles, highlights, text labels) on a screenshot of their current app to indicate specific areas they want changed. The annotated screenshot${annotationUrls.length > 1 ? 's are' : ' is'} included in the attached images. Pay close attention to the annotations - they show exactly what the user wants modified.`;
       }
 
+      // Add design system generation or update instructions
+      if (!existingDesignSystem) {
+        enhancedPrompt += '\n\n' + getDesignSystemGenerationPrompt();
+        console.log(`[${this.stepName}] Added design system generation instructions to prompt`);
+      } else {
+        enhancedPrompt += '\n\n' + getDesignSystemUpdatePrompt();
+      }
+
       console.log(`[${this.stepName}] [PARALLEL] Running AI generation...`);
       const aiStartTime = Date.now();
       const aiResponse = await this.aiService.generateResponse(
@@ -264,6 +283,12 @@ export class CodeGenerationStep implements IBuildStep {
       if (aiResponse.aiSummary) {
         context.setStepData('aiSummary', aiResponse.aiSummary);
         console.log(`[${this.stepName}] AI summary: ${aiResponse.aiSummary.substring(0, 100)}...`);
+      }
+
+      // Save design system if generated or updated
+      if (aiResponse.designSystem) {
+        await this.projectRepository.update(context.projectId, { designSystem: aiResponse.designSystem });
+        console.log(`[${this.stepName}] Saved design system to project (${aiResponse.designSystem.length} chars)`);
       }
 
       // 6. Parse and merge file tree

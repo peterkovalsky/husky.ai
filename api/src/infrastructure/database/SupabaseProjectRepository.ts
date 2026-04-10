@@ -271,6 +271,7 @@ export class SupabaseProjectRepository implements IProjectRepository {
     if (updates.customDomainStatus !== undefined) dbUpdates.custom_domain_status = updates.customDomainStatus;
     if (updates.customDomainError !== undefined) dbUpdates.custom_domain_error = updates.customDomainError;
     if (updates.customDomainVerifiedAt !== undefined) dbUpdates.custom_domain_verified_at = updates.customDomainVerifiedAt ? updates.customDomainVerifiedAt.toISOString() : null;
+    if (updates.designSystem !== undefined) dbUpdates.design_system = updates.designSystem;
     // Note: thumbnailUrl is not stored in DB - it's constructed on-the-fly from projectId and currentVersion
 
     const { error } = await this.supabase
@@ -331,6 +332,7 @@ export class SupabaseProjectRepository implements IProjectRepository {
       customDomainStatus: data.custom_domain_status as CustomDomainStatus | undefined,
       customDomainError: data.custom_domain_error,
       customDomainVerifiedAt: data.custom_domain_verified_at ? new Date(data.custom_domain_verified_at) : undefined,
+      designSystem: data.design_system || undefined,
       // Note: thumbnailUrl is constructed on-the-fly by ProjectController.addThumbnailUrls()
       createdAt: new Date(data.created_at),
       modifiedAt: new Date(data.modified_at)

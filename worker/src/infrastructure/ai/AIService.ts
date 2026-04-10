@@ -27,6 +27,7 @@ export class AIService implements IAIService {
   private currentProjectId: string = '';
   private currentBuildId: string = '';
   private currentTemplate: string = 'react18-ts';
+  private currentDesignSystem: string | undefined;
 
   // Fallback model mappings
   private static readonly FALLBACK_MODELS: Record<string, string> = {
@@ -157,7 +158,7 @@ export class AIService implements IAIService {
     // Build the request with all business logic handled here
     const request: AIGenerationRequest = {
       userPrompt: prompt,
-      systemPrompt: getSystemPrompt(this.currentTemplate),
+      systemPrompt: getSystemPrompt(this.currentTemplate, this.currentDesignSystem),
       fileTreeContent: FileTreeFormatter.formatForPrompt(this.compactForPrompt(this.currentFileTree)),
       mediaUrls,
       annotationMediaUrls,
@@ -196,6 +197,14 @@ export class AIService implements IAIService {
       }
     }
 
+    // Extract __DESIGN_SYSTEM__.md if present
+    let designSystem: string | undefined;
+    if (responseData.changes && responseData.changes['__DESIGN_SYSTEM__.md']) {
+      designSystem = responseData.changes['__DESIGN_SYSTEM__.md'];
+      delete responseData.changes['__DESIGN_SYSTEM__.md'];
+      console.log(`[AIService] Extracted design system (${designSystem!.length} chars)`);
+    }
+
     if (responseData.changes && !aiQuestion) {
       this.currentFileTree = this.updateFileTree(responseData.changes);
       // Update response with merged file tree
@@ -212,15 +221,17 @@ export class AIService implements IAIService {
       model: providerResponse.model,
       usage: providerResponse.usage,
       aiSummary,
-      aiQuestion
+      aiQuestion,
+      designSystem
     };
   }
 
-  async setProjectContext(projectId: string, fileTree: Record<string, string>, buildId?: string, template?: string): Promise<void> {
+  async setProjectContext(projectId: string, fileTree: Record<string, string>, buildId?: string, template?: string, designSystem?: string): Promise<void> {
     this.currentProjectId = projectId;
     this.currentFileTree = fileTree;
     this.currentBuildId = buildId || '';
     this.currentTemplate = template || 'react18-ts';
+    this.currentDesignSystem = designSystem;
   }
 
   getCurrentFileTree(): Record<string, string> {

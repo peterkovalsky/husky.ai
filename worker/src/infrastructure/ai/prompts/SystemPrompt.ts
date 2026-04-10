@@ -3,11 +3,30 @@
  * This ensures consistent behavior across Anthropic, OpenAI, and Gemini
  */
 
-export function getSystemPrompt(template: string = 'react18-ts'): string {
+export function getSystemPrompt(template: string = 'react18-ts', designSystem?: string): string {
+  let prompt: string;
   if (template === 'astro-website') {
-    return getAstroSystemPrompt();
+    prompt = getAstroSystemPrompt();
+  } else {
+    prompt = getReactSystemPrompt();
   }
-  return getReactSystemPrompt();
+
+  if (designSystem) {
+    prompt += `
+
+═══════════════════════════════════════════════════════════════════════════════
+PROJECT DESIGN SYSTEM
+═══════════════════════════════════════════════════════════════════════════════
+
+${designSystem}
+
+IMPORTANT: Follow this design system for ALL code generation.
+Maintain visual consistency with the established palette, typography, and component patterns.
+If the user requests style changes, update the design system accordingly by outputting
+an updated <<<FILE:__DESIGN_SYSTEM__.md>>> block.`;
+  }
+
+  return prompt;
 }
 
 function getReactSystemPrompt(): string {
