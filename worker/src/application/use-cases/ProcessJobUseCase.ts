@@ -114,6 +114,7 @@ export class ProcessJobUseCase {
     );
     const codeGenStep = new CodeGenerationStep(
       this.buildRepository,
+      this.projectRepository,
       this.mediaRepository,
       this.inspoRepository,
       this.aiService,

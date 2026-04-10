@@ -8,6 +8,7 @@ export interface AIResponse {
   };
   aiSummary?: string;
   aiQuestion?: string;
+  designSystem?: string;
 }
 
 export interface IAIService {
@@ -20,6 +21,6 @@ export interface IAIService {
    * @param annotationMediaUrls - Optional array of annotation screenshot URLs (visual reference only)
    */
   generateResponse(prompt: string, promptId: string, model: string, mediaUrls?: string[], annotationMediaUrls?: string[], conversationHistory?: { role: 'user' | 'assistant'; content: string }[]): Promise<AIResponse>;
-  setProjectContext(projectId: string, fileTree: Record<string, string>, buildId?: string, template?: string): Promise<void>;
+  setProjectContext(projectId: string, fileTree: Record<string, string>, buildId?: string, template?: string, designSystem?: string): Promise<void>;
   getCurrentFileTree(): Record<string, string>;
 }
