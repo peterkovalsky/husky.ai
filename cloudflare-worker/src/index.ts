@@ -162,6 +162,9 @@ export default {
 
         // SPA fallback: for any 404, serve index.html
         // This handles React Router paths like /about, /contact, etc.
+        // NOTE: Do NOT cache SPA fallback responses. These are "guesses" — the path
+        // may correspond to a real page added in a future publish. Caching the fallback
+        // would serve stale home page content even after the correct page exists in R2.
         const indexObject = await env.R2_BUCKET.get(`${projectId}/web/index.html`);
 
         if (indexObject) {
@@ -171,10 +174,9 @@ export default {
             status: 200,
             headers: {
               'Content-Type': 'text/html',
-              'Cache-Control': 'public, max-age=3600',
+              'Cache-Control': 'no-cache',
             },
           });
-          ctx.waitUntil(cache.put(cacheKey, spaResponse.clone()));
           return spaResponse;
         }
 

@@ -269,7 +269,15 @@ export class ProcessPublishJobUseCase {
         console.log(`[ProcessPublishJobUseCase] SSL/DNS already configured, skipping wait ⚡`);
       }
 
-      // Step 6: Update project status to PUBLISHED
+      // Step 6: Purge Cloudflare edge cache for this site's hostnames
+      // This clears stale cached responses (e.g. SPA fallback pages that now have real content)
+      const hostnamesToPurge = [hostname];
+      if (project.customDomain && project.customDomainStatus === CustomDomainStatus.ACTIVE) {
+        hostnamesToPurge.push(project.customDomain);
+      }
+      await this.cloudflareSaaSService.purgeCacheForHostnames(hostnamesToPurge);
+
+      // Step 7: Update project status to PUBLISHED
       await this.projectRepository.updatePublishingStatus(projectId, PublishingStatus.PUBLISHED);
       await this.projectRepository.setPublishedAt(projectId, new Date());
       await this.projectRepository.setPublishedVersion(projectId, project.currentVersion);
