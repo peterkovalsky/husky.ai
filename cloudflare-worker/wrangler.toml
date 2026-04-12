@@ -10,7 +10,7 @@ bucket_name = "prod-husky-published-apps"
 # KV Namespace binding (required for domain-to-project mapping)
 [[kv_namespaces]]
 binding = "SUBDOMAIN_MAPPING"
-id = "ffafafa93adf4e3fb68d190bcb905eb2"
+id = "52a322af5ef643f7b9dba50afb2a9c55"
 
 [vars]
 # External husky.js URL (hosted on R2 public media bucket)
@@ -21,3 +21,18 @@ HUSKY_JS_URL = "https://media.huskystudio.app/husky.js?v=4"
 # - Pattern: */*
 #   This wildcard route catches ALL traffic (subdomains + custom domains)
 #   and works regardless of customer DNS proxy settings (orange/grey cloud)
+
+# Production environment — deploy with: npx wrangler deploy --env prod
+[env.prod]
+name = "husky-published-sites-prod"
+
+[[env.prod.r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "prod-husky-published-apps"
+
+[[env.prod.kv_namespaces]]
+binding = "SUBDOMAIN_MAPPING"
+id = "52a322af5ef643f7b9dba50afb2a9c55"
+
+[env.prod.vars]
+HUSKY_JS_URL = "https://media.huskystudio.app/husky.js?v=4"
