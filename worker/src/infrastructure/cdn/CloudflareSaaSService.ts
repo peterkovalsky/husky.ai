@@ -389,4 +389,28 @@ export class CloudflareSaaSService {
 
     // Don't throw - DNS might resolve later
   }
+
+  /**
+   * Purge cached responses for a published site's hostnames.
+   * Called after publishing to ensure stale pages (e.g. SPA fallback responses
+   * for paths that now have real pages) are cleared from the Cloudflare edge cache.
+   * @param hostnames - Array of hostnames to purge (e.g. ["sub.huskystudio.app", "www.example.com"])
+   */
+  async purgeCacheForHostnames(hostnames: string[]): Promise<void> {
+    if (hostnames.length === 0) return;
+
+    try {
+      console.log(`[CloudflareSaaSService] Purging cache for hostnames: ${hostnames.join(', ')}`);
+
+      await this.cf.cache.purge({
+        zone_id: this.zoneId,
+        hosts: hostnames,
+      });
+
+      console.log(`[CloudflareSaaSService] Cache purged for ${hostnames.length} hostname(s)`);
+    } catch (error) {
+      // Cache purge failure should not fail the publish
+      console.warn(`[CloudflareSaaSService] Failed to purge cache:`, error);
+    }
+  }
 }
