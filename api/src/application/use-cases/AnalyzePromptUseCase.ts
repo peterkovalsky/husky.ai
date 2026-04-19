@@ -3,6 +3,9 @@ import { v4 as uuidv4 } from 'uuid';
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
 import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
 import { IAILogRepository } from '../../domain/repositories/IAILogRepository';
+import { IMediaRepository } from '../../domain/repositories/IMediaRepository';
+import { IStorageService } from '../../domain/services/IStorageService';
+import { Media } from '../../domain/entities/Media';
 import { CostCalculator } from '../../shared/utils/CostCalculator';
 import {
   AnalyzePromptRequestDto,
@@ -10,6 +13,7 @@ import {
   ClarificationQuestion
 } from '../dto/AnalyzePromptDto';
 import { User } from '../../domain/entities/User';
+import { PromptAnalysisService } from '../services/PromptAnalysisService';
 
 const ANALYSIS_SYSTEM_PROMPT = `You are a UX expert helping users clarify their vision for a frontend website or prototype.
 
@@ -109,6 +113,9 @@ export class AnalyzePromptUseCase {
     private projectRepository: IProjectRepository,
     private buildRepository: IBuildRepository,
     private aiLogRepository: IAILogRepository,
+    private mediaRepository: IMediaRepository,
+    private storageService: IStorageService,
+    private promptAnalysisService: PromptAnalysisService,
     apiKey?: string
   ) {
     this.client = new Anthropic({
@@ -144,9 +151,12 @@ export class AnalyzePromptUseCase {
       }
     }
 
+    // Resolve full context: SPA URL content, images, text files
+    const { enrichedPrompt, imageUrls } = await this.resolvePromptContext(dto.prompt, dto.mediaIds);
+
     // Call AI to generate clarification questions and project name
     try {
-      const result = await this.generateAnalysis(dto.prompt, user.id, dto.projectId, analysisId, startTime);
+      const result = await this.generateAnalysis(enrichedPrompt, imageUrls, user.id, dto.projectId, analysisId, startTime);
 
       if (!result.questions || result.questions.length === 0) {
         // AI didn't generate valid questions, skip clarification but return name
@@ -189,8 +199,85 @@ export class AnalyzePromptUseCase {
     return titleCased.substring(0, 30); // Max 30 chars
   }
 
+  /**
+   * Resolve full prompt context: SPA URL content, uploaded images, and text files.
+   * Returns enriched prompt text and image URLs for multi-modal AI call.
+   */
+  private async resolvePromptContext(
+    prompt: string,
+    mediaIds?: string[]
+  ): Promise<{ enrichedPrompt: string; imageUrls: string[] }> {
+    let enrichedPrompt = prompt;
+    const imageUrls: string[] = [];
+
+    // Resolve SPA URL content
+    try {
+      const urlResults = await this.promptAnalysisService.resolveUrlContents(prompt);
+      for (const result of urlResults) {
+        if (result.content) {
+          enrichedPrompt += `\n\nCONTENT FROM URL (${result.url}):\n---\n${result.content}\n---`;
+        }
+      }
+    } catch (error) {
+      console.warn('[AnalyzePromptUseCase] Failed to resolve URL contents:', error);
+    }
+
+    // Resolve uploaded media (images and text files)
+    if (mediaIds && mediaIds.length > 0) {
+      try {
+        const medias = await this.mediaRepository.findByIds(mediaIds);
+
+        for (const media of medias) {
+          try {
+            if (media.type === 'image') {
+              const presignedUrl = await this.storageService.generatePresignedDownloadUrl(
+                media.s3Key, 3600, media.s3Bucket
+              );
+              imageUrls.push(presignedUrl);
+            } else if (media.type === 'doc') {
+              const content = await this.fetchTextFileContent(media);
+              if (content) {
+                enrichedPrompt += `\n\nUSER ATTACHED TEXT FILE:\n---\n${content}\n---`;
+              }
+            }
+          } catch (mediaError) {
+            console.warn(`[AnalyzePromptUseCase] Failed to process media ${media.id}:`, mediaError);
+          }
+        }
+
+        if (imageUrls.length > 0) {
+          console.log(`[AnalyzePromptUseCase] Including ${imageUrls.length} image(s) in analysis`);
+        }
+      } catch (error) {
+        console.warn('[AnalyzePromptUseCase] Failed to fetch media:', error);
+      }
+    }
+
+    return { enrichedPrompt, imageUrls };
+  }
+
+  /**
+   * Fetch text content from a document media file via presigned URL.
+   */
+  private async fetchTextFileContent(media: Media): Promise<string | null> {
+    try {
+      const buffer = await this.storageService.downloadFile(media.s3Key, media.s3Bucket);
+      const content = buffer.toString('utf-8');
+      // Limit text file content to avoid bloating the analysis prompt
+      const maxLength = 50000;
+      if (content.length > maxLength) {
+        return content.substring(0, maxLength) + '\n\n[Content truncated...]';
+      }
+      return content;
+    } catch (error) {
+      console.warn(`[AnalyzePromptUseCase] Failed to download text file ${media.id}:`, error);
+      return null;
+    }
+  }
+
   private async generateAnalysis(
     userPrompt: string,
+    imageUrls: string[],
     userId: string,
     projectId: string | undefined,
     analysisId: string,
@@ -198,14 +285,7 @@ export class AnalyzePromptUseCase {
   ): Promise<{ questions: ClarificationQuestion[]; projectName: string; isLandingPageRequest: boolean; suggestedTemplate: string }> {
     console.log('[AnalyzePromptUseCase] Generating analysis (name + questions) using Haiku...');
 
-    const response = await this.client.messages.create({
-      model: this.HAIKU_MODEL,
-      max_tokens: 1024,
-      system: ANALYSIS_SYSTEM_PROMPT,
-      messages: [
-        {
-          role: 'user',
-          content: `User's request: "${userPrompt}"
+    const userMessageText = `User's request: "${userPrompt}"
 
 Analyze this prompt and:
 1. Generate a short, descriptive project name (2-4 words, max 30 chars)
@@ -217,7 +297,27 @@ Remember:
 - Make questions relevant to THIS specific type of site/app
 - Fewer questions for detailed prompts, more for vague ones
 - Set isLandingPageRequest to true for websites, landing pages, portfolios, marketing pages
-- Choose suggestedTemplate: "astro-website" for content/presentation sites, "react18-ts" for interactive apps`
+- Choose suggestedTemplate: "astro-website" for content/presentation sites, "react18-ts" for interactive apps`;
+
+    // Build multi-modal content if images are provided
+    const userContent: Anthropic.MessageCreateParams['messages'][0]['content'] = imageUrls.length > 0
+      ? [
+          ...imageUrls.map(url => ({
+            type: 'image' as const,
+            source: { type: 'url' as const, url },
+          })),
+          { type: 'text' as const, text: userMessageText },
+        ]
+      : userMessageText;
+
+    const response = await this.client.messages.create({
+      model: this.HAIKU_MODEL,
+      max_tokens: 1024,
+      system: ANALYSIS_SYSTEM_PROMPT,
+      messages: [
+        {
+          role: 'user',
+          content: userContent,
         }
       ]
     });

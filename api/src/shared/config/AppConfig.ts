@@ -37,6 +37,13 @@ export interface AppConfig {
     openaiApiKey?: string;
     geminiApiKey?: string;
   };
+  urlFetching: {
+    maxUrls: number;
+    timeoutMs: number;
+    maxContentLength: number;
+    spaThreshold: number;
+    jinaApiKey?: string;
+  };
   resendApiKey?: string;
 }
 
@@ -79,6 +86,13 @@ export function loadAppConfig(): AppConfig {
       anthropicApiKey: process.env.ANTHROPIC_API_KEY,
       openaiApiKey: process.env.OPENAI_API_KEY,
       geminiApiKey: process.env.GEMINI_API_KEY,
+    },
+    urlFetching: {
+      maxUrls: parseInt(process.env.URL_FETCH_MAX_URLS || '5', 10),
+      timeoutMs: parseInt(process.env.URL_FETCH_TIMEOUT_MS || '15000', 10),
+      maxContentLength: parseInt(process.env.URL_FETCH_MAX_CONTENT_LENGTH || '50000', 10),
+      spaThreshold: parseInt(process.env.URL_FETCH_SPA_THRESHOLD || '200', 10),
+      jinaApiKey: process.env.JINA_API_KEY,
     },
     resendApiKey: process.env.RESEND_API_KEY,
   };

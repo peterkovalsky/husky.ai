@@ -48,6 +48,9 @@ import { DNSVerificationService, IDNSVerificationService } from '../../infrastru
 import { StripeService } from '../../infrastructure/payment/StripeService';
 import { ResendEmailService } from '../../infrastructure/email/ResendEmailService';
 
+// Application Services
+import { PromptAnalysisService } from '../../application/services/PromptAnalysisService';
+
 // Application Use Cases
 import { CreatePromptUseCase } from '../../application/use-cases/CreatePromptUseCase';
 import { GetPromptStatusUseCase } from '../../application/use-cases/GetPromptStatusUseCase';
@@ -201,6 +204,9 @@ export function setupContainer(): DIContainer {
     container.registerFactory<IEmailService>('emailService', () => new ResendEmailService(config.resendApiKey!));
   }
 
+  // Register Application Services
+  container.registerFactory<PromptAnalysisService>('promptAnalysisService', () => new PromptAnalysisService(config.urlFetching));
+
   // Register Use Cases
   container.registerFactory<CreatePromptUseCase>('createPromptUseCase', () => new CreatePromptUseCase(
     container.get<IBuildRepository>('buildRepository'),
@@ -208,7 +214,8 @@ export function setupContainer(): DIContainer {
     container.get<IWorkspaceRepository>('workspaceRepository'),
     container.get<IQueueService>('queueService'),
     container.get<IMediaRepository>('mediaRepository'),
-    container.get<IChatMessageRepository>('chatMessageRepository')
+    container.get<IChatMessageRepository>('chatMessageRepository'),
+    container.get<PromptAnalysisService>('promptAnalysisService')
   ));
 
   container.registerFactory<GetPromptStatusUseCase>('getPromptStatusUseCase', () => new GetPromptStatusUseCase(
@@ -221,7 +228,10 @@ export function setupContainer(): DIContainer {
   container.registerFactory<AnalyzePromptUseCase>('analyzePromptUseCase', () => new AnalyzePromptUseCase(
     container.get<IProjectRepository>('projectRepository'),
     container.get<IBuildRepository>('buildRepository'),
-    container.get<IAILogRepository>('aiLogRepository')
+    container.get<IAILogRepository>('aiLogRepository'),
+    container.get<IMediaRepository>('mediaRepository'),
+    container.get<IStorageService>('storageService'),
+    container.get<PromptAnalysisService>('promptAnalysisService')
   ));
 
   container.registerFactory<CreateProjectUseCase>('createProjectUseCase', () => new CreateProjectUseCase(

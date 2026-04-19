@@ -10,6 +10,8 @@ import { User } from '../../domain/entities/User';
 import { BuildStepStatus } from '../build-steps/IBuildStep';
 import { ChatMessageSource } from '../../domain/entities/ChatMessage';
 import { PageContext } from '../dto/CreatePromptDto';
+import { PromptAnalysisService } from '../services/PromptAnalysisService';
+import { UrlFetchResult } from '../../shared/utils/UrlContentFetcher';
 
 export class CreatePromptUseCase {
   constructor(
@@ -18,7 +20,8 @@ export class CreatePromptUseCase {
     private workspaceRepository: IWorkspaceRepository,
     private queueService: IQueueService,
     private mediaRepository: IMediaRepository,
-    private chatMessageRepository: IChatMessageRepository
+    private chatMessageRepository: IChatMessageRepository,
+    private promptAnalysisService: PromptAnalysisService
   ) {}
 
   async execute(dto: CreatePromptDto, user: User): Promise<CreatePromptResponseDto> {
@@ -78,13 +81,17 @@ export class CreatePromptUseCase {
       }
     }
 
-    // Enhance prompt with clarification data and page context if provided
+    // Resolve URL content from the prompt (detects SPAs and fetches via Jina Reader)
+    const urlResults = await this.promptAnalysisService.resolveUrlContents(dto.prompt);
+
+    // Enhance prompt with clarification data, page context, and URL content
     const enhancedPrompt = this.buildEnhancedPrompt(
       dto.prompt,
       dto.clarificationAnswers,
       dto.skippedClarification,
       !!dto.inspoId, // hasInspoImage flag
-      dto.pageContext
+      dto.pageContext,
+      urlResults
     );
 
     // Get the next version number for chat_messages (build starts at 0, version assigned later)
@@ -178,7 +185,8 @@ export class CreatePromptUseCase {
     clarificationAnswers?: ClarificationAnswer[],
     skippedClarification?: boolean,
     hasInspoImage?: boolean,
-    pageContext?: PageContext
+    pageContext?: PageContext,
+    urlResults?: UrlFetchResult[]
   ): string {
     let prompt = originalPrompt;
 
@@ -252,6 +260,15 @@ CURRENT PAGE CONTEXT (the user is viewing this page in the app preview):
 - Path: ${pageContext.path}${title}${sections}
 
 Use this context to understand which part of the app the user is likely referring to. Focus your changes on the relevant page/components.`;
+    }
+
+    // Append fetched SPA URL content
+    if (urlResults && urlResults.length > 0) {
+      for (const result of urlResults) {
+        if (result.content) {
+          prompt += `\n\nCONTENT FROM URL (${result.url}):\n---\n${result.content}\n---`;
+        }
+      }
     }
 
     return prompt;
