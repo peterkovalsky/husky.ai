@@ -38,6 +38,7 @@ import { GeminiProvider } from '../../infrastructure/ai/GeminiProvider';
 import { AIService } from '../../infrastructure/ai/AIService';
 import { R2StorageService } from '../../infrastructure/storage/R2StorageService';
 import { CloudTasksQueueService } from '../../infrastructure/queue/CloudTasksQueueService';
+import { DirectHttpQueueService } from '../../infrastructure/queue/DirectHttpQueueService';
 import { SupabaseAuthService } from '../../infrastructure/auth/SupabaseAuthService';
 import { SubdomainService } from '../../infrastructure/subdomain/SubdomainService';
 import { R2PublishedAppsService } from '../../infrastructure/storage/R2PublishedAppsService';
@@ -179,8 +180,17 @@ export function setupContainer(): DIContainer {
   
   container.registerFactory<IStorageService>('storageService', () => new R2StorageService());
 
-  // Queue service using Cloud Tasks for GCP Cloud Run deployment
-  container.registerFactory<IQueueService>('queueService', () => new CloudTasksQueueService());
+  // Queue service: 'direct' POSTs to the worker over HTTP (local dev, no tunnel needed),
+  // anything else (default) uses Cloud Tasks for the deployed environment.
+  container.registerFactory<IQueueService>('queueService', () => {
+    const provider = (process.env.QUEUE_PROVIDER || 'cloudtasks').toLowerCase();
+    if (provider === 'direct') {
+      console.log('[Container] Using DirectHttpQueueService (local dev mode)');
+      return new DirectHttpQueueService();
+    }
+    console.log('[Container] Using CloudTasksQueueService');
+    return new CloudTasksQueueService();
+  });
 
   container.registerFactory<SupabaseAuthService>('authService', () => new SupabaseAuthService());
 
@@ -221,7 +231,9 @@ export function setupContainer(): DIContainer {
   container.registerFactory<AnalyzePromptUseCase>('analyzePromptUseCase', () => new AnalyzePromptUseCase(
     container.get<IProjectRepository>('projectRepository'),
     container.get<IBuildRepository>('buildRepository'),
-    container.get<IAILogRepository>('aiLogRepository')
+    container.get<IAILogRepository>('aiLogRepository'),
+    container.get<IMediaRepository>('mediaRepository'),
+    container.get<IStorageService>('storageService')
   ));
 
   container.registerFactory<CreateProjectUseCase>('createProjectUseCase', () => new CreateProjectUseCase(

@@ -3,6 +3,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { IProjectRepository } from '../../domain/repositories/IProjectRepository';
 import { IBuildRepository } from '../../domain/repositories/IBuildRepository';
 import { IAILogRepository } from '../../domain/repositories/IAILogRepository';
+import { IMediaRepository } from '../../domain/repositories/IMediaRepository';
+import { IStorageService } from '../../domain/services/IStorageService';
 import { CostCalculator } from '../../shared/utils/CostCalculator';
 import {
   AnalyzePromptRequestDto,
@@ -11,7 +13,13 @@ import {
 } from '../dto/AnalyzePromptDto';
 import { User } from '../../domain/entities/User';
 
-const ANALYSIS_SYSTEM_PROMPT = `You are a UX expert helping users clarify their vision for a frontend website or prototype.
+const ANALYSIS_SYSTEM_PROMPT = `You are helping a non-technical domain expert clarify their vision for a frontend website or prototype.
+
+WHO THE USER IS:
+- A subject-matter / domain expert (e.g., a restaurant owner, lawyer, fitness coach, teacher, consultant)
+- They are NOT a website specialist, designer, or developer
+- They know their business, audience, and content — but not how websites should be structured
+- They will pick a visual design from a separate gallery, so DESIGN is already handled elsewhere
 
 IMPORTANT: We are building FRONTEND-ONLY websites and prototypes (React apps), NOT full-stack applications. No backend, no database, no authentication systems - just UI/UX.
 
@@ -19,7 +27,7 @@ YOUR TASKS:
 1. Generate a SHORT project name (2-4 words) that describes WHAT they're building
 2. Analyze the user's prompt to understand what they're building
 3. Identify what's ALREADY specified (don't ask about those things)
-4. Generate 1-3 SHORT clarification questions that are SPECIFIC to their app idea
+4. Generate 1-3 SHORT clarification questions that ONLY a domain expert can answer
 
 PROJECT NAME RULES:
 - 2-4 words maximum, no more than 30 characters
@@ -29,37 +37,35 @@ PROJECT NAME RULES:
 - Avoid generic names like "My App", "New Project", "Website"
 
 QUESTION SELECTION RULES:
+- NEVER ask about visual design, look, feel, color, theme, layout style, hero style, card vs list, density, image size, animations, light/dark mode, or any other design/aesthetic decision — the user picks a design separately
+- NEVER ask about how the website should be STRUCTURED or ORGANIZED — that's our job, not theirs
+- ONLY ask things the domain expert is uniquely qualified to answer: their audience, their goal, their content, their offering, their business
 - NEVER ask about things already mentioned in the prompt
-- If they said "dark theme" → don't ask about color mood
-- If they said "minimalist" → don't ask about style aesthetic
-- If the prompt is detailed (50+ words), ask fewer questions (1-2)
+- If the user attached a text document (marked "USER ATTACHED TEXT FILE"), treat its full contents as part of the prompt — don't ask about anything specified in the document, and don't ask the user to share/describe a doc they already attached
+- If the user attached images/media (marked "USER ATTACHED MEDIA"), don't ask them to share visual references
+- If the prompt (including any attached document) is detailed (50+ words), ask fewer questions (1-2)
 - If the prompt is vague (under 20 words), ask more questions (2-3)
+- Use plain, non-technical language — no jargon (no "CTA", "hero section", "above the fold", "conversion", "responsive", etc.)
 
-QUESTION TYPES TO CONSIDER (pick what's relevant):
+GOOD QUESTION TYPES (domain/business questions only):
+- Primary audience: "Who is this mainly for?" → e.g. "New customers / Existing clients / Industry peers"
+- Main goal: "What's the #1 thing visitors should do?" → e.g. "Book a consultation / Buy a product / Learn about us / Sign up for updates"
+- Key offering: "What's most important to highlight?" → e.g. "Services / Portfolio / Pricing / Team"
+- Content available: "What do you have ready to show?" → e.g. "Photos & descriptions / Just text / Customer reviews / Nothing yet"
+- Stage of business: "Where are you at?" → e.g. "Just starting out / Established / Rebranding"
+- Trust signals: "What builds credibility for your audience?" → e.g. "Client testimonials / Case studies / Credentials & awards"
 
-For CONTENT-HEAVY sites (blogs, portfolios, landing pages):
-- Content layout: "How should content be organized?" → Single page scroll / Multi-page sections / Card grid
-- Hero style: "What should visitors see first?" → Big headline / Image/video hero / Animation
-
-For PRODUCTIVITY tools (todo, notes, trackers, dashboards):
-- Information density: "How much info on screen?" → Compact & dense / Balanced / Spacious & minimal
-- Interaction style: "How should items behave?" → Inline editing / Modal popups / Expandable panels
-
-For VISUAL apps (galleries, recipes, products):
-- Image prominence: "How important are images?" → Large & dominant / Medium thumbnails / Text-focused with small images
-- Browse style: "How should users explore?" → Grid of cards / Scrolling list / Carousel/slideshow
-
-For E-COMMERCE style (product pages, catalogs):
-- Product display: "How should items be shown?" → Detailed cards / Quick-view grid / List with filters
-
-UNIVERSAL questions (use sparingly, only if not clear from prompt):
-- Color mood (only if not specified)
-- Light/dark mode preference (only if not specified)
-- Mobile-first or desktop-first (if responsive approach matters)
+BAD QUESTIONS — NEVER ASK THESE:
+- "What color mood?" / "Light or dark theme?"
+- "Single page or multi-page?" / "How should content be organized?"
+- "Grid, list, or carousel?" / "How prominent should images be?"
+- "What should visitors see first?" / "Hero style?"
+- "Compact or spacious?" / "How much info on screen?"
+- Anything about layout, navigation structure, animations, or visual hierarchy
 
 FORMAT RULES:
-- Questions under 12 words
-- Option labels: 2-4 words
+- Questions under 12 words, written in plain everyday language
+- Option labels: 2-4 words, concrete and business-oriented
 - Option descriptions: under 8 words
 - 2-3 options per question
 
@@ -109,6 +115,8 @@ export class AnalyzePromptUseCase {
     private projectRepository: IProjectRepository,
     private buildRepository: IBuildRepository,
     private aiLogRepository: IAILogRepository,
+    private mediaRepository: IMediaRepository,
+    private storageService: IStorageService,
     apiKey?: string
   ) {
     this.client = new Anthropic({
@@ -144,9 +152,12 @@ export class AnalyzePromptUseCase {
       }
     }
 
+    // Enhance prompt with attached document content so the AI can see what the user referenced
+    const enhancedPrompt = await this.buildPromptWithAttachments(dto.prompt, dto.mediaIds);
+
     // Call AI to generate clarification questions and project name
     try {
-      const result = await this.generateAnalysis(dto.prompt, user.id, dto.projectId, analysisId, startTime);
+      const result = await this.generateAnalysis(enhancedPrompt, dto.prompt, user.id, dto.projectId, analysisId, startTime);
 
       if (!result.questions || result.questions.length === 0) {
         // AI didn't generate valid questions, skip clarification but return name
@@ -189,8 +200,54 @@ export class AnalyzePromptUseCase {
     return titleCased.substring(0, 30); // Max 30 chars
   }
 
+  private async buildPromptWithAttachments(
+    prompt: string,
+    mediaIds?: string[]
+  ): Promise<string> {
+    if (!mediaIds || mediaIds.length === 0) {
+      return prompt;
+    }
+
+    try {
+      const medias = await this.mediaRepository.findByIds(mediaIds);
+      if (medias.length === 0) {
+        return prompt;
+      }
+
+      const textMedias = medias.filter(m => m.mimeType === 'text/plain');
+      const nonTextCount = medias.length - textMedias.length;
+
+      let enhanced = prompt;
+
+      if (textMedias.length > 0) {
+        const textContents = await Promise.all(
+          textMedias.map(async (media) => {
+            const buffer = await this.storageService.downloadFile(media.s3Key, media.s3Bucket);
+            const fileName = media.s3Key.split('/').pop() || 'pasted-text.txt';
+            return { fileName, content: buffer.toString('utf-8') };
+          })
+        );
+
+        for (const textFile of textContents) {
+          enhanced += `\n\nUSER ATTACHED TEXT FILE (${textFile.fileName}):\n---\n${textFile.content}\n---`;
+        }
+        console.log(`[AnalyzePromptUseCase] Injected ${textContents.length} text file(s) into analyze prompt`);
+      }
+
+      if (nonTextCount > 0) {
+        enhanced += `\n\nUSER ATTACHED MEDIA: ${nonTextCount} image/video file(s) provided as visual reference.`;
+      }
+
+      return enhanced;
+    } catch (error) {
+      console.error('[AnalyzePromptUseCase] Failed to load attachments, proceeding with prompt only:', error);
+      return prompt;
+    }
+  }
+
   private async generateAnalysis(
     userPrompt: string,
+    originalPrompt: string,
     userId: string,
     projectId: string | undefined,
     analysisId: string,
@@ -275,7 +332,7 @@ Remember:
       const parsed = JSON.parse(jsonContent);
 
       // Extract project name
-      const projectName = parsed.projectName || this.generateFallbackName(userPrompt);
+      const projectName = parsed.projectName || this.generateFallbackName(originalPrompt);
 
       // Extract questions
       const questions = parsed.questions as ClarificationQuestion[];
@@ -308,7 +365,7 @@ Remember:
     } catch (parseError) {
       console.error('[AnalyzePromptUseCase] Failed to parse AI response:', parseError);
       console.error('[AnalyzePromptUseCase] Raw response:', rawContent);
-      return { questions: [], projectName: this.generateFallbackName(userPrompt), isLandingPageRequest: false, suggestedTemplate: 'astro-website' };
+      return { questions: [], projectName: this.generateFallbackName(originalPrompt), isLandingPageRequest: false, suggestedTemplate: 'astro-website' };
     }
   }
 }

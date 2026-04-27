@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Development Commands
 
 ```bash
-npm run dev      # Start Vite dev server (port 5173)
+npm run dev      # Start Vite dev server (port 5174)
 npm run build    # TypeScript build + Vite production build
 npm run lint     # ESLint code quality check
 npm run preview  # Preview production build

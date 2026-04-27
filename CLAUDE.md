@@ -16,7 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run test:coverage` - Run tests with coverage report
 
 ### Frontend - `/frontend`
-- `npm run dev` - Start Vite development server (port 5173)
+- `npm run dev` - Start Vite development server (port 5174)
 - `npm run build` - TypeScript build + Vite production build
 - `npm run lint` - ESLint code quality check
 - `npm run preview` - Preview production build
@@ -452,7 +452,7 @@ All variables are required for startup:
 - `S3_BUCKET_NAME` - Preview bucket (dev-husky-app-previews)
 - `S3_PROJECTS_BUCKET_NAME` - Projects/versions bucket (dev-husky-projects)
 - `SQS_QUEUE_URL` - Job queue
-- `PORT` (optional, defaults to 3333), `NODE_ENV`
+- `PORT` (optional, defaults to 3333; set to 3433 in local dev to avoid conflicts), `NODE_ENV`
 
 ### S3 Bucket Structure
 The system uses two S3 buckets:
