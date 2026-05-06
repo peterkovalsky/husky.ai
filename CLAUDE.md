@@ -5,6 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Git Rules
 - **NEVER run `git push` unless the user explicitly asks to push.** Commits are fine, but pushing triggers deployments and must always be a deliberate user decision.
 
+## Dependency Management
+- **After editing any `package.json`, regenerate `package-lock.json` in the same change.** Run `npm install` (or `npm install --package-lock-only`) in that directory and stage both files together. The worker Docker image runs `npm ci` over each bundled template's `package.json` during build, and `npm ci` aborts on drift — a missed lockfile in [#107](https://github.com/Husky-Studio/husky.ai/pull/107) broke the worker Cloud Run deploy and required hotfix [#108](https://github.com/Husky-Studio/husky.ai/pull/108). Applies to every `package.json` in this repo (`api/`, `worker/`, `frontend/`, `base/`, `templates/*/`).
+
 ## Common Development Commands
 
 ### API (Backend) - `/api`
