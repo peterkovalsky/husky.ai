@@ -603,6 +603,7 @@ Tailwind CSS 4 uses CSS-based configuration. NO tailwind.config.mjs file.
 Global styles are in src/styles/global.css:
   @import "tailwindcss";
   @plugin "daisyui";
+  @plugin "@tailwindcss/typography";   /* powers \`prose\` classes for markdown */
 
 To add custom theme configuration, modify global.css:
   @import "tailwindcss";
@@ -646,8 +647,22 @@ PAGES & ROUTING:
 - src/pages/about.astro → /about/
 - src/pages/blog/index.astro → /blog/
 - src/pages/blog/[...id].astro → /blog/my-post/ (dynamic from content collection)
-- Navigation between pages: use standard <a href="/about">About</a> links
 - NO client-side router needed — Astro handles multi-page navigation
+
+INTERNAL LINKS — CRITICAL:
+The site is served under a base path that differs between preview (\`/projects/{id}/\`)
+and production (\`/\`). Astro inlines \`import.meta.env.BASE_URL\` at build time with
+the right value, but it does NOT rewrite hard-coded absolute hrefs.
+
+- ✅ DO prefix every internal href with \`import.meta.env.BASE_URL\` (already trailing-slash):
+    <a href={\`\${import.meta.env.BASE_URL}about/\`}>About</a>
+    <a href={\`\${import.meta.env.BASE_URL}blog/\`}>Blog</a>
+    <a href={\`\${import.meta.env.BASE_URL}#pricing\`}>Pricing</a>   (homepage anchor)
+    <a href={import.meta.env.BASE_URL}>Home</a>                    (home link, no suffix)
+- ❌ NEVER write a hard-coded leading slash: \`<a href="/about">\` — this breaks in preview.
+- Same-page anchors (\`<a href="#section">\`) and external URLs (\`https://…\`) do NOT need
+  the prefix.
+- This applies to every internal link: anchors, form actions, JS \`window.location\`, etc.
 
 COMPONENTS:
 - Break pages into section components: Hero.astro, Features.astro, Pricing.astro
@@ -708,7 +723,7 @@ const posts = (await getCollection('blog')).sort(
 ---
 <BaseLayout title="Blog">
   {posts.map(post => (
-    <a href={\`/blog/\${post.id}/\`}>
+    <a href={\`\${import.meta.env.BASE_URL}blog/\${post.id}/\`}>
       <h2>{post.data.title}</h2>
       <time>{post.data.pubDate.toLocaleDateString()}</time>
     </a>
@@ -733,11 +748,20 @@ const { post } = Astro.props;
 const { Content } = await render(post);
 ---
 <BaseLayout title={post.data.title} description={post.data.description}>
-  <article>
-    <h1>{post.data.title}</h1>
-    <Content />
+  <article class="max-w-3xl mx-auto px-6 py-24">
+    <h1 class="text-5xl font-extrabold tracking-tight mb-8">{post.data.title}</h1>
+    <div class="prose prose-lg max-w-none">
+      <Content />
+    </div>
   </article>
 </BaseLayout>
+
+CRITICAL: Wrap <Content /> in a div with \`prose\` (and any \`prose-*\` modifiers).
+Tailwind's preflight strips browser-default heading/list styles, so unstyled
+markdown renders as a wall of text. The \`prose\` class from
+\`@tailwindcss/typography\` (already configured in global.css) restores headings,
+spacing, lists, tables, blockquotes, and image styling. Without it, every
+markdown article will look like one continuous paragraph.
 
 CRITICAL: Use post.id (NOT post.slug) — slug was renamed to id in Astro 5.
 CRITICAL: Use render(post) (NOT post.render()) — standalone function in Astro 5.
@@ -888,7 +912,7 @@ const { title, subtitle } = Astro.props;
     <div class="max-w-md">
       <h1 class="text-5xl font-bold">{title}</h1>
       <p class="py-6">{subtitle}</p>
-      <a href="/about" class="btn btn-primary">Get Started</a>
+      <a href={\`\${import.meta.env.BASE_URL}about/\`} class="btn btn-primary">Get Started</a>
     </div>
   </div>
 </section>
