@@ -75,6 +75,12 @@ export class ProcessPublishJobUseCase {
       console.log(`[ProcessPublishJobUseCase] Writing subdomain mapping to KV`);
       await this.cloudflareKVService.setSubdomainMapping(project.subdomain, projectId);
 
+      // Step 2a: Write reverse `__sub:${projectId} → subdomain` mapping so the
+      // Worker can canonicalize cache keys for custom-domain requests onto the
+      // project's subdomain. Without this, custom domains keep their own cache
+      // entries that the publish-time host purge can't reach reliably.
+      await this.cloudflareKVService.setMapping(`__sub:${projectId}`, project.subdomain);
+
       // Step 2.5: Process custom domain if configured
       if (project.customDomain && project.customDomainStatus !== CustomDomainStatus.NONE) {
         console.log(`[ProcessPublishJobUseCase] Processing custom domain: ${project.customDomain}`);

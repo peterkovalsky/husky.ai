@@ -28,13 +28,29 @@ interface CustomHostMetadata {
   bucket?: string;
 }
 
+const PUBLISH_DOMAIN = 'huskystudio.app';
+
 /**
- * Normalize request URL for cache key: strip query strings so bot URLs
- * with ?tracking=xyz, ?utm_source=..., etc. all share the same cache entry.
+ * Build the cache key URL.
+ * Always uses the canonical `${subdomain}.huskystudio.app` host (never the
+ * request's host) so that a project served on both its subdomain and a custom
+ * domain shares one cache entry. This lets a host purge of the subdomain
+ * — which lives under the wildcard DNS record in our zone — invalidate cache
+ * for the custom domain too. Cloudflare's host purge is unreliable for
+ * Cloudflare-for-SaaS custom hostnames, so routing them through the canonical
+ * subdomain is what makes purge reach them.
+ *
+ * Falls back to the request URL when the canonical subdomain is unknown.
+ * Strips query strings so tracking params don't fragment the cache.
  */
-function getCacheKey(request: Request): Request {
+function buildCacheKey(request: Request, canonicalSubdomain: string | null): Request {
   const url = new URL(request.url);
   url.search = '';
+  if (canonicalSubdomain) {
+    url.hostname = `${canonicalSubdomain}.${PUBLISH_DOMAIN}`;
+    url.protocol = 'https:';
+    url.port = '';
+  }
   return new Request(url.toString(), request);
 }
 
@@ -43,7 +59,6 @@ export default {
     try {
       const url = new URL(request.url);
       const cache = caches.default;
-      const cacheKey = getCacheKey(request);
 
       // Handle ACME challenges for HTTP validation (Cloudflare for SaaS)
       // These must bypass cache to return fresh validation tokens
@@ -69,52 +84,63 @@ export default {
         return handleExternalRedirect(url);
       }
 
-      // Check Cloudflare Cache first — serves cached responses without KV or R2 reads
-      const cachedResponse = await cache.match(cacheKey);
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-
-      // Get project ID from custom metadata (custom domains) or KV (subdomains)
+      // Resolve project ID and canonical subdomain BEFORE the cache lookup so
+      // requests on a custom domain can share cache entries with the project's
+      // canonical subdomain — see buildCacheKey() above.
       let projectId: string | null = null;
+      let canonicalSubdomain: string | null = null;
 
-      // Try custom metadata first (for custom domains with metadata attached)
       const cf = request.cf as any;
       const hostMetadata = cf?.hostMetadata as CustomHostMetadata | undefined;
 
       if (hostMetadata?.project_id) {
         projectId = hostMetadata.project_id;
-      } else {
-        const hostname = url.hostname;
+      }
 
-        try {
-          // For *.huskystudio.app subdomains, skip the full hostname lookup —
-          // KV only stores the subdomain part (e.g., "able-pond-566"), never the
-          // full hostname, so the first lookup always wastes a KV read.
-          if (hostname.endsWith('.huskystudio.app')) {
-            const subdomain = hostname.split('.')[0];
-            projectId = await env.SUBDOMAIN_MAPPING.get(subdomain, { cacheTtl: 3600 });
-          } else {
-            // Custom domains: try full hostname (e.g., "www.interviewtime.ai")
+      const hostname = url.hostname;
+
+      try {
+        if (hostname.endsWith(`.${PUBLISH_DOMAIN}`)) {
+          // Subdomain request: the hostname IS the canonical subdomain.
+          canonicalSubdomain = hostname.slice(0, -(PUBLISH_DOMAIN.length + 1));
+          if (!projectId) {
+            projectId = await env.SUBDOMAIN_MAPPING.get(canonicalSubdomain, { cacheTtl: 3600 });
+          }
+        } else {
+          // Custom domain: resolve project, then look up its canonical subdomain.
+          if (!projectId) {
             projectId = await env.SUBDOMAIN_MAPPING.get(hostname, { cacheTtl: 3600 });
           }
-        } catch (kvError: any) {
-          // KV rate limited — return a retry page and cache it to prevent further KV reads
-          console.error(`[Worker] KV error: ${kvError.message}`);
-          const retryResponse = new Response(
-            getRetryHtml(url.hostname),
-            {
-              status: 503,
-              headers: {
-                'Content-Type': 'text/html',
-                'Cache-Control': 'public, max-age=60',
-                'Retry-After': '60',
-              },
-            }
-          );
-          ctx.waitUntil(cache.put(cacheKey, retryResponse.clone()));
-          return retryResponse;
+          if (projectId) {
+            canonicalSubdomain = await env.SUBDOMAIN_MAPPING.get(`__sub:${projectId}`, { cacheTtl: 3600 });
+          }
         }
+      } catch (kvError: any) {
+        // KV rate limited — return a retry page and cache it to prevent further KV reads
+        console.error(`[Worker] KV error: ${kvError.message}`);
+        const retryKey = buildCacheKey(request, canonicalSubdomain);
+        const retryResponse = new Response(
+          getRetryHtml(url.hostname),
+          {
+            status: 503,
+            headers: {
+              'Content-Type': 'text/html',
+              'Cache-Control': 'public, max-age=60',
+              'Retry-After': '60',
+            },
+          }
+        );
+        ctx.waitUntil(cache.put(retryKey, retryResponse.clone()));
+        return retryResponse;
+      }
+
+      const cacheKey = buildCacheKey(request, canonicalSubdomain);
+
+      // Check Cloudflare Cache — keyed by canonical subdomain so subdomain
+      // and custom domain share entries.
+      const cachedResponse = await cache.match(cacheKey);
+      if (cachedResponse) {
+        return cachedResponse;
       }
 
       if (!projectId) {
