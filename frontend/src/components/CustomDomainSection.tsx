@@ -1,16 +1,43 @@
 import { Input, Button, Code, Alert, Chip, Divider, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Accordion, AccordionItem } from '@heroui/react'
-import { ApiService, type CustomDomainInfo, CustomDomainStatus } from '../services/api'
+import { ApiService, type CustomDomainInfo, type DNSProvider, CustomDomainStatus } from '../services/api'
 import { useState } from 'react'
 import { Globe, Check, Loader2, Copy, CheckCheck, Info, ArrowUpRight, ArrowRight, RefreshCw } from 'lucide-react'
+
+/**
+ * Maps a detected DNS provider to the accordion item to default-expand in
+ * the setup-instructions modal. Returns undefined when we have no match — the
+ * accordion stays collapsed and the user picks manually.
+ */
+function getDefaultProviderKey(provider: DNSProvider | undefined): Set<string> | undefined {
+  switch (provider) {
+    case 'cloudflare':
+      return new Set(['cloudflare'])
+    case 'godaddy':
+      return new Set(['godaddy'])
+    case 'namecheap':
+      return new Set(['namecheap'])
+    default:
+      return undefined
+  }
+}
 
 interface CustomDomainSectionProps {
   projectId: string
   customDomain?: CustomDomainInfo
   onUpdate: () => void
   compact?: boolean
+  /**
+   * Number of times the project has been published. We block adding a custom
+   * domain until the project has been published at least once — otherwise
+   * verification can succeed but visiting the URL serves a worker 404 because
+   * no content exists in R2 for the project yet.
+   */
+  publishedVersion?: number
 }
 
-export const CustomDomainSection = ({ projectId, customDomain, onUpdate, compact }: CustomDomainSectionProps) => {
+export const CustomDomainSection = ({ projectId, customDomain, onUpdate, compact, publishedVersion }: CustomDomainSectionProps) => {
+  const hasPublished = (publishedVersion ?? 0) > 0
+  const [detectedProvider, setDetectedProvider] = useState<DNSProvider | undefined>(undefined)
   const [domainInput, setDomainInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
@@ -28,7 +55,8 @@ export const CustomDomainSection = ({ projectId, customDomain, onUpdate, compact
     setError(null)
 
     try {
-      await ApiService.setCustomDomain(projectId, domainInput.trim())
+      const result = await ApiService.setCustomDomain(projectId, domainInput.trim())
+      setDetectedProvider(result.detectedProvider)
       setDomainInput('')
       onUpdate()
     } catch (err) {
@@ -85,6 +113,31 @@ export const CustomDomainSection = ({ projectId, customDomain, onUpdate, compact
     }
   }
 
+  if (!customDomain && !hasPublished) {
+    // Block adding a custom domain until the project has been published. The
+    // backend enforces this too; this is the same check rendered as friendly
+    // copy instead of an error.
+    return (
+      <div className="space-y-3">
+        {!compact && (
+          <>
+            <Divider className="my-4" />
+            <div className="text-sm font-medium text-default-700 flex items-center gap-2">
+              <Globe className="w-4 h-4" />
+              Custom Domain (Optional)
+            </div>
+          </>
+        )}
+        <Alert color="default" variant="flat" className="text-xs">
+          <p>
+            Publish your project at least once before connecting a custom domain. Click{' '}
+            <span className="font-semibold">Publish</span> first, then come back to add your domain.
+          </p>
+        </Alert>
+      </div>
+    )
+  }
+
   if (!customDomain) {
     // No custom domain set - show input to add one
     return (
@@ -102,7 +155,7 @@ export const CustomDomainSection = ({ projectId, customDomain, onUpdate, compact
         <div className="relative">
           <Input
             size="sm"
-            placeholder="example.com"
+            placeholder="www.example.com"
             value={domainInput}
             onChange={(e) => setDomainInput(e.target.value)}
             onKeyDown={(e) => {
@@ -138,6 +191,12 @@ export const CustomDomainSection = ({ projectId, customDomain, onUpdate, compact
             }
           />
         </div>
+
+        <p className="text-[11px] text-default-400">
+          Use a subdomain like <code className="text-default-500">www.example.com</code>. Bare domains
+          (<code className="text-default-500">example.com</code>) aren't supported — set up a redirect
+          to <code className="text-default-500">www</code> at your DNS provider if you want that.
+        </p>
 
         {error && (
           <p className="text-xs text-danger">{error}</p>
@@ -298,6 +357,13 @@ export const CustomDomainSection = ({ projectId, customDomain, onUpdate, compact
                 <h3 className="text-lg font-semibold">How to Add DNS Record</h3>
               </ModalHeader>
               <ModalBody className="gap-4">
+                <Alert color="warning" variant="flat" className="text-xs">
+                  <p>
+                    <span className="font-semibold">Using Cloudflare?</span>{' '}
+                    Make sure the new CNAME is set to <span className="font-semibold">DNS only</span> (grey cloud icon, not orange). A proxied record will return error 522 when visitors try to load your site.
+                  </p>
+                </Alert>
+
                 {/* Generic Instructions */}
                 <div className="space-y-3">
                   <h4 className="text-sm font-semibold text-default-700">General Instructions</h4>
@@ -325,8 +391,9 @@ export const CustomDomainSection = ({ projectId, customDomain, onUpdate, compact
                         )}
                       </div>
                     </li>
+                    <li>If your DNS provider has a proxy/CDN toggle (Cloudflare's "orange cloud," for example), set the record to <span className="font-medium">DNS only</span></li>
                     <li>Save the DNS record</li>
-                    <li>DNS changes can take 5 minutes to 48 hours to propagate (usually 15-30 minutes)</li>
+                    <li>DNS changes usually propagate in a few minutes; up to 48 hours in rare cases</li>
                     <li>Return here and click "Verify DNS" to verify your configuration</li>
                   </ol>
                 </div>
@@ -334,7 +401,26 @@ export const CustomDomainSection = ({ projectId, customDomain, onUpdate, compact
                 {/* Vendor-Specific Instructions */}
                 <div className="space-y-2">
                   <h4 className="text-sm font-semibold text-default-700">Provider-Specific Guides</h4>
-                  <Accordion variant="bordered">
+                  <Accordion variant="bordered" defaultExpandedKeys={getDefaultProviderKey(detectedProvider)}>
+                    <AccordionItem
+                      key="cloudflare"
+                      aria-label="Cloudflare Instructions"
+                      title={<span className="text-sm font-medium">Cloudflare</span>}
+                    >
+                      <ol className="list-decimal list-inside space-y-2 text-sm text-default-600">
+                        <li>Sign in to the <a href="https://dash.cloudflare.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Cloudflare dashboard</a> and select the zone for your domain</li>
+                        <li>Open <span className="font-medium">DNS &rarr; Records</span> from the left sidebar</li>
+                        <li>Click <span className="font-medium">Add record</span></li>
+                        <li>Type: <Code size="sm">CNAME</Code></li>
+                        <li>Name: <Code size="sm">{customDomain?.dnsInstructions?.name || 'www'}</Code></li>
+                        <li>Target: <Code size="sm">{customDomain?.dnsInstructions?.value || ''}</Code></li>
+                        <li className="font-medium text-warning-700">
+                          Proxy status: click the orange cloud so it turns grey ("DNS only"). Leaving it proxied returns error 522.
+                        </li>
+                        <li>TTL: <Code size="sm">Auto</Code></li>
+                        <li>Click <span className="font-medium">Save</span></li>
+                      </ol>
+                    </AccordionItem>
                     <AccordionItem
                       key="godaddy"
                       aria-label="GoDaddy Instructions"
@@ -347,7 +433,7 @@ export const CustomDomainSection = ({ projectId, customDomain, onUpdate, compact
                         <li>In the DNS Management page, scroll to the "Records" section</li>
                         <li>Click the "Add" button to create a new record</li>
                         <li>Select "CNAME" from the Type dropdown</li>
-                        <li>In the "Name" field, enter: <Code size="sm">{customDomain?.dnsInstructions?.name || '@'}</Code></li>
+                        <li>In the "Name" field, enter: <Code size="sm">{customDomain?.dnsInstructions?.name || 'www'}</Code></li>
                         <li>In the "Value" field, enter: <Code size="sm">{customDomain?.dnsInstructions?.value || ''}</Code></li>
                         <li>Set TTL to "1 Hour" (or leave as default)</li>
                         <li>Click "Save" to add the record</li>

@@ -185,6 +185,17 @@ export interface DNSInstructions {
   value: string;
 }
 
+export type DNSProvider =
+  | 'cloudflare'
+  | 'godaddy'
+  | 'namecheap'
+  | 'route53'
+  | 'vercel'
+  | 'digitalocean'
+  | 'hover'
+  | 'squarespace'
+  | 'unknown';
+
 export interface CustomDomainInfo {
   domain: string;
   status: CustomDomainStatus;
@@ -645,7 +656,7 @@ export class ApiService {
   }
 
   // Custom domain methods
-  static async setCustomDomain(projectId: string, domain: string): Promise<{ message: string; domain: string; dnsInstructions: DNSInstructions }> {
+  static async setCustomDomain(projectId: string, domain: string): Promise<{ message: string; domain: string; dnsInstructions: DNSInstructions; detectedProvider?: DNSProvider }> {
     return this.request(`/api/projects/${projectId}/custom-domain`, {
       method: 'PUT',
       body: JSON.stringify({ domain }),

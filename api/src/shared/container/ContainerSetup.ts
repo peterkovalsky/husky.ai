@@ -413,7 +413,8 @@ export function setupContainer(): DIContainer {
 
   // Register Custom Domain Use Cases
   container.registerFactory<SetCustomDomainUseCase>('setCustomDomainUseCase', () => new SetCustomDomainUseCase(
-    container.get<IProjectRepository>('projectRepository')
+    container.get<IProjectRepository>('projectRepository'),
+    container.get<IDNSVerificationService>('dnsVerificationService')
   ));
 
   container.registerFactory<VerifyCustomDomainDNSUseCase>('verifyCustomDomainDNSUseCase', () => new VerifyCustomDomainDNSUseCase(
