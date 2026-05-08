@@ -139,6 +139,7 @@ export const PublishDialog = ({ isOpen, onOpenChange, projectId, onSuccess }: Pu
               projectId={projectId}
               customDomain={publishStatus?.customDomain}
               onUpdate={loadPublishStatus}
+              publishedVersion={publishStatus?.publishedVersion}
             />
           </div>
         )
@@ -212,6 +213,7 @@ export const PublishDialog = ({ isOpen, onOpenChange, projectId, onSuccess }: Pu
               projectId={projectId}
               customDomain={publishStatus?.customDomain}
               onUpdate={loadPublishStatus}
+              publishedVersion={publishStatus?.publishedVersion}
             />
           </div>
         )

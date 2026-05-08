@@ -313,6 +313,7 @@ export const PublishPanel = ({ projectId, isVisible, onSuccess }: PublishPanelPr
                 projectId={projectId}
                 customDomain={publishStatus?.customDomain}
                 onUpdate={loadPublishStatus}
+                publishedVersion={publishStatus?.publishedVersion}
                 compact
               />
             </AccordionItem>
