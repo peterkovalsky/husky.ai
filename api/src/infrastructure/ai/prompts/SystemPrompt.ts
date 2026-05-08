@@ -586,7 +586,12 @@ PACKAGE.JSON - CRITICAL RULES
 
 PRE-INSTALLED PACKAGES (already available - no package.json needed):
 - astro
-- All devDependencies (TypeScript, Tailwind CSS 4, DaisyUI 5, @tailwindcss/vite)
+- All devDependencies (TypeScript, Tailwind CSS 4, DaisyUI 5, @tailwindcss/vite, @tailwindcss/typography)
+
+@tailwindcss/typography is REQUIRED — it powers every \`prose\` class used by markdown
+articles. \`@plugin "@tailwindcss/typography";\` must remain in src/styles/global.css.
+If you ever output package.json, you MUST keep @tailwindcss/typography in
+devDependencies — removing it breaks every blog article.
 
 RULES:
 1. If using ONLY pre-installed packages → DO NOT output package.json
