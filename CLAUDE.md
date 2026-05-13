@@ -82,12 +82,20 @@ The API follows Clean Architecture with four distinct layers:
 ### AI Provider Architecture
 **Provider-agnostic architecture with dual-provider support and automatic execution logging**
 
+> ⚠️ **CRITICAL — AI infra is duplicated in `api/` AND `worker/`.**
+> The AI code generation that runs during a build (the thing that turns a user prompt into a new file tree) executes in the **worker** Cloud Run service, not the api. The `api/src/infrastructure/ai/` and `worker/src/infrastructure/ai/` trees are **separate copies** of `SystemPrompt.ts`, `AIService.ts`, `BaseAIProvider.ts`, `AnthropicProvider.ts`, `OpenAIProvider.ts`, and `GeminiProvider.ts` — and they have **diverged** (worker has extras like design-system injection and iterative-mode rules).
+>
+> **When changing prompts or AI logic:**
+> - ✅ Apply the change to **both** `api/src/infrastructure/ai/` and `worker/src/infrastructure/ai/` in the same PR.
+> - ✅ Confirm the **worker** has been redeployed (`gcloud run revisions list --service=husky-worker --region=us-east1`) before claiming the fix is live — the worker is a separate Cloud Run service from the api, with its own deploy cycle.
+> - ❌ Do NOT assume an api-only PR will affect AI generation. It won't. [#113](https://github.com/Husky-Studio/husky.ai/pull/113) shipped a prompt fix to api only, and prod kept failing the same way until [#114](https://github.com/Husky-Studio/husky.ai/pull/114) ported the change to the worker copy.
+
 The system uses a flexible AI provider architecture that supports multiple AI services with configurable primary (first builds) and fast (iterations) providers.
 
 **Architecture Layers:**
 1. **IAIProvider Interface**: Defines contract for AI providers (generateResponse, setProjectContext, etc.)
 2. **BaseAIProvider**: Abstract class with common logic (file tree management, JSON parsing, response normalization)
-3. **Shared System Prompt**: `prompts/SystemPrompt.ts` - Centralized prompt used by all providers
+3. **System Prompt**: `prompts/SystemPrompt.ts` — exists in both `api/` and `worker/`. The worker copy is the one that runs in production.
 4. **Provider Implementations**:
    - `AnthropicProvider`: Claude Sonnet 4.5 & Haiku 4.5 integration
    - `OpenAIProvider`: GPT-5.1 & GPT-5.1-chat-latest integration
