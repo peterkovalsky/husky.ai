@@ -236,7 +236,11 @@ export class CodeGenerationStep implements IBuildStep {
       // Append text file contents to the prompt
       if (textFileContents.length > 0) {
         for (const textFile of textFileContents) {
-          enhancedPrompt += `\n\nUSER ATTACHED TEXT FILE (${textFile.fileName}):\n---\n${textFile.content}\n---`;
+          enhancedPrompt += `\n\nUSER ATTACHED FILE (${textFile.fileName}):
+The user attached this file as source material. If they asked you to add or create an article, blog post, page content, terms, privacy policy, or any other text-bearing content, use this file's content VERBATIM as the body — do not summarize, abridge, paraphrase, condense, or rewrite. Preserve every heading, paragraph, table, list, image reference, and link exactly as written. The user's wording, structure, length, and formatting are intentional. Only treat this as reference material (rather than verbatim content) if the user explicitly says so in their prompt.
+---
+${textFile.content}
+---`;
         }
         console.log(`[${this.stepName}] Appended ${textFileContents.length} text file(s) to prompt`);
       }
