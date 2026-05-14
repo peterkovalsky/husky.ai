@@ -296,15 +296,19 @@ ${textFile.content}
       }
 
       // 6. Parse and merge file tree
+      // Use responseData.changes (raw delta with __DELETE__ sentinels) NOT
+      // responseData.fileTree (which is AIService's pre-merged tree without
+      // delete sentinels — deletes look identical to "AI didn't touch this
+      // file" and FileTreeMerger preserves them instead of removing).
       console.log(`[${this.stepName}] Parsing AI response and merging file tree...`);
       const responseData = JSON.parse(aiResponse.content);
-      const aiResponseFileTree = responseData.fileTree;
+      const aiResponseChanges = responseData.changes;
 
-      if (!aiResponseFileTree) {
-        throw new Error("No file tree found in AI response");
+      if (!aiResponseChanges || typeof aiResponseChanges !== 'object') {
+        throw new Error("No changes found in AI response");
       }
 
-      const mergeResult = FileTreeMerger.merge(fileTree, aiResponseFileTree, context.template);
+      const mergeResult = FileTreeMerger.merge(fileTree, aiResponseChanges, context.template);
       FileTreeMerger.logMergeStats(mergeResult);
 
       // Store merged file tree in context for next steps
