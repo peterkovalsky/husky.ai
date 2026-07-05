@@ -213,7 +213,13 @@ export default {
       const contentType = object.httpMetadata?.contentType || 'application/octet-stream';
       const responseHeaders = new Headers();
       responseHeaders.set('Content-Type', contentType);
-      responseHeaders.set('Cache-Control', 'public, max-age=3600');
+      // HTML must always revalidate so publishes are visible immediately;
+      // content-hashed assets are safe to cache forever.
+      if (contentType.startsWith('text/html')) {
+        responseHeaders.set('Cache-Control', 'public, max-age=0, must-revalidate');
+      } else {
+        responseHeaders.set('Cache-Control', 'public, max-age=31536000, immutable');
+      }
       responseHeaders.set('Access-Control-Allow-Origin', '*');
 
       // Security headers
